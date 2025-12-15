@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AEO/GEO v2 - Analyze</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #0b1020;
+      color: #e5e7eb;
+    }
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .home-link {
+      margin-bottom: 24px;
+      display: inline-block;
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .home-link:hover {
+      text-decoration: underline;
+    }
+    h1 {
+      margin: 0 0 24px 0;
+    }
+    .input-group {
+      margin-bottom: 16px;
+    }
+    #inputText {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #111827;
+      color: #e5e7eb;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    #btnAnalyze {
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      background: #3b82f6;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #111827;
+      border: 1px solid #1f2937;
+      font-size: 14px;
+    }
+    #result {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #111827;
+      border: 1px solid #1f2937;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <a href="./home.html" class="home-link">Home</a>
+    
+    <h1>AEO / GEO v2</h1>
+    
+    <div class="input-group">
+      <input type="text" id="inputText" />
+    </div>
+    
+    <button id="btnAnalyze">Analyze</button>
+    
+    <div id="status"></div>
+    <div id="result"></div>
+  </div>
+
+  <script type="module">
+    import { boot } from './core/lifecycle.js';
+    
+    boot();
+  </script>
+</body>
+</html>
+
