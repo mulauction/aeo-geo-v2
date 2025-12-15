@@ -32,6 +32,8 @@ export function boot() {
     if (brand) {
       root.inputText.value = `${brand} ${product}`;
     }
+    // 채운 뒤 상품명 input에 focus
+    root.inputText.focus();
   }
 
   bindActions(root);

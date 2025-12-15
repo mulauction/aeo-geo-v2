@@ -93,6 +93,7 @@
     
     <div class="quick-analyze">
       <h2>Quick Analyze</h2>
+      <p style="margin: 0 0 16px 0; font-size: 14px; color: var(--muted);">상품명만 입력해도 됩니다. (브랜드는 선택)</p>
       <div class="input-group">
         <label for="quickProduct">상품명</label>
         <input type="text" id="quickProduct" class="input" placeholder="상품명을 입력하세요" />
@@ -153,13 +154,11 @@
 
     btnQuickAnalyze.addEventListener("click", handleQuickAnalyze);
 
-    [quickProduct, quickBrand].forEach(input => {
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          handleQuickAnalyze();
-        }
-      });
+    quickProduct.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleQuickAnalyze();
+      }
     });
   </script>
 </body>
