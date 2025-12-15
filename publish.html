@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AEO/GEO v2 - Publish</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #0b1020;
+      color: #e5e7eb;
+    }
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .home-link {
+      margin-bottom: 24px;
+      display: inline-block;
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .home-link:hover {
+      text-decoration: underline;
+    }
+    h1 {
+      margin: 0 0 12px 0;
+    }
+    .description {
+      margin: 0 0 32px 0;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    section {
+      margin-bottom: 32px;
+      padding: 20px;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+    }
+    h2 {
+      margin: 0 0 16px 0;
+      font-size: 18px;
+      color: #e5e7eb;
+    }
+    h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #d1d5db;
+    }
+    ol {
+      margin: 0;
+      padding-left: 24px;
+    }
+    li {
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    p {
+      margin: 0 0 12px 0;
+      line-height: 1.6;
+      color: #9ca3af;
+    }
+    ul {
+      margin: 0;
+      padding-left: 24px;
+    }
+    .badge-text {
+      display: inline-block;
+      background: #374151;
+      color: #9ca3af;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <a href="./home.html" class="home-link">Home</a>
+    
+    <h1>Publish - 배포 가이드(준비중)</h1>
+    <p class="description">현재는 자동 등록이 아니라, 생성된 HTML을 복사해 붙이는 방식입니다.</p>
+    
+    <section>
+      <h2>A. Webflow(권장) 5단계 가이드</h2>
+      <ol>
+        <li>Generate에서 HTML 생성</li>
+        <li>output 전체 복사</li>
+        <li>Webflow 프로젝트 열기</li>
+        <li>대상 페이지에 Embed/HTML 블록 추가</li>
+        <li>붙여넣기 → Publish</li>
+      </ol>
+    </section>
+    
+    <section>
+      <h2>B. 스마트스토어/쿠팡<span class="badge-text">준비중</span></h2>
+      <p>플랫폼 편집기 제약으로 자동화는 Phase 3 이후에 제공 예정입니다.</p>
+      <p>현재는 가이드 문서 제공 예정입니다.</p>
+    </section>
+    
+    <section>
+      <h2>C. 체크리스트</h2>
+      <ul>
+        <li>복사한 블록이 &lt;div&gt;로 시작/끝나는지</li>
+        <li>불필요한 스크립트가 없는지</li>
+        <li>FAQ가 포함됐는지(선택)</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>
+
