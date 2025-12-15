@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AEO/GEO v2 - Home</title>
   <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
       margin: 0;
       padding: 24px;
-      background: #0b1020;
-      color: #e5e7eb;
     }
     .app {
       max-width: 960px;
@@ -20,12 +19,9 @@
     }
     h1 {
       margin: 0 0 12px 0;
-      font-size: 32px;
     }
     .subtitle {
       margin: 0 0 48px 0;
-      font-size: 16px;
-      color: #9ca3af;
     }
     .card-grid {
       display: grid;
@@ -34,42 +30,29 @@
       margin-top: 32px;
     }
     .card {
-      background: #111827;
-      border: 1px solid #1f2937;
-      border-radius: 12px;
       padding: 24px;
       text-align: left;
       text-decoration: none;
-      color: #e5e7eb;
+      color: var(--text);
       display: block;
-      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
       position: relative;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-      border-color: #3b82f6;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     }
     .card-title {
       margin: 0 0 8px 0;
       font-size: 20px;
       font-weight: 600;
+      line-height: 1.4;
+      color: var(--text);
     }
     .card-desc {
       margin: 0;
       font-size: 14px;
-      color: #9ca3af;
-      line-height: 1.5;
+      line-height: 1.6;
     }
     .badge {
       position: absolute;
       top: 12px;
       right: 12px;
-      background: #374151;
-      color: #9ca3af;
-      font-size: 12px;
-      padding: 4px 8px;
-      border-radius: 4px;
     }
   </style>
 </head>

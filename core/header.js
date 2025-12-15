@@ -6,9 +6,9 @@ export function renderHeader(headerEl) {
     
     if (!store.auth.isLoggedIn) {
       headerEl.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1f2937; margin-bottom: 24px;">
-          <span style="color: #9ca3af; font-size: 14px;">로그인 필요</span>
-          <button id="btnHeaderLogin" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #3b82f6; background: transparent; color: #3b82f6; font-size: 14px; cursor: pointer;">로그인</button>
+        <div class="app-header">
+          <span class="header-left">로그인 필요</span>
+          <button id="btnHeaderLogin" class="btn-ghost header-right">로그인</button>
         </div>
       `;
       
@@ -23,9 +23,9 @@ export function renderHeader(headerEl) {
       }
     } else {
       headerEl.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1f2937; margin-bottom: 24px;">
-          <span style="color: #e5e7eb; font-size: 14px;">크레딧: <strong style="color: #3b82f6;">${store.credit.balance}</strong></span>
-          <button id="btnHeaderLogout" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #6b7280; background: transparent; color: #9ca3af; font-size: 14px; cursor: pointer;">로그아웃</button>
+        <div class="app-header">
+          <span class="header-left">크레딧: <span class="badge">${store.credit.balance}</span></span>
+          <button id="btnHeaderLogout" class="btn-ghost header-right">로그아웃</button>
         </div>
       `;
       

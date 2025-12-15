@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AEO/GEO v2 - Generate</title>
   <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../styles.css">
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
       margin: 0;
       padding: 24px;
-      background: #0b1020;
-      color: #e5e7eb;
     }
     .app {
       max-width: 960px;
@@ -20,12 +19,6 @@
     .home-link {
       margin-bottom: 24px;
       display: inline-block;
-      color: #3b82f6;
-      text-decoration: none;
-      font-size: 14px;
-    }
-    .home-link:hover {
-      text-decoration: underline;
     }
     h1 {
       margin: 0 0 24px 0;
@@ -37,37 +30,19 @@
       display: block;
       margin-bottom: 8px;
       font-size: 14px;
-      color: #9ca3af;
+      color: var(--muted);
     }
     input[type="text"] {
       width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #1f2937;
-      background: #111827;
-      color: #e5e7eb;
-      font-size: 14px;
-      box-sizing: border-box;
     }
     #btnGen {
-      padding: 12px 24px;
-      border-radius: 8px;
-      border: none;
-      background: #3b82f6;
-      color: white;
-      font-size: 14px;
-      cursor: pointer;
+      padding: 10px 20px;
     }
     #output {
       margin-top: 16px;
       width: 100%;
       min-height: 300px;
       padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #1f2937;
-      background: #111827;
-      color: #e5e7eb;
-      font-size: 14px;
       font-family: 'Courier New', monospace;
       box-sizing: border-box;
       resize: vertical;
@@ -92,7 +67,6 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.7);
       z-index: 1000;
     }
     .modal {
@@ -101,9 +75,6 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: #111827;
-      border: 1px solid #1f2937;
-      border-radius: 12px;
       padding: 24px;
       z-index: 1001;
       max-width: 400px;
@@ -111,32 +82,14 @@
     }
     .modal h3 {
       margin: 0 0 16px 0;
-      font-size: 18px;
     }
     .modal p {
       margin: 0 0 16px 0;
-      color: #9ca3af;
-      font-size: 14px;
     }
     .modal-buttons {
       display: flex;
       gap: 12px;
       justify-content: flex-end;
-    }
-    .modal button {
-      padding: 10px 20px;
-      border-radius: 8px;
-      border: none;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .modal .btn-primary {
-      background: #3b82f6;
-      color: white;
-    }
-    .modal .btn-secondary {
-      background: #374151;
-      color: #e5e7eb;
     }
   </style>
 </head>
@@ -150,22 +103,22 @@
     
     <div class="input-group">
       <label for="product">제품명</label>
-      <input type="text" id="product" />
+      <input type="text" id="product" class="input" />
     </div>
     
     <div class="input-group">
       <label for="brand">브랜드명</label>
-      <input type="text" id="brand" />
+      <input type="text" id="brand" class="input" />
     </div>
     
     <div class="input-group">
       <label for="usecase">사용 상황 한 줄</label>
-      <input type="text" id="usecase" />
+      <input type="text" id="usecase" class="input" />
     </div>
     
-    <button id="btnGen">HTML 생성</button>
+    <button id="btnGen" class="btn btn-primary">HTML 생성</button>
     
-    <textarea id="output" readonly></textarea>
+    <textarea id="output" class="input" readonly></textarea>
   </div>
 
   <div id="modalOverlay"></div>

@@ -1,0 +1,221 @@
+/* Design Tokens */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --text: #000000;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --shadow: rgba(0, 0, 0, 0.05);
+  --radius: 8px;
+}
+
+/* Base */
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Card Component */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px var(--shadow);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px var(--shadow);
+  transform: translateY(-1px);
+}
+
+/* Button Components */
+.btn,
+button.btn,
+.btn-primary,
+button.btn-primary {
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--text);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn:hover,
+button.btn:hover,
+.btn-primary:hover,
+button.btn-primary:hover {
+  opacity: 0.85;
+}
+
+.btn-ghost,
+button.btn-ghost,
+.btn-secondary,
+button.btn-secondary {
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-ghost:hover,
+button.btn-ghost:hover,
+.btn-secondary:hover,
+button.btn-secondary:hover {
+  background: var(--border);
+}
+
+/* Input Component */
+.input,
+input[type="text"],
+input[type="text"].input,
+textarea.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.input:focus,
+input[type="text"]:focus,
+textarea.input:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+/* Modal Component */
+#modalOverlay {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.modal h3 {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.modal p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Badge Component */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.badge-text {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+/* Typography */
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+p,
+.subtitle,
+.description {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* Section */
+section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Link */
+.home-link {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+
+.home-link:hover {
+  opacity: 0.7;
+  text-decoration: underline;
+}
+
+/* Header Component */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.header-left {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.header-left .badge {
+  margin-left: 8px;
+}
+
+.header-right {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
