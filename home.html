@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AEO/GEO v2 - Home</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #0b1020;
+      color: #e5e7eb;
+    }
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 12px 0;
+      font-size: 32px;
+    }
+    .subtitle {
+      margin: 0 0 48px 0;
+      font-size: 16px;
+      color: #9ca3af;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+      margin-top: 32px;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: left;
+      text-decoration: none;
+      color: #e5e7eb;
+      display: block;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: #3b82f6;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+    .card-title {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .card-desc {
+      margin: 0;
+      font-size: 14px;
+      color: #9ca3af;
+      line-height: 1.5;
+    }
+    .badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #374151;
+      color: #9ca3af;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>AEO / GEO v2</h1>
+    <p class="subtitle">AI 노출을 분석하고, 생성하고, 실제 등록까지 이어주는 실행형 SaaS</p>
+    
+    <div class="card-grid">
+      <a href="analyze.html" class="card">
+        <h2 class="card-title">Analyze</h2>
+        <p class="card-desc">입력 1개로 AI 노출 점수와 근거·액션을 즉시 확인</p>
+      </a>
+      
+      <a href="generate.html" class="card">
+        <h2 class="card-title">Generate</h2>
+        <p class="card-desc">AI가 읽기 쉬운 HTML 랜딩 생성</p>
+      </a>
+      
+      <a href="publish.html" class="card">
+        <span class="badge">준비중</span>
+        <h2 class="card-title">Publish</h2>
+        <p class="card-desc">Webflow 등으로 자동 등록 (준비중)</p>
+      </a>
+      
+      <a href="my.html" class="card">
+        <span class="badge">준비중</span>
+        <h2 class="card-title">My</h2>
+        <p class="card-desc">히스토리 / 요금제 / 계정 관리</p>
+      </a>
+    </div>
+  </div>
+</body>
+</html>
+
