@@ -1,9 +1,19 @@
 import { setState } from "./state.js";
+import { requireLogin, requireCredit } from "./gate.js";
+import { spendCredit } from "./credit.js";
 
 export function bindActions(root) {
   root.btnAnalyze.addEventListener("click", async () => {
     const input = root.inputText.value.trim();
     if (!input) return;
+
+    if (!requireLogin({ reason: "분석 기능을 사용하려면 로그인이 필요합니다." })) {
+      return;
+    }
+
+    if (!requireCredit(1, { reason: "분석 기능을 사용하려면 1 크레딧이 필요합니다." })) {
+      return;
+    }
 
     setState({ input, phase: "loading", result: null });
     root.btnAnalyze.disabled = true;
@@ -11,6 +21,8 @@ export function bindActions(root) {
 
     try {
       await wait(2000);
+
+      spendCredit(1);
 
       setState({
         phase: "done",

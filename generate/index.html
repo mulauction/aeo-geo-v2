@@ -85,11 +85,66 @@
     .faq p {
       margin: 4px 0;
     }
+    #modalOverlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 24px;
+      z-index: 1001;
+      max-width: 400px;
+      width: 90%;
+    }
+    .modal h3 {
+      margin: 0 0 16px 0;
+      font-size: 18px;
+    }
+    .modal p {
+      margin: 0 0 16px 0;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    .modal button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .modal .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    .modal .btn-secondary {
+      background: #374151;
+      color: #e5e7eb;
+    }
   </style>
 </head>
 <body>
   <div class="app">
     <a href="../home.html" class="home-link">Home</a>
+    
+    <div id="header"></div>
     
     <h1>Generate - AI 노출 최적화 HTML</h1>
     
@@ -113,8 +168,31 @@
     <textarea id="output" readonly></textarea>
   </div>
 
+  <div id="modalOverlay"></div>
+  
+  <div id="loginModal" class="modal">
+    <h3>로그인 필요</h3>
+    <p id="modalReason" style="display: none;"></p>
+    <div class="modal-buttons">
+      <button id="btnModalClose" class="btn-secondary">취소</button>
+      <button id="btnModalLogin" class="btn-primary">로그인</button>
+    </div>
+  </div>
+
+  <div id="creditModal" class="modal">
+    <h3>크레딧 부족</h3>
+    <p>필요 크레딧: <strong id="creditModalCost"></strong></p>
+    <p id="creditModalReason" style="display: none;"></p>
+    <div class="modal-buttons">
+      <button id="btnCreditModalClose" class="btn-secondary">확인</button>
+    </div>
+  </div>
+
   <script type="module">
     import { bindActions } from './core/actions.js';
+    import { renderHeader } from '../core/header.js';
+    import { createLoginModal, createCreditModal } from '../core/modal.js';
+    import { setModals } from '../core/gate.js';
 
     const root = {
       product: document.getElementById("product"),
@@ -123,6 +201,16 @@
       btnGen: document.getElementById("btnGen"),
       output: document.getElementById("output"),
     };
+
+    const headerEl = document.getElementById("header");
+    if (headerEl) {
+      renderHeader(headerEl);
+    }
+
+    const loginModal = createLoginModal();
+    const creditModal = createCreditModal();
+    setModals(loginModal, creditModal);
+    window.loginModalInstance = loginModal;
 
     bindActions(root);
   </script>
