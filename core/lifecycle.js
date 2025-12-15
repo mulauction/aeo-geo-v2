@@ -23,6 +23,17 @@ export function boot() {
   setModals(loginModal, creditModal);
   window.loginModalInstance = loginModal;
 
+  const params = new URLSearchParams(window.location.search);
+  const product = params.get("product");
+  const brand = params.get("brand");
+  
+  if (product) {
+    root.inputText.value = product;
+    if (brand) {
+      root.inputText.value = `${brand} ${product}`;
+    }
+  }
+
   bindActions(root);
   render(root, getState());
 

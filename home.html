@@ -23,6 +23,36 @@
     .subtitle {
       margin: 0 0 48px 0;
     }
+    .quick-analyze {
+      margin-bottom: 48px;
+      padding: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      text-align: left;
+    }
+    .quick-analyze h2 {
+      margin: 0 0 16px 0;
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--text);
+    }
+    .quick-analyze .input-group {
+      margin-bottom: 12px;
+    }
+    .quick-analyze .input-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .quick-analyze .input-group:last-of-type {
+      margin-bottom: 16px;
+    }
+    .quick-analyze .btn {
+      width: 100%;
+    }
     .card-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -61,6 +91,19 @@
     <h1>AEO / GEO v2</h1>
     <p class="subtitle">AI 노출을 분석하고, 생성하고, 실제 등록까지 이어주는 실행형 SaaS</p>
     
+    <div class="quick-analyze">
+      <h2>Quick Analyze</h2>
+      <div class="input-group">
+        <label for="quickProduct">상품명</label>
+        <input type="text" id="quickProduct" class="input" placeholder="상품명을 입력하세요" />
+      </div>
+      <div class="input-group">
+        <label for="quickBrand">브랜드명 (선택)</label>
+        <input type="text" id="quickBrand" class="input" placeholder="브랜드명을 입력하세요" />
+      </div>
+      <button id="btnQuickAnalyze" class="btn btn-primary">Analyze</button>
+    </div>
+    
     <div class="card-grid">
       <a href="./analyze.html" class="card">
         <h2 class="card-title">Analyze</h2>
@@ -85,6 +128,40 @@
       </a>
     </div>
   </div>
+
+  <script type="module">
+    const quickProduct = document.getElementById("quickProduct");
+    const quickBrand = document.getElementById("quickBrand");
+    const btnQuickAnalyze = document.getElementById("btnQuickAnalyze");
+
+    function handleQuickAnalyze() {
+      const product = quickProduct.value.trim();
+      if (!product) {
+        alert("상품명을 입력해주세요.");
+        return;
+      }
+
+      const brand = quickBrand.value.trim();
+      const params = new URLSearchParams();
+      params.set("product", product);
+      if (brand) {
+        params.set("brand", brand);
+      }
+
+      window.location.href = `./analyze.html?${params.toString()}`;
+    }
+
+    btnQuickAnalyze.addEventListener("click", handleQuickAnalyze);
+
+    [quickProduct, quickBrand].forEach(input => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          handleQuickAnalyze();
+        }
+      });
+    });
+  </script>
 </body>
 </html>
 
