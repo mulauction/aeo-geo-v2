@@ -1,0 +1,24 @@
+{
+  "name": "aeo-geo-v2",
+  "version": "1.0.0",
+  "description": "AEO/GEO v2 - AI 노출 분석 및 생성 SaaS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.22.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mulauction/aeo-geo-v2.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mulauction/aeo-geo-v2/issues"
+  },
+  "homepage": "https://github.com/mulauction/aeo-geo-v2#readme"
+}
