@@ -224,6 +224,8 @@ export function buildImprovementsFromReport(report) {
       <pre style="background: var(--background); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); overflow-x: auto; font-size: 12px; line-height: 1.5;"><code>${esc(htmlSkeleton)}</code></pre>
       
       ${urlStructureSection}
+      
+      <button id="btnAiImprove" class="btn btn-primary" style="width: 100%; margin-top: 16px;">AI 개선 생성 (테스트)</button>
     </div>
   `;
 }

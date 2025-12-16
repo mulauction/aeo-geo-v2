@@ -125,6 +125,31 @@ export function bindActions(root) {
       btn.disabled = true;
       btn.setAttribute("data-loading", "1");
 
+      // ✅ [Phase 4-2C] API 호출
+      const endpoint = "http://localhost:3000/api/improve";
+      fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ping: true,
+          ts: Date.now(),
+        }),
+      })
+        .then(async (response) => {
+          if (response.ok) {
+            const data = await response.json();
+            console.log("[Phase 4-2C] improve api ok", data);
+          } else {
+            const text = await response.text();
+            console.error("[Phase 4-2C] improve api fail", response.status, text);
+          }
+        })
+        .catch((error) => {
+          console.error("[Phase 4-2C] improve api fail", error);
+        });
+
       setTimeout(() => {
         // DOM이 교체될 수 있으므로 최신 버튼을 다시 찾는다
         const latest = document.getElementById("btnAiImprove");
