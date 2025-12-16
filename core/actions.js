@@ -2,6 +2,8 @@ import { setState, getState } from "./state.js";
 import { requireLogin, requireCredit } from "./gate.js";
 import { spendCredit } from "./credit.js";
 import { computeContentStructureV2 } from "./analyzers/contentStructureV2.js";
+import { buildReportPayload } from "./report.js";
+import { buildImprovementsFromReport } from "./improvements.js";
 
 export function bindActions(root) {
   root.btnAnalyze.addEventListener("click", async () => {
@@ -92,6 +94,27 @@ export function bindActions(root) {
     if (event.target && event.target.id === "btnShareReport") {
       event.preventDefault();
       window.location.href = "./share.html";
+    }
+    
+    // ✅ [Phase 4-1A] 개선안 생성 버튼 바인딩
+    if (event.target && event.target.id === "btnGenerateImprovements") {
+      event.preventDefault();
+      const report = buildReportPayload();
+      const improvementsHtml = buildImprovementsFromReport(report);
+      const panel = document.getElementById("improvementsPanel");
+      if (panel) {
+        panel.innerHTML = improvementsHtml;
+        
+        // URL 구조 CTA 클릭 차단 우회용 로컬 핸들러
+        const urlCta = panel.querySelector('[data-cta="url-structure"]');
+        if (urlCta && !urlCta.__localClickBound) {
+          urlCta.__localClickBound = true;
+          urlCta.addEventListener('click', () => {
+            // intentionally empty
+            // presence of local click handler is required to bypass analyze-level interception
+          });
+        }
+      }
     }
   });
 }

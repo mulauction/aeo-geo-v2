@@ -52,6 +52,10 @@ export function render(root, state) {
         });
       }
       
+      // ✅ [Phase 4-1A] improvementsPanel 내용 보존
+      const existingImprovementsPanel = root.result.querySelector('#improvementsPanel');
+      const preservedImprovementsContent = existingImprovementsPanel ? existingImprovementsPanel.innerHTML : '';
+      
       const kpiSection = `
         <div style="margin-bottom: 16px;">
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
@@ -67,12 +71,14 @@ export function render(root, state) {
             })()}
           </div>
           <button id="btnShareReport" class="btn btn-primary" style="width: 100%;">리포트 공유 보기</button>
+          <button id="btnGenerateImprovements" class="btn btn-dark" style="width: 100%; margin-top: 8px;">개선안 생성</button>
         </div>
       `;
   
       // CTA 변경 포인트: 부분점수 안내 + URL 구조 점수 측정 버튼 추가
       root.result.innerHTML = `
         ${kpiSection}
+        <div id="improvementsPanel" style="margin-top: 12px;">${preservedImprovementsContent}</div>
         <div><strong>${esc(r.score)}점 / ${esc(r.grade)}</strong></div>
         <p>${esc(r.summary)}</p>
         
