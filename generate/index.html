@@ -178,6 +178,9 @@
     import { renderHeader } from '../core/header.js';
     import { createLoginModal, createCreditModal } from '../core/modal.js';
     import { setModals } from '../core/gate.js';
+    import { getState, setState } from '../core/state.js';
+
+    const LS_KEY_URL = '__urlStructureV1';
 
     const root = {
       product: document.getElementById("product"),
@@ -199,12 +202,28 @@
 
     bindActions(root);
 
-    // URL 구조 점수 측정 UI (최소 클릭 핸들러)
+    // URL 구조 점수 측정 UI
     (() => {
       const btn = document.querySelector('[data-action="run-url-structure"]');
       const input = document.querySelector('[data-input="target-url"]');
       const out = document.querySelector('[data-output="url-structure-result"]');
       if (!btn || !input || !out) return;
+
+      // 페이지 로드 시 localStorage에서 복원
+      try {
+        const stored = localStorage.getItem(LS_KEY_URL);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.meta && parsed.meta.targetUrl) {
+            input.value = parsed.meta.targetUrl;
+            if (parsed.score !== undefined && parsed.grade) {
+              out.textContent = `점수: ${parsed.score}점 (${parsed.grade}) - 복원됨`;
+            }
+          }
+        }
+      } catch (e) {
+        // 조용히 무시
+      }
 
       btn.addEventListener('click', () => {
         const url = (input.value || '').trim();
@@ -212,9 +231,62 @@
           out.textContent = 'URL을 입력해주세요.';
           return;
         }
-        out.textContent = `(UI만) URL을 받았습니다: ${url}`;
+
+        // 현재 state 가져오기
+        const currentState = getState();
+        
+        // 더미 결과 생성
+        const urlStructureResult = {
+          score: 48,
+          grade: "C",
+          checks: {
+            pathDepth: "deep",
+            queryUsage: "mixed",
+            slugClarity: "weak"
+          },
+          meta: {
+            targetUrl: url,
+            analyzedAt: Date.now(),
+            version: "v1"
+          }
+        };
+
+        // localStorage에 저장
+        try {
+          localStorage.setItem(LS_KEY_URL, JSON.stringify(urlStructureResult));
+        } catch (e) {
+          // 저장 실패 시 조용히 무시
+        }
+
+        // 기존 result가 있으면 병합, 없으면 새로 생성 (기존 score는 유지)
+        const existingResult = currentState.result || {};
+        const updatedResult = {
+          ...existingResult,
+          urlStructureV1: urlStructureResult
+        };
+
+        // state 업데이트
+        setState({
+          result: updatedResult
+        });
+
+        // UI 업데이트
+        out.textContent = `점수: ${urlStructureResult.score}점 (${urlStructureResult.grade}) - 측정 완료`;
       });
     })();
+
+    // 개발용 디버그 훅 (localhost에서만)
+    if (location.hostname === 'localhost') {
+      window.__debug = window.__debug || {};
+      window.__debug.urlStructure = { LS_KEY_URL };
+      window.__debug.dumpUrlScore = () => {
+        try {
+          return JSON.parse(localStorage.getItem(LS_KEY_URL) || 'null');
+        } catch (e) {
+          return null;
+        }
+      };
+    }
   </script>
 </body>
 </html>
