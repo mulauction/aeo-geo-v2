@@ -20,6 +20,20 @@ export function render(root, state) {
       root.result.innerHTML = `
         <div><strong>${esc(r.score)}점 / ${esc(r.grade)}</strong></div>
         <p>${esc(r.summary)}</p>
+        
+        <!-- ✅ [Phase 3-1 Commit B-2] URL 구조 점수 보조 섹션 (state.analysis.scores.urlStructureV1 사용) -->
+        ${(() => {
+          const urlScore = state.analysis?.scores?.urlStructureV1;
+          if (urlScore && urlScore.score !== null && urlScore.score !== undefined) {
+            return `<div style="margin-top: 12px; padding: 8px 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); font-size: 13px;">
+              <span>URL 구조 점수 ${esc(urlScore.score)}/${esc(urlScore.grade)} · 연결됨</span>
+            </div>`;
+          } else {
+            return `<div style="margin-top: 12px; padding: 8px 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); font-size: 13px; color: var(--muted);">
+              <span>URL 구조 점수 · 측정 필요</span>
+            </div>`;
+          }
+        })()}
         <h4>근거</h4>
         <ul>${r.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
         <h4>액션</h4>
