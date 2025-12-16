@@ -1,6 +1,7 @@
-import { setState } from "./state.js";
+import { setState, getState } from "./state.js";
 import { requireLogin, requireCredit } from "./gate.js";
 import { spendCredit } from "./credit.js";
+import { computeContentStructureV2 } from "./analyzers/contentStructureV2.js";
 
 export function bindActions(root) {
   root.btnAnalyze.addEventListener("click", async () => {
@@ -23,6 +24,22 @@ export function bindActions(root) {
       await wait(2000);
 
       spendCredit(1);
+
+      // ✅ [Phase 3-2B] Content Structure V2 계산
+      const contentStructureV2Result = computeContentStructureV2(input);
+
+      // ✅ [Phase 3-2B] 최소 검증 로그 (DEBUG 플래그 조건)
+      if (globalThis.DEBUG && contentStructureV2Result) {
+        console.log('[DEBUG] Content Structure V2 점수:', contentStructureV2Result.score, contentStructureV2Result.grade);
+        console.log('[DEBUG] Evidence:', contentStructureV2Result.evidence);
+      }
+
+      // analysis.scores 초기화 (없으면 생성)
+      const currentState = getState();
+      const analysisScores = {
+        ...(currentState.analysis?.scores || {}),
+        contentStructureV2: contentStructureV2Result
+      };
 
       setState({
         phase: "done",
@@ -51,6 +68,9 @@ export function bindActions(root) {
             }
           },
         },
+        analysis: {
+          scores: analysisScores
+        }
       });
     } finally {
       root.btnAnalyze.disabled = false;
