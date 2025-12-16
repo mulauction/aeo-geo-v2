@@ -40,6 +40,16 @@ export function bindActions(root) {
             "스펙/USP 리스트화",
             "FAQ 3개 구성",
           ],
+          urlStructureV1: {
+            score: null,
+            grade: null,
+            checks: {},
+            meta: {
+              targetUrl: null,
+              analyzedAt: null,
+              version: "v1"
+            }
+          },
         },
       });
     } finally {
