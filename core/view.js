@@ -53,23 +53,19 @@ export function render(root, state) {
       }
       
       const kpiSection = `
-        <div style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-          ${renderKpi({ label: '엔티티 점수', value: brandingScore })}
-          ${renderKpi({ label: '콘텐츠 구조 점수', value: contentStructureV2Score })}
-          ${(() => {
-            const urlKpi = renderKpi({ label: 'URL 구조 점수', value: urlStructureV1Score });
-            if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
-              return urlKpi.replace('</span>', ` · 연결됨</span>`);
-            } else {
-              return urlKpi.replace('</span>', ` · 측정 필요</span>`);
-            }
-          })()}
-        </div>
-      `;
-      
-      // ✅ 리포트 공유 보기 버튼
-      const shareReportButton = `
         <div style="margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+            ${renderKpi({ label: '엔티티 점수', value: brandingScore })}
+            ${renderKpi({ label: '콘텐츠 구조 점수', value: contentStructureV2Score })}
+            ${(() => {
+              const urlKpi = renderKpi({ label: 'URL 구조 점수', value: urlStructureV1Score });
+              if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
+                return urlKpi.replace('</span>', ` · 연결됨</span>`);
+              } else {
+                return urlKpi.replace('</span>', ` · 측정 필요</span>`);
+              }
+            })()}
+          </div>
           <button id="btnShareReport" class="btn btn-primary" style="width: 100%;">리포트 공유 보기</button>
         </div>
       `;
@@ -77,7 +73,6 @@ export function render(root, state) {
       // CTA 변경 포인트: 부분점수 안내 + URL 구조 점수 측정 버튼 추가
       root.result.innerHTML = `
         ${kpiSection}
-        ${shareReportButton}
         <div><strong>${esc(r.score)}점 / ${esc(r.grade)}</strong></div>
         <p>${esc(r.summary)}</p>
         

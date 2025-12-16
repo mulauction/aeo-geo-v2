@@ -85,6 +85,15 @@ export function bindActions(root) {
       root.btnAnalyze.click();
     }
   });
+  
+  // ✅ 리포트 공유 보기 버튼 바인딩
+  // 동적으로 생성되는 버튼이므로 이벤트 위임 사용
+  document.addEventListener("click", (event) => {
+    if (event.target && event.target.id === "btnShareReport") {
+      event.preventDefault();
+      window.location.href = "./share.html";
+    }
+  });
 }
 
 function wait(ms) {
