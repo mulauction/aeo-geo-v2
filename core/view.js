@@ -3,7 +3,7 @@
  * @param {Object} param0 - { label, value }
  * @returns {string} HTML 문자열
  */
-function renderKpi({ label, value }) {
+export function renderKpi({ label, value }) {
   if (value === null || value === undefined) {
     return `<div style="padding: 8px 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); font-size: 13px; color: var(--muted);">
       <span>${esc(label)} · 측정 필요</span>
@@ -108,7 +108,7 @@ export function render(root, state) {
     }
   }
   
-  function esc(v) {
+export function esc(v) {
     return String(v)
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
