@@ -79,6 +79,12 @@
       gap: 12px;
       justify-content: flex-end;
     }
+    #btnAiImprove[data-loading="1"] {
+      opacity: 0.85;
+    }
+    #btnAiImprove[data-loading="1"]::after {
+      content: " (AI 생성중...)";
+    }
   </style>
 </head>
 <body>

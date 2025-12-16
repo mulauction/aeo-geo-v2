@@ -116,6 +116,25 @@ export function bindActions(root) {
         }
       }
     }
+    
+    // ✅ [Phase 4-2A] AI 개선 버튼 바인딩
+    if (event.target && event.target.id === "btnAiImprove") {
+      const btn = event.target;
+      if (btn.disabled) return;
+
+      btn.disabled = true;
+      btn.setAttribute("data-loading", "1");
+
+      setTimeout(() => {
+        // DOM이 교체될 수 있으므로 최신 버튼을 다시 찾는다
+        const latest = document.getElementById("btnAiImprove");
+        if (latest) {
+          latest.removeAttribute("data-loading");
+          latest.disabled = false;
+        }
+        console.log("[Phase 4-2B] fake loading complete");
+      }, 1200);
+    }
   });
 }
 
