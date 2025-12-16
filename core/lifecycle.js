@@ -39,6 +39,17 @@ export function boot() {
   bindActions(root);
   render(root, getState());
 
+  // URL 구조 CTA: analyze 화면에서 항상 클릭되도록 document delegate 1회 바인딩
+  if (!window.__urlStructureCtaBound) {
+    window.__urlStructureCtaBound = true;
+
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest('[data-cta="url-structure"]');
+      if (!el) return;
+      location.assign('./generate/index.html#url');
+    });
+  }
+
   setInterval(() => {
     render(root, getState());
   }, 120);
