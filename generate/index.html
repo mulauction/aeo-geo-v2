@@ -101,6 +101,38 @@
     
     <h1>Generate - AI 노출 최적화 HTML</h1>
     
+    <section class="input-group" data-section="url-structure" style="margin-bottom: 24px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+      <h3 style="margin: 0 0 10px 0; font-size: 18px;">URL 구조 점수 (미리보기)</h3>
+
+      <label style="display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted);">분석할 URL</label>
+      <input
+        type="url"
+        placeholder="https://example.com/page"
+        data-input="target-url"
+        class="input"
+        style="width: 100%;"
+      />
+
+      <div style="height: 10px;"></div>
+
+      <button
+        type="button"
+        class="btn btn-primary"
+        data-action="run-url-structure"
+      >
+        URL 구조 점수 측정
+      </button>
+
+      <div style="height: 10px;"></div>
+
+      <div
+        data-output="url-structure-result"
+        style="font-size: 13px; color: var(--muted);"
+      >
+        아직 점수 계산/저장 로직은 연결되지 않았습니다. (UI만 복구된 상태)
+      </div>
+    </section>
+    
     <div class="input-group">
       <label for="product">제품명</label>
       <input type="text" id="product" class="input" />
@@ -166,6 +198,23 @@
     window.loginModalInstance = loginModal;
 
     bindActions(root);
+
+    // URL 구조 점수 측정 UI (최소 클릭 핸들러)
+    (() => {
+      const btn = document.querySelector('[data-action="run-url-structure"]');
+      const input = document.querySelector('[data-input="target-url"]');
+      const out = document.querySelector('[data-output="url-structure-result"]');
+      if (!btn || !input || !out) return;
+
+      btn.addEventListener('click', () => {
+        const url = (input.value || '').trim();
+        if (!url) {
+          out.textContent = 'URL을 입력해주세요.';
+          return;
+        }
+        out.textContent = `(UI만) URL을 받았습니다: ${url}`;
+      });
+    })();
   </script>
 </body>
 </html>
