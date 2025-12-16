@@ -56,6 +56,10 @@ export function render(root, state) {
       const existingImprovementsPanel = root.result.querySelector('#improvementsPanel');
       const preservedImprovementsContent = existingImprovementsPanel ? existingImprovementsPanel.innerHTML : '';
       
+      // ✅ [Phase 4-1B UX 버그 수정] 개선안 HTML skeleton 존재 여부 확인
+      const hasImprovements = root.result.querySelector('#improvementHtmlSkeleton') && 
+                              root.result.querySelector('#improvementHtmlSkeleton').textContent.trim().length > 0;
+      
       const kpiSection = `
         <div style="margin-bottom: 16px;">
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
@@ -74,10 +78,30 @@ export function render(root, state) {
           <button id="btnGenerateImprovements" class="btn btn-dark" style="width: 100%; margin-top: 8px;">개선안 생성</button>
         </div>
       `;
+      
+      // ✅ [Phase 4-1B UX 버그 수정] 복사/다운로드 버튼 항상 렌더 (disabled 상태)
+      // ✅ [Phase 4-2A] AI 고도화 버튼 상태 확인
+      const aiImproveBtn = root.result.querySelector('#btnAiImprove');
+      const isAiLoading = aiImproveBtn && aiImproveBtn.disabled && aiImproveBtn.textContent.includes('생성중');
+      
+      const improvementsActionButtons = `
+        <div style="margin-top: 12px; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <button id="btnCopyImprovementHtml" class="btn btn-secondary btn-stable" ${hasImprovements ? '' : 'disabled'} style="flex: 1;">HTML 복사</button>
+            <button id="btnDownloadImprovement" class="btn btn-secondary btn-stable" ${hasImprovements ? '' : 'disabled'} style="flex: 1;">개선안 다운로드</button>
+          </div>
+          ${hasImprovements ? `
+            <button id="btnAiImprove" class="btn btn-primary btn-stable" ${isAiLoading ? 'disabled' : ''} style="width: 100%;">${isAiLoading ? 'AI 생성중...' : 'AI로 개선안 고도화'}</button>
+            <p style="margin: 4px 0 0 0; font-size: 11px; color: var(--muted); text-align: center;">서버 모드에서 사용 가능</p>
+          ` : ''}
+          ${!hasImprovements ? '<p style="margin: 8px 0 0 0; font-size: 12px; color: var(--muted);">먼저 개선안 생성을 눌러주세요.</p>' : ''}
+        </div>
+      `;
   
       // CTA 변경 포인트: 부분점수 안내 + URL 구조 점수 측정 버튼 추가
       root.result.innerHTML = `
         ${kpiSection}
+        ${improvementsActionButtons}
         <div id="improvementsPanel" style="margin-top: 12px;">${preservedImprovementsContent}</div>
         <div><strong>${esc(r.score)}점 / ${esc(r.grade)}</strong></div>
         <p>${esc(r.summary)}</p>
@@ -113,6 +137,42 @@ export function render(root, state) {
           // intentionally empty
           // presence of local click handler is required to bypass analyze-level interception
         });
+      }
+      
+      // ✅ [Phase 4-1B UX 버그 수정] 버튼 상태 동기화
+      const copyBtn = root.result.querySelector('#btnCopyImprovementHtml');
+      const downloadBtn = root.result.querySelector('#btnDownloadImprovement');
+      const aiBtn = root.result.querySelector('#btnAiImprove');
+      const skeletonEl = root.result.querySelector('#improvementHtmlSkeleton');
+      const hasSkeleton = skeletonEl && skeletonEl.textContent.trim().length > 0;
+      
+      if (copyBtn) {
+        copyBtn.disabled = !hasSkeleton;
+      }
+      if (downloadBtn) {
+        downloadBtn.disabled = !hasSkeleton;
+      }
+      
+      // ✅ [Phase 4-2A] AI 버튼 상태 동기화 (로딩 중이 아닐 때만)
+      if (aiBtn && hasSkeleton && !aiBtn.__aiImproveLocked) {
+        aiBtn.disabled = false;
+        if (aiBtn.textContent === 'AI 생성중...') {
+          aiBtn.textContent = 'AI로 개선안 고도화';
+        }
+      }
+      
+      // 안내 문구 표시/숨김
+      const actionButtonsContainer = copyBtn?.parentElement?.parentElement;
+      if (actionButtonsContainer) {
+        let hintText = actionButtonsContainer.querySelector('p');
+        if (!hasSkeleton && !hintText) {
+          hintText = document.createElement('p');
+          hintText.style.cssText = 'margin: 8px 0 0 0; font-size: 12px; color: var(--muted);';
+          hintText.textContent = '먼저 개선안 생성을 눌러주세요.';
+          actionButtonsContainer.appendChild(hintText);
+        } else if (hasSkeleton && hintText) {
+          hintText.remove();
+        }
       }
     }
   }

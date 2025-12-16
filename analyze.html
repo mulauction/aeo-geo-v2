@@ -79,6 +79,21 @@
       gap: 12px;
       justify-content: flex-end;
     }
+    /* ✅ [Phase 4-1B UX 버그 수정] 버튼 깜빡임 제거 */
+    .btn-stable {
+      transition: none !important;
+      animation: none !important;
+      transform: none !important;
+      border-width: 1px !important;
+      min-height: 44px;
+    }
+    .btn-stable:hover,
+    .btn-stable:focus,
+    .btn-stable:active {
+      transition: none !important;
+      animation: none !important;
+      transform: none !important;
+    }
   </style>
 </head>
 <body>
@@ -119,6 +134,7 @@
     </div>
   </div>
 
+  <script>globalThis.IMPROVE_API_ENDPOINT='http://localhost:3000/api/improve';</script>
   <script type="module">
     import { boot } from './core/lifecycle.js';
     

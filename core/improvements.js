@@ -2,7 +2,14 @@
  * ✅ [Phase 4-1A] 룰 기반 개선안 생성 모듈
  * evidence를 기반으로 체크리스트와 HTML skeleton 생성
  * 외부 API 호출 금지 (순수 룰 기반)
+ * 
+ * ✅ [Phase 4-2A] LLM 개선안 고도화 기능 추가
  */
+
+/**
+ * ✅ [Phase 4-2A] API 엔드포인트 설정
+ */
+const IMPROVE_API_ENDPOINT = (globalThis.IMPROVE_API_ENDPOINT || '/api/improve');
 
 /**
  * HTML 이스케이프 함수
@@ -213,17 +220,195 @@ export function buildImprovementsFromReport(report) {
     `;
   }
 
+  // ✅ [Phase 4-1B] 체크리스트와 HTML skeleton을 data 속성으로 저장
+  const improvementsData = JSON.stringify({ checklist, htmlSkeleton });
+  // HTML 속성에 안전하게 삽입하기 위해 이스케이프
+  const improvementsDataEscaped = esc(improvementsData);
+
   return `
-    <div style="padding: 16px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
+    <div style="padding: 16px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);" data-improvements="${improvementsDataEscaped}">
       <h3 style="margin: 0 0 16px 0;">개선 체크리스트</h3>
       <ul style="margin: 0 0 16px 0; padding-left: 24px;">
         ${checklist.map(item => `<li style="margin-bottom: 8px;">${esc(item)}</li>`).join('')}
       </ul>
       
       <h3 style="margin: 16px 0 8px 0;">복붙용 HTML Skeleton</h3>
-      <pre style="background: var(--background); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); overflow-x: auto; font-size: 12px; line-height: 1.5;"><code>${esc(htmlSkeleton)}</code></pre>
+      <pre id="improvementHtmlSkeleton" style="background: var(--background); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); overflow-x: auto; font-size: 12px; line-height: 1.5;"><code>${esc(htmlSkeleton)}</code></pre>
       
       ${urlStructureSection}
+    </div>
+  `;
+}
+
+/**
+ * ✅ [Phase 4-1B] 개선안을 Markdown 형식으로 변환
+ * @param {Object} improvements - 개선안 데이터 객체 { checklist, htmlSkeleton }
+ * @param {Object} context - 컨텍스트 정보 (선택사항)
+ * @returns {string} Markdown 문자열
+ */
+export function buildImprovementMarkdown(improvements, context = {}) {
+  if (!improvements || !improvements.checklist || !improvements.htmlSkeleton) {
+    return '# 개선안\n\n데이터가 없습니다.';
+  }
+
+  const { checklist, htmlSkeleton } = improvements;
+  const date = new Date();
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+  const timeStr = date.toTimeString().slice(0, 5).replace(':', '');
+  
+  let markdown = `# AEO/GEO 개선안\n\n`;
+  markdown += `생성일: ${date.toLocaleString('ko-KR')}\n\n`;
+  
+  if (context.input) {
+    markdown += `분석 대상: ${context.input}\n\n`;
+  }
+  
+  markdown += `---\n\n`;
+  markdown += `## 개선 체크리스트\n\n`;
+  
+  checklist.forEach((item, index) => {
+    markdown += `${index + 1}. ${item}\n`;
+  });
+  
+  markdown += `\n---\n\n`;
+  markdown += `## HTML Skeleton\n\n`;
+  markdown += `\`\`\`html\n`;
+  markdown += `${htmlSkeleton}\n`;
+  markdown += `\`\`\`\n`;
+  
+  return markdown;
+}
+
+/**
+ * ✅ [Phase 4-2A] LLM 요청을 위한 payload 구성
+ * @param {Object} report - 리포트 객체
+ * @param {string[]} checklist - 룰 기반 체크리스트
+ * @param {string} htmlSkeleton - 룰 기반 HTML skeleton
+ * @returns {Object} LLM 요청 payload
+ */
+export function buildImprovePayload(report, checklist, htmlSkeleton) {
+  // evidence 수집 (최대 12개)
+  const evidenceList = [];
+  if (report.result && Array.isArray(report.result.evidence)) {
+    evidenceList.push(...report.result.evidence.slice(0, 12));
+  }
+  if (report.analysis?.scores?.contentStructureV2?.evidence && Array.isArray(report.analysis.scores.contentStructureV2.evidence)) {
+    const remaining = 12 - evidenceList.length;
+    if (remaining > 0) {
+      evidenceList.push(...report.analysis.scores.contentStructureV2.evidence.slice(0, remaining));
+    }
+  }
+
+  // 체크리스트 제한 (최대 10개)
+  const limitedChecklist = checklist.slice(0, 10);
+
+  // HTML skeleton 제한 (최대 2500 chars)
+  const limitedHtml = htmlSkeleton.length > 2500 ? htmlSkeleton.substring(0, 2500) : htmlSkeleton;
+
+  const payload = {
+    input: report.input || '',
+    evidence: evidenceList,
+    checklist: limitedChecklist,
+    htmlSkeleton: limitedHtml
+  };
+
+  // 총 payload 문자열 길이 확인 (6000 chars 내)
+  const payloadStr = JSON.stringify(payload);
+  if (payloadStr.length > 6000) {
+    // HTML skeleton을 더 줄임
+    const targetLength = 6000 - JSON.stringify({
+      input: payload.input,
+      evidence: payload.evidence,
+      checklist: payload.checklist,
+      htmlSkeleton: ''
+    }).length;
+    payload.htmlSkeleton = payload.htmlSkeleton.substring(0, Math.max(0, targetLength - 100));
+  }
+
+  return payload;
+}
+
+/**
+ * ✅ [Phase 4-2A] LLM 응답 검증
+ * @param {Object} response - LLM 응답 객체
+ * @returns {{valid: boolean, error?: string, data?: Object}}
+ */
+export function validateImproveResponse(response) {
+  if (!response || typeof response !== 'object') {
+    return { valid: false, error: '응답이 객체가 아닙니다.' };
+  }
+
+  // checklist 검증
+  if (!Array.isArray(response.checklist)) {
+    return { valid: false, error: 'checklist가 배열이 아닙니다.' };
+  }
+  if (response.checklist.length < 5 || response.checklist.length > 12) {
+    return { valid: false, error: `checklist 개수가 유효하지 않습니다 (${response.checklist.length}개, 5~12개 필요).` };
+  }
+
+  // html 검증
+  if (!response.html || typeof response.html !== 'string') {
+    return { valid: false, error: 'html이 문자열이 아닙니다.' };
+  }
+  
+  const htmlLower = response.html.toLowerCase();
+  const requiredElements = ['h1', 'h2', 'ul', 'p'];
+  const missingElements = requiredElements.filter(el => !htmlLower.includes(`<${el}`));
+  
+  if (missingElements.length > 0) {
+    return { valid: false, error: `HTML에 필수 요소가 없습니다: ${missingElements.join(', ')}` };
+  }
+
+  // FAQ 섹션 확인 (선택사항이지만 권장)
+  const hasFaq = htmlLower.includes('faq') || htmlLower.includes('질문') || htmlLower.includes('q:') || htmlLower.includes('q1');
+  
+  // notes 검증 (선택사항)
+  const notes = Array.isArray(response.notes) ? response.notes : [];
+
+  return {
+    valid: true,
+    data: {
+      checklist: response.checklist,
+      html: response.html,
+      notes: notes
+    }
+  };
+}
+
+/**
+ * ✅ [Phase 4-2A] AI 개선안 HTML 렌더링
+ * @param {Object} aiData - AI 개선안 데이터 { checklist, html, notes }
+ * @returns {string} HTML 문자열
+ */
+export function renderAiImprovements(aiData) {
+  const { checklist, html, notes } = aiData;
+  
+  let notesSection = '';
+  if (notes && notes.length > 0) {
+    notesSection = `
+      <div style="margin-top: 16px; padding: 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
+        <h4 style="margin: 0 0 8px 0;">AI 분석 노트</h4>
+        <ul style="margin: 0; padding-left: 24px;">
+          ${notes.map(note => `<li style="margin-bottom: 4px;">${esc(note)}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="margin-top: 16px; padding: 16px; background: var(--surface); border-radius: var(--radius); border: 2px solid var(--border); border-color: #3b82f6;">
+      <h3 style="margin: 0 0 12px 0; color: #3b82f6;">✨ AI 개선안</h3>
+      <div style="margin-bottom: 16px;">
+        <h4 style="margin: 0 0 8px 0;">개선 체크리스트</h4>
+        <ul style="margin: 0 0 16px 0; padding-left: 24px;">
+          ${checklist.map(item => `<li style="margin-bottom: 8px;">${esc(item)}</li>`).join('')}
+        </ul>
+      </div>
+      
+      <h4 style="margin: 16px 0 8px 0;">복붙용 HTML Skeleton</h4>
+      <pre id="improvementHtmlSkeletonAi" style="background: var(--background); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); overflow-x: auto; font-size: 12px; line-height: 1.5;"><code>${esc(html)}</code></pre>
+      
+      ${notesSection}
     </div>
   `;
 }
