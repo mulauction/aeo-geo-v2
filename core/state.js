@@ -1,5 +1,8 @@
 const STATE_KEY = "aeo_state_v2";
 
+// ✅ [Phase 3-2A] analysis.scores 정식 스키마 슬롯 정의
+export const ANALYSIS_SCORE_SLOTS = ['branding', 'contentStructureV2', 'urlStructureV1'];
+
 export const initialState = {
     input: "",
     phase: "idle", // idle | loading | done
@@ -39,6 +42,25 @@ export function getState() {
   return state;
 }
 
+/**
+ * ✅ [Phase 3-2A] analysis.scores를 정식 스키마 기준으로 정규화
+ * - 슬롯이 없으면 null로 명시
+ * - 기존 값은 유지
+ */
+function normalizeAnalysisScores(scores) {
+  const normalized = {};
+  
+  for (const slot of ANALYSIS_SCORE_SLOTS) {
+    if (scores && scores[slot] !== undefined) {
+      normalized[slot] = scores[slot];
+    } else {
+      normalized[slot] = null;
+    }
+  }
+  
+  return normalized;
+}
+
 export function setState(patch) {
   state = { ...state, ...patch };
   
@@ -57,11 +79,9 @@ export function setState(patch) {
       updatedAt: Date.now()
     };
     
-    // ✅ [Phase 3-1 Commit B] analysis.scores.urlStructureV1만 저장 (최소 필드)
+    // ✅ [Phase 3-2A] analysis.scores를 정식 스키마 기준으로 정규화하여 저장
     stateToSave.analysis = {
-      scores: {
-        urlStructureV1: state.analysis?.scores?.urlStructureV1 ?? null
-      }
+      scores: normalizeAnalysisScores(state.analysis?.scores)
     };
     
     saveToStorage(STATE_KEY, stateToSave);
