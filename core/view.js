@@ -66,10 +66,18 @@ export function render(root, state) {
           })()}
         </div>
       `;
+      
+      // ✅ 리포트 공유 보기 버튼
+      const shareReportButton = `
+        <div style="margin-bottom: 16px;">
+          <button id="btnShareReport" class="btn btn-primary" style="width: 100%;">리포트 공유 보기</button>
+        </div>
+      `;
   
       // CTA 변경 포인트: 부분점수 안내 + URL 구조 점수 측정 버튼 추가
       root.result.innerHTML = `
         ${kpiSection}
+        ${shareReportButton}
         <div><strong>${esc(r.score)}점 / ${esc(r.grade)}</strong></div>
         <p>${esc(r.summary)}</p>
         
