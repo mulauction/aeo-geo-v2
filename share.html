@@ -99,6 +99,30 @@
       // document.title 변경
       document.title = "Login required";
       
+      // ✅ [Phase 4-2 Gate] Print 차단: window.print 오버라이드
+      const originalPrint = window.print;
+      window.print = () => {
+        alert("로그인 후 리포트를 인쇄할 수 있습니다.");
+        return false;
+      };
+      
+      // ✅ [Phase 4-2 Gate] Print 차단: Ctrl/Cmd+P 키보드 이벤트 차단
+      window.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("로그인 후 리포트를 인쇄할 수 있습니다.");
+          return false;
+        }
+      }, true);
+      
+      // ✅ [Phase 4-2 Gate] Print 차단: beforeprint 이벤트 차단
+      window.addEventListener('beforeprint', (e) => {
+        e.preventDefault();
+        alert("로그인 후 리포트를 인쇄할 수 있습니다.");
+        return false;
+      }, true);
+      
       // document.body를 로그인 안내 화면으로 교체
       document.body.innerHTML = `
         <div class="app" style="max-width: 960px; margin: 0 auto; padding: 24px;">
