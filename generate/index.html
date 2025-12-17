@@ -102,7 +102,8 @@
     <h1>Generate - AI 노출 최적화 HTML</h1>
     
     <section class="input-group" data-section="url-structure" style="margin-bottom: 24px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-      <h3 style="margin: 0 0 10px 0; font-size: 18px;">URL 구조 점수 (미리보기)</h3>
+      <h3 style="margin: 0 0 10px 0; font-size: 18px;">URL 구조 점수 (미리보기: 로컬 규칙)</h3>
+      <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--muted);">실제 접속 기반 측정은 Analyze에서 진행</p>
 
       <label style="display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted);">분석할 URL</label>
       <input
@@ -179,6 +180,7 @@
     import { createLoginModal, createCreditModal } from '../core/modal.js';
     import { setModals } from '../core/gate.js';
     import { getState, setState } from '../core/state.js';
+    import { calculateUrlPreviewScore } from './core/urlPreview.js';
 
     const LS_KEY_URL = '__urlStructureV1';
 
@@ -217,7 +219,9 @@
           if (parsed && parsed.meta && parsed.meta.targetUrl) {
             input.value = parsed.meta.targetUrl;
             if (parsed.score !== undefined && parsed.grade) {
-              out.textContent = `점수: ${parsed.score}점 (${parsed.grade}) - 복원됨`;
+              const reasons = parsed.reasons || [];
+              const reasonsText = reasons.length > 0 ? `\n${reasons.join('\n')}` : '';
+              out.textContent = `점수: ${parsed.score}점 (${parsed.grade}) - 복원됨${reasonsText}`;
             }
           }
         }
@@ -232,22 +236,35 @@
           return;
         }
 
+        // ✅ [Generate] URL 구조 점수 계산 (로컬 규칙 미리보기)
+        const previewResult = calculateUrlPreviewScore(url);
+        
+        if (!previewResult) {
+          out.textContent = '올바른 URL 형식이 아닙니다.';
+          return;
+        }
+
+        // 디버그 로그 1줄만
+        console.info(`[URL Preview] ${url} → ${previewResult.score}점`);
+
         // 현재 state 가져오기
         const currentState = getState();
         
-        // 더미 결과 생성
+        // 결과 생성
         const urlStructureResult = {
-          score: 48,
-          grade: "C",
+          score: previewResult.score,
+          grade: previewResult.grade,
           checks: {
-            pathDepth: "deep",
-            queryUsage: "mixed",
-            slugClarity: "weak"
+            pathDepth: previewResult.score >= 80 ? "shallow" : previewResult.score >= 60 ? "moderate" : "deep",
+            queryUsage: previewResult.score >= 60 ? "minimal" : "mixed",
+            slugClarity: previewResult.score >= 60 ? "clear" : "weak"
           },
+          reasons: previewResult.reasons,
           meta: {
             targetUrl: url,
             analyzedAt: Date.now(),
-            version: "v1"
+            version: "v1",
+            preview: true // 미리보기 표시
           }
         };
 
@@ -271,7 +288,8 @@
         });
 
         // UI 업데이트
-        out.textContent = `점수: ${urlStructureResult.score}점 (${urlStructureResult.grade}) - 측정 완료`;
+        const reasonsText = previewResult.reasons.length > 0 ? `\n${previewResult.reasons.join('\n')}` : '';
+        out.textContent = `점수: ${previewResult.score}점 (${previewResult.grade}) - 측정 완료${reasonsText}`;
       });
     })();
 

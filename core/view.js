@@ -1,3 +1,5 @@
+import { isLoggedIn } from "./gate.js";
+
 /**
  * ✅ [Phase 3-2C] 공통 KPI 렌더 함수
  * @param {Object} param0 - { label, value }
@@ -71,7 +73,13 @@ export function render(root, state) {
             })()}
           </div>
           <button id="btnShareReport" class="btn btn-primary" style="width: 100%;">리포트 공유 보기</button>
-          <button id="btnGenerateImprovements" class="btn btn-dark" style="width: 100%; margin-top: 8px;">개선안 생성</button>
+          ${(() => {
+            const loggedIn = isLoggedIn();
+            return `
+              <button id="btnGenerateImprovements" class="btn btn-dark" style="width: 100%; margin-top: 8px;" ${!loggedIn ? 'disabled' : ''}>개선안 생성</button>
+              ${!loggedIn ? '<p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>' : ''}
+            `;
+          })()}
         </div>
       `;
   

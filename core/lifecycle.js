@@ -3,7 +3,7 @@ import { render } from "./view.js";
 import { bindActions } from "./actions.js";
 import { renderHeader } from "./header.js";
 import { createLoginModal, createCreditModal } from "./modal.js";
-import { setModals } from "./gate.js";
+import { setModals, gateOrWarn } from "./gate.js";
 
 export function boot() {
   const root = {
@@ -22,6 +22,13 @@ export function boot() {
       (e) => {
         const hit = e.target.closest('a[data-cta="url-structure"], [data-cta="url-structure"]');
         if (!hit) return;
+
+        // ✅ [Phase 4-2 Gate] 로그인 게이트 체크
+        if (!gateOrWarn("URL 구조 점수 측정")) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
 
         // 다른 핸들러가 이 클릭을 먹지 못하게 선점
         e.preventDefault();

@@ -91,72 +91,104 @@
   <script type="module">
     import { buildReportPayload } from './core/report.js';
     import { renderKpi } from './core/view.js';
+    import { isLoggedIn, gateOrWarn } from './core/gate.js';
     
-    function esc(v) {
-      return String(v)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-    }
-    
-    function renderShareContent() {
-      const payload = buildReportPayload();
-      const scores = payload.analysis?.scores || {};
-      const brandingScore = scores.branding;
-      const contentStructureV2Score = scores.contentStructureV2;
-      const urlStructureV1Score = scores.urlStructureV1;
+    // ✅ [Phase 4-2 Gate] share.html 진입 즉시 로그인 체크
+    // 리포트 렌더/복원 로직을 절대 실행하지 않도록 가장 먼저 체크
+    if (!isLoggedIn()) {
+      // document.title 변경
+      document.title = "Login required";
       
-      // ✅ [Phase 3-2D] Share 화면 KPI 섹션 (Phase 3-2C 규격 사용)
-      const kpiSection = `
-        <div class="kpi-section">
-          ${renderKpi({ label: '엔티티 점수', value: brandingScore })}
-          ${renderKpi({ label: '콘텐츠 구조 점수', value: contentStructureV2Score })}
-          ${(() => {
-            const urlKpi = renderKpi({ label: 'URL 구조 점수', value: urlStructureV1Score });
-            if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
-              return urlKpi.replace('</span>', ` · 연결됨</span>`);
-            } else {
-              return urlKpi.replace('</span>', ` · 측정 필요</span>`);
-            }
-          })()}
+      // document.body를 로그인 안내 화면으로 교체
+      document.body.innerHTML = `
+        <div class="app" style="max-width: 960px; margin: 0 auto; padding: 24px;">
+          <h1 style="margin: 0 0 24px 0;">로그인 필요</h1>
+          <div style="padding: 24px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
+            <p style="margin: 0 0 16px 0; color: var(--muted);">리포트를 보려면 로그인이 필요합니다.</p>
+            <a href="./home.html" class="btn btn-primary" style="display: inline-block; text-decoration: none;">홈으로 이동</a>
+          </div>
         </div>
       `;
       
-      // ✅ [Phase 3-2D] 콘텐츠 구조 점수 근거 섹션
-      let contentStructureEvidenceSection = '';
-      if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
-        contentStructureEvidenceSection = `
-          <div style="margin-bottom: 24px;">
-            <h4 style="margin: 0 0 12px 0;">콘텐츠 구조 점수 근거</h4>
-            <ul style="margin: 0; padding-left: 24px;">
-              ${contentStructureV2Score.evidence.map(e => `<li style="margin-bottom: 4px;">${esc(e)}</li>`).join("")}
-            </ul>
+      // 리포트 렌더/복원 로직을 절대 실행하지 않도록 즉시 중단
+      // window.__lastV2 / localStorage 기반 복원도 실행하지 않게 보장
+      // (함수 정의 이후 실행되는 코드가 없으므로 자연스럽게 중단됨)
+    } else {
+      // 로그인 상태일 때만 리포트 렌더링 로직 실행
+      
+      function esc(v) {
+        return String(v)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+      
+      function renderShareContent() {
+        const payload = buildReportPayload();
+        const scores = payload.analysis?.scores || {};
+        const brandingScore = scores.branding;
+        const contentStructureV2Score = scores.contentStructureV2;
+        const urlStructureV1Score = scores.urlStructureV1;
+        
+        // ✅ [Phase 3-2D] Share 화면 KPI 섹션 (Phase 3-2C 규격 사용)
+        const kpiSection = `
+          <div class="kpi-section">
+            ${renderKpi({ label: '엔티티 점수', value: brandingScore })}
+            ${renderKpi({ label: '콘텐츠 구조 점수', value: contentStructureV2Score })}
+            ${(() => {
+              const urlKpi = renderKpi({ label: 'URL 구조 점수', value: urlStructureV1Score });
+              if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
+                return urlKpi.replace('</span>', ` · 연결됨</span>`);
+              } else {
+                return urlKpi.replace('</span>', ` · 측정 필요</span>`);
+              }
+            })()}
           </div>
         `;
+        
+        // ✅ [Phase 3-2D] 콘텐츠 구조 점수 근거 섹션
+        let contentStructureEvidenceSection = '';
+        if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
+          contentStructureEvidenceSection = `
+            <div style="margin-bottom: 24px;">
+              <h4 style="margin: 0 0 12px 0;">콘텐츠 구조 점수 근거</h4>
+              <ul style="margin: 0; padding-left: 24px;">
+                ${contentStructureV2Score.evidence.map(e => `<li style="margin-bottom: 4px;">${esc(e)}</li>`).join("")}
+              </ul>
+            </div>
+          `;
+        }
+        
+        const result = payload.result;
+        let resultSection = '';
+        if (result) {
+          resultSection = `
+            <div><strong>${esc(result.score)}점 / ${esc(result.grade)}</strong></div>
+            <p>${esc(result.summary)}</p>
+            <h4>근거</h4>
+            <ul>${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+            <h4>액션</h4>
+            <ul>${result.actions.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+          `;
+        }
+        
+        document.getElementById('shareContent').innerHTML = kpiSection + contentStructureEvidenceSection + resultSection;
       }
       
-      const result = payload.result;
-      let resultSection = '';
-      if (result) {
-        resultSection = `
-          <div><strong>${esc(result.score)}점 / ${esc(result.grade)}</strong></div>
-          <p>${esc(result.summary)}</p>
-          <h4>근거</h4>
-          <ul>${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
-          <h4>액션</h4>
-          <ul>${result.actions.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
-        `;
+      // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
+      const btnExportPDF = document.getElementById('btnExportPDF');
+      if (btnExportPDF) {
+        btnExportPDF.addEventListener('click', () => {
+          if (!gateOrWarn("PDF 내보내기")) return;
+          
+          // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
+          window.print();
+        });
       }
       
-      document.getElementById('shareContent').innerHTML = kpiSection + contentStructureEvidenceSection + resultSection;
+      // 로그인 상태일 때만 리포트 렌더링 실행
+      renderShareContent();
     }
-    
-    document.getElementById('btnExportPDF').addEventListener('click', () => {
-      // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
-      window.print();
-    });
-    
-    renderShareContent();
   </script>
 </body>
 </html>
