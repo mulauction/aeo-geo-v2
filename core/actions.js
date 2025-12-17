@@ -125,6 +125,12 @@ export function bindActions(root) {
       btn.disabled = true;
       btn.setAttribute("data-loading", "1");
 
+      // TODO(Phase 4-3B): btnAiImprove 클릭 시 requestImproveV1 호출
+      // const report = buildReportPayload();
+      // const ruleBased = buildImprovementsFromReport(report);
+      // const payload = buildImproveRequestV1(report, ruleBased);
+      // const result = await requestImproveV1({ endpoint: "...", payload, timeoutMs: 30000 });
+
       // ✅ [Phase 4-2C] API 호출
       const endpoint = "http://localhost:3000/api/improve";
       fetch(endpoint, {
