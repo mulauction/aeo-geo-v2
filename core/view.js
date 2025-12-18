@@ -1,4 +1,5 @@
 import { isLoggedIn } from "./gate.js";
+import { loadEvidence } from "./evidenceStore.js";
 
 /**
  * ✅ [Phase 3-2C] 공통 KPI 렌더 함수
@@ -120,16 +121,32 @@ export function render(root, state) {
           </button>
           <div class="evidence-content" style="display: none; margin-top: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
             ${(() => {
+              const evidence = loadEvidence();
               const loggedIn = isLoggedIn();
-              if (loggedIn) {
-                return `
-                  <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능은 준비 중입니다.</p>
-                  <p style="margin: 0; font-size: 12px; color: var(--muted);">곧 제공될 예정입니다.</p>
-                `;
+              
+              if (evidence === null) {
+                // Evidence 없음
+                if (loggedIn) {
+                  return `
+                    <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
+                    <p style="margin: 0; font-size: 12px; color: var(--muted);">Evidence가 저장되지 않았습니다.</p>
+                  `;
+                } else {
+                  return `
+                    <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
+                    <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+                  `;
+                }
               } else {
+                // Evidence 있음 - 최소 메타 정보만 표시
+                const itemCount = Array.isArray(evidence) ? evidence.length : (evidence.items ? evidence.items.length : 0);
+                const createdAt = evidence.createdAt || evidence.timestamp || evidence.created_at || null;
+                const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
+                
                 return `
-                  <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
-                  <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+                  <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
+                  ${itemCount > 0 ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: var(--muted);">항목 수: ${esc(itemCount)}</p>` : ''}
+                  ${createdAtText ? `<p style="margin: 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
                 `;
               }
             })()}
