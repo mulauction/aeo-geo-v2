@@ -1,5 +1,8 @@
 import { isLoggedIn } from "./gate.js";
 import { loadEvidence } from "./evidenceStore.js";
+import { buildEvidenceFromViewContext } from "./evidenceBuilder.js";
+
+let __evidenceOpenV1 = false;
 
 /**
  * ✅ [Phase 3-2C] 공통 KPI 렌더 함수
@@ -114,44 +117,12 @@ export function render(root, state) {
         </div>
         
         <!-- ✅ [Phase 5] Evidence 섹션 (껍데기) -->
-        <div class="evidence-section" style="margin-top: 24px;">
-          <button class="evidence-toggle" style="width: 100%; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; text-align: left; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center;">
-            <span>Evidence</span>
-            <span class="evidence-toggle-icon" style="transition: transform 0.2s;">▼</span>
-          </button>
-          <div class="evidence-content" style="display: none; margin-top: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            ${(() => {
-              const evidence = loadEvidence();
-              const loggedIn = isLoggedIn();
-              
-              if (evidence === null) {
-                // Evidence 없음
-                if (loggedIn) {
-                  return `
-                    <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
-                    <p style="margin: 0; font-size: 12px; color: var(--muted);">Evidence가 저장되지 않았습니다.</p>
-                  `;
-                } else {
-                  return `
-                    <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
-                    <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
-                  `;
-                }
-              } else {
-                // Evidence 있음 - 최소 메타 정보만 표시
-                const itemCount = Array.isArray(evidence) ? evidence.length : (evidence.items ? evidence.items.length : 0);
-                const createdAt = evidence.createdAt || evidence.timestamp || evidence.created_at || null;
-                const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
-                
-                return `
-                  <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
-                  ${itemCount > 0 ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: var(--muted);">항목 수: ${esc(itemCount)}</p>` : ''}
-                  ${createdAtText ? `<p style="margin: 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
-                `;
-              }
-            })()}
+        <details data-evidence="1" ${__evidenceOpenV1 ? "open" : ""} class="evidence-section" style="margin-top: 24px;">
+          <summary style="padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 14px; font-weight: 500;">Evidence</summary>
+          <div class="evidence-body" style="margin-top: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            ${renderEvidenceContent()}
           </div>
-        </div>
+        </details>
       `;
       
       // URL 구조 점수 CTA 클릭 차단 우회용 로컬 핸들러
@@ -164,19 +135,33 @@ export function render(root, state) {
         });
       }
       
-      // Evidence accordion 토글 핸들러
-      const evidenceToggle = root.result.querySelector('.evidence-toggle');
-      if (evidenceToggle && !evidenceToggle.__toggleBound) {
-        evidenceToggle.__toggleBound = true;
-        evidenceToggle.addEventListener('click', () => {
-          const content = root.result.querySelector('.evidence-content');
-          const icon = root.result.querySelector('.evidence-toggle-icon');
-          if (content && icon) {
-            const isOpen = content.style.display !== 'none';
-            content.style.display = isOpen ? 'none' : 'block';
-            icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-          }
+      // Evidence details 토글 상태 동기화
+      const evidenceDetails = root.result.querySelector('details[data-evidence="1"]');
+      if (evidenceDetails && !evidenceDetails.__boundEvidenceV1) {
+        evidenceDetails.__boundEvidenceV1 = true;
+        evidenceDetails.addEventListener("toggle", () => {
+          __evidenceOpenV1 = evidenceDetails.open;
         });
+      }
+      
+      // Evidence 생성 버튼 핸들러
+      const evidenceBody = root.result.querySelector('.evidence-body');
+      const btnGenerateEvidence = root.result.querySelector('#btnGenerateEvidence');
+      function handleGenerateEvidence() {
+        const ctx = { page: "analyze" };
+        buildEvidenceFromViewContext(ctx);
+        if (evidenceBody) {
+          evidenceBody.innerHTML = renderEvidenceContent();
+          const newBtn = root.result.querySelector('#btnGenerateEvidence');
+          if (newBtn && !newBtn.__generateBound) {
+            newBtn.__generateBound = true;
+            newBtn.addEventListener('click', handleGenerateEvidence);
+          }
+        }
+      }
+      if (btnGenerateEvidence && !btnGenerateEvidence.__generateBound) {
+        btnGenerateEvidence.__generateBound = true;
+        btnGenerateEvidence.addEventListener('click', handleGenerateEvidence);
       }
     }
   }
@@ -187,4 +172,37 @@ export function esc(v) {
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
   }
+
+function renderEvidenceContent() {
+  const evidence = loadEvidence();
+  const loggedIn = isLoggedIn();
+  
+  if (evidence === null) {
+    // Evidence 없음
+    if (loggedIn) {
+      return `
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
+        <p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">Evidence가 저장되지 않았습니다.</p>
+        <button id="btnGenerateEvidence" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>
+      `;
+    } else {
+      return `
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+      `;
+    }
+  } else {
+    // Evidence 있음 - 최소 메타 정보만 표시
+    const itemCount = Array.isArray(evidence) ? evidence.length : (evidence.items ? evidence.items.length : 0);
+    const createdAt = evidence.createdAt || evidence.timestamp || evidence.created_at || null;
+    const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
+    
+    return `
+      <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
+      ${itemCount > 0 ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: var(--muted);">항목 수: ${esc(itemCount)}</p>` : ''}
+      ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
+      ${loggedIn ? `<button id="btnGenerateEvidence" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>` : ''}
+    `;
+  }
+}
   
