@@ -1,6 +1,7 @@
 import { isLoggedIn } from "./gate.js";
 import { loadEvidence } from "./evidenceStore.js";
 import { buildEvidenceFromViewContext } from "./evidenceBuilder.js";
+import { getState } from "./state.js";
 
 let __evidenceOpenV1 = false;
 
@@ -120,7 +121,7 @@ export function render(root, state) {
         <details data-evidence="1" ${__evidenceOpenV1 ? "open" : ""} class="evidence-section" style="margin-top: 24px;">
           <summary style="padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 14px; font-weight: 500;">Evidence</summary>
           <div class="evidence-body" style="margin-top: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            ${renderEvidenceContent()}
+            ${renderEvidenceContent(null, state)}
           </div>
         </details>
       `;
@@ -153,7 +154,8 @@ export function render(root, state) {
         const evidenceBody = root.result.querySelector('.evidence-body');
         const evidenceDetails = root.result.querySelector('details[data-evidence="1"]');
         if (evidenceBody) {
-          evidenceBody.innerHTML = renderEvidenceContent(latest);
+          const currentState = getState();
+          evidenceBody.innerHTML = renderEvidenceContent(latest, currentState);
           if (evidenceDetails) {
             evidenceDetails.open = true;
           }
@@ -200,9 +202,11 @@ export function esc(v) {
       .replaceAll(">", "&gt;");
   }
 
-function renderEvidenceContent(evidenceParam = null) {
+function renderEvidenceContent(evidenceParam = null, stateParam = null) {
   const evidence = evidenceParam !== null ? evidenceParam : loadEvidence();
   const isAuthed = isLoggedIn();
+  const state = stateParam !== null ? stateParam : getState();
+  const scores = state.analysis?.scores || {};
   
   if (evidence === null) {
     // Evidence 없음
@@ -233,16 +237,66 @@ function renderEvidenceContent(evidenceParam = null) {
         </div>
       `;
     } else {
-      // 로그인 상태: meta + items 정보 표시
-      const itemCount = Array.isArray(evidence) ? evidence.length : (evidence.items ? evidence.items.length : 0);
+      // 로그인 상태: 실제 analysis 결과 기반 근거 표시
       const createdAt = evidence.meta?.createdAt || evidence.createdAt || evidence.timestamp || evidence.created_at || null;
       const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
       
+      const items = [];
+      
+      // a) ContentStructureV2 요약
+      const contentStructureV2 = scores.contentStructureV2;
+      if (contentStructureV2 && contentStructureV2.evidence && Array.isArray(contentStructureV2.evidence)) {
+        const passedChecks = contentStructureV2.evidence.filter(e => !e.includes('부재') && !e.includes('부족') && !e.includes('없음')).length;
+        const failedChecks = contentStructureV2.evidence.length - passedChecks;
+        const summaryText = `구조 점검: 통과 ${passedChecks} / 미흡 ${failedChecks}`;
+        items.push(summaryText);
+        
+        // 대표 체크 1~2개 선택
+        const representativeChecks = contentStructureV2.evidence
+          .filter(e => !e.includes('부재') && !e.includes('부족') && !e.includes('없음'))
+          .slice(0, 2)
+          .map(e => {
+            const parts = e.split(':');
+            return parts.length > 1 ? parts[1].trim() : e;
+          });
+        
+        if (representativeChecks.length > 0) {
+          items.push(...representativeChecks);
+        } else if (contentStructureV2.evidence.length > 0) {
+          const firstCheck = contentStructureV2.evidence[0].split(':');
+          items.push(firstCheck.length > 1 ? firstCheck[1].trim() : contentStructureV2.evidence[0]);
+        }
+      }
+      
+      // b) URL 구조 상태
+      const urlStructureV1 = scores.urlStructureV1;
+      if (urlStructureV1 && urlStructureV1.score !== null && urlStructureV1.score !== undefined) {
+        items.push(`URL 구조: ${urlStructureV1.score}점 (${urlStructureV1.grade})`);
+      } else {
+        items.push('URL 구조: 측정 필요');
+      }
+      
+      // c) 브랜드 인지도
+      const branding = scores.branding;
+      if (branding && branding.score !== null && branding.score !== undefined) {
+        const gradeText = branding.grade || 'N/A';
+        const reason = branding.score >= 80 ? '브랜드 인지도가 높습니다' : 
+                      branding.score >= 60 ? '브랜드 인지도가 보통입니다' : 
+                      '브랜드 인지도 개선이 필요합니다';
+        items.push(`브랜드 인지도: ${gradeText} (${reason})`);
+      } else {
+        items.push('브랜드 인지도: 측정 필요');
+      }
+      
       return `
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
-        ${itemCount > 0 ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: var(--muted);">항목 수: ${esc(itemCount)}</p>` : ''}
         ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
-        <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>
+        ${items.length > 0 ? `
+          <div style="margin-top: 8px;">
+            ${items.map(item => `<p style="margin: 0 0 4px 0; font-size: 13px; color: var(--text);">${esc(item)}</p>`).join('')}
+          </div>
+        ` : ''}
+        <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 12px;">근거 생성(테스트)</button>
       `;
     }
   }
