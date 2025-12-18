@@ -90,8 +90,10 @@
 
   <script type="module">
     import { buildReportPayload } from './core/report.js';
-    import { renderKpi } from './core/view.js';
+    import { renderKpi, renderEvidenceContent, esc } from './core/view.js';
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
+    import { loadEvidence } from './core/evidenceStore.js';
+    import { getState } from './core/state.js';
     
     // ✅ [Phase 4-2 Gate] share.html 진입 즉시 로그인 체크
     // 리포트 렌더/복원 로직을 절대 실행하지 않도록 가장 먼저 체크
@@ -140,13 +142,6 @@
     } else {
       // 로그인 상태일 때만 리포트 렌더링 로직 실행
       
-      function esc(v) {
-        return String(v)
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;");
-      }
-      
       function renderShareContent() {
         const payload = buildReportPayload();
         const scores = payload.analysis?.scores || {};
@@ -154,12 +149,14 @@
         const contentStructureV2Score = scores.contentStructureV2;
         const urlStructureV1Score = scores.urlStructureV1;
         
-        // ✅ [Phase 3-2D] Share 화면 KPI 섹션 (Phase 3-2C 규격 사용)
+        // ✅ [Phase 5-8] Share 화면 KPI 섹션 (Analyze와 동일한 표시 규칙)
+        // 항목 순서: 엔티티 → 콘텐츠 구조 → URL
         const kpiSection = `
           <div class="kpi-section">
             ${renderKpi({ label: '엔티티 점수', value: brandingScore })}
             ${renderKpi({ label: '콘텐츠 구조 점수', value: contentStructureV2Score })}
             ${(() => {
+              // ✅ [Phase 5-8] URL 구조 점수 표시 규칙 통일 (Analyze와 동일)
               const urlKpi = renderKpi({ label: 'URL 구조 점수', value: urlStructureV1Score });
               if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
                 return urlKpi.replace('</span>', ` · 연결됨</span>`);
@@ -170,48 +167,48 @@
           </div>
         `;
         
-        // ✅ [Phase 3-2D] 콘텐츠 구조 점수 근거 섹션
-        let contentStructureEvidenceSection = '';
-        if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
-          contentStructureEvidenceSection = `
-            <div style="margin-bottom: 24px;">
-              <h4 style="margin: 0 0 12px 0;">콘텐츠 구조 점수 근거</h4>
-              <ul style="margin: 0; padding-left: 24px;">
-                ${contentStructureV2Score.evidence.map(e => `<li style="margin-bottom: 4px;">${esc(e)}</li>`).join("")}
-              </ul>
+        const result = payload.result;
+        let resultSection = '';
+        if (result) {
+          // ✅ [Phase 5-8] 종합 점수 표시 (Analyze와 동일한 포맷)
+          resultSection = `
+            <div style="margin-bottom: 16px;">
+              <div><strong>${esc(result.score)}점 / ${esc(result.grade)}</strong></div>
+              <p>${esc(result.summary)}</p>
+              <h4>근거</h4>
+              <ul>${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+              <h4>액션</h4>
+              <ul>${result.actions.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
             </div>
           `;
         }
         
-        const result = payload.result;
-        let resultSection = '';
-        if (result) {
-          resultSection = `
-            <div><strong>${esc(result.score)}점 / ${esc(result.grade)}</strong></div>
-            <p>${esc(result.summary)}</p>
-            <h4>근거</h4>
-            <ul>${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
-            <h4>액션</h4>
-            <ul>${result.actions.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+        // ✅ [Phase 5-8] Evidence 섹션 (Analyze와 동일한 표시 규칙 적용)
+        const loggedIn = isLoggedIn();
+        let evidenceSection = '';
+        if (loggedIn) {
+          // 로그인 상태: Evidence 표시 (Analyze와 동일한 방식)
+          const state = getState();
+          const evidenceRoot = loadEvidence();
+          const evidenceContent = renderEvidenceContent(evidenceRoot, state);
+          evidenceSection = `
+            <div style="margin-top: 24px; padding: 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
+              <h4 style="margin: 0 0 12px 0;">Evidence</h4>
+              ${evidenceContent}
+            </div>
+          `;
+        } else {
+          // 로그아웃 상태: 로그인 유도 메시지
+          evidenceSection = `
+            <div style="margin-top: 24px; padding: 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
+              <h4 style="margin: 0 0 12px 0;">Evidence</h4>
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+            </div>
           `;
         }
         
-        // ✅ [Phase 5] Evidence 섹션 (껍데기)
-        const loggedIn = isLoggedIn();
-        const evidenceSection = `
-          <div style="margin-top: 24px; padding: 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
-            <h4 style="margin: 0 0 12px 0;">Evidence</h4>
-            ${loggedIn ? `
-              <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능은 준비 중입니다.</p>
-              <p style="margin: 0; font-size: 12px; color: var(--muted);">곧 제공될 예정입니다.</p>
-            ` : `
-              <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
-              <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
-            `}
-          </div>
-        `;
-        
-        document.getElementById('shareContent').innerHTML = kpiSection + contentStructureEvidenceSection + resultSection + evidenceSection;
+        document.getElementById('shareContent').innerHTML = kpiSection + resultSection + evidenceSection;
       }
       
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
