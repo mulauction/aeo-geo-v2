@@ -1,8 +1,9 @@
-import { saveEvidence } from "./evidenceStore.js";
+import { appendEvidence } from "./evidenceStore.js";
 
 export function buildEvidenceFromViewContext(ctx) {
-  const evidence = {
+  const entry = {
     meta: {
+      id: Date.now().toString(),
       createdAt: new Date().toISOString(),
       source: "phase5-builder-v1"
     },
@@ -12,8 +13,8 @@ export function buildEvidenceFromViewContext(ctx) {
     ]
   };
   
-  saveEvidence(evidence);
+  appendEvidence(entry);
   
-  return evidence;
+  return entry;
 }
 

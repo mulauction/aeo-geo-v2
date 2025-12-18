@@ -1,9 +1,10 @@
 import { isLoggedIn } from "./gate.js";
-import { loadEvidence } from "./evidenceStore.js";
+import { loadEvidence, getCurrentEvidence } from "./evidenceStore.js";
 import { buildEvidenceFromViewContext } from "./evidenceBuilder.js";
 import { getState } from "./state.js";
 
 let __evidenceOpenV1 = false;
+let __selectedEvidenceId = null;
 
 /**
  * ✅ [Phase 3-2C] 공통 KPI 렌더 함수
@@ -145,12 +146,45 @@ export function render(root, state) {
         });
       }
       
+      // Evidence 버전 선택 핸들러 (먼저 정의)
+      function handleEvidenceVersionChange(e) {
+        __selectedEvidenceId = e.target.value;
+        const evidenceBody = root.result.querySelector('.evidence-body');
+        if (evidenceBody) {
+          const currentState = getState();
+          const evidenceRoot = loadEvidence();
+          evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+          
+          // 재렌더링 후 핸들러 재바인딩
+          const newSelect = root.result.querySelector('#evidenceVersionSelect');
+          if (newSelect && !newSelect.__boundEvidenceVersionV1) {
+            newSelect.__boundEvidenceVersionV1 = true;
+            newSelect.addEventListener('change', handleEvidenceVersionChange);
+          }
+          const newBtn = root.result.querySelector('[data-evidence-generate="1"]');
+          if (newBtn && !newBtn.__boundEvidenceGenV1) {
+            newBtn.__boundEvidenceGenV1 = true;
+            newBtn.addEventListener('click', handleGenerateEvidence);
+          }
+          const newLoginBtn = root.result.querySelector('#btnEvidenceLogin');
+          if (newLoginBtn && !newLoginBtn.__boundEvidenceLoginV1) {
+            newLoginBtn.__boundEvidenceLoginV1 = true;
+            newLoginBtn.addEventListener('click', () => {
+              const loginModal = window.loginModalInstance;
+              if (loginModal) {
+                loginModal.open("Evidence를 보려면 로그인이 필요합니다.");
+              }
+            });
+          }
+        }
+      }
+      
       // Evidence 생성 버튼 핸들러
-      const btnGenerateEvidence = root.result.querySelector('[data-evidence-generate="1"]');
       function handleGenerateEvidence() {
         buildEvidenceFromViewContext({ page: "analyze" });
         const latest = loadEvidence();
         __evidenceOpenV1 = true;
+        __selectedEvidenceId = null;
         const evidenceBody = root.result.querySelector('.evidence-body');
         const evidenceDetails = root.result.querySelector('details[data-evidence="1"]');
         if (evidenceBody) {
@@ -174,8 +208,15 @@ export function render(root, state) {
               }
             });
           }
+          const newSelect = root.result.querySelector('#evidenceVersionSelect');
+          if (newSelect && !newSelect.__boundEvidenceVersionV1) {
+            newSelect.__boundEvidenceVersionV1 = true;
+            newSelect.addEventListener('change', handleEvidenceVersionChange);
+          }
         }
       }
+      
+      const btnGenerateEvidence = root.result.querySelector('[data-evidence-generate="1"]');
       if (btnGenerateEvidence && !btnGenerateEvidence.__boundEvidenceGenV1) {
         btnGenerateEvidence.__boundEvidenceGenV1 = true;
         btnGenerateEvidence.addEventListener('click', handleGenerateEvidence);
@@ -192,6 +233,13 @@ export function render(root, state) {
           }
         });
       }
+      
+      // Evidence 버전 선택 핸들러 바인딩
+      const evidenceVersionSelect = root.result.querySelector('#evidenceVersionSelect');
+      if (evidenceVersionSelect && !evidenceVersionSelect.__boundEvidenceVersionV1) {
+        evidenceVersionSelect.__boundEvidenceVersionV1 = true;
+        evidenceVersionSelect.addEventListener('change', handleEvidenceVersionChange);
+      }
     }
   }
   
@@ -203,12 +251,31 @@ export function esc(v) {
   }
 
 function renderEvidenceContent(evidenceParam = null, stateParam = null) {
-  const evidence = evidenceParam !== null ? evidenceParam : loadEvidence();
+  const evidenceRoot = evidenceParam !== null ? evidenceParam : loadEvidence();
   const isAuthed = isLoggedIn();
   const state = stateParam !== null ? stateParam : getState();
   const scores = state.analysis?.scores || {};
   
-  if (evidence === null) {
+  // 히스토리 구조 처리
+  let currentEvidence = null;
+  let history = [];
+  let currentId = null;
+  
+  if (evidenceRoot) {
+    if (evidenceRoot.history && Array.isArray(evidenceRoot.history)) {
+      // 새로운 root 구조
+      history = evidenceRoot.history;
+      currentId = __selectedEvidenceId || evidenceRoot.currentId;
+      currentEvidence = history.find(e => e.meta?.id === currentId) || history[history.length - 1];
+    } else {
+      // 레거시 단일 객체
+      currentEvidence = evidenceRoot;
+      history = [evidenceRoot];
+      currentId = evidenceRoot.meta?.id || Date.now().toString();
+    }
+  }
+  
+  if (!currentEvidence) {
     // Evidence 없음
     if (isAuthed) {
       return `
@@ -238,7 +305,7 @@ function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       `;
     } else {
       // 로그인 상태: 실제 analysis 결과 기반 근거 표시
-      const createdAt = evidence.meta?.createdAt || evidence.createdAt || evidence.timestamp || evidence.created_at || null;
+      const createdAt = currentEvidence.meta?.createdAt || currentEvidence.createdAt || currentEvidence.timestamp || currentEvidence.created_at || null;
       const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
       
       const items = [];
@@ -288,8 +355,31 @@ function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         items.push('브랜드 인지도: 측정 필요');
       }
       
+      // 히스토리 버전 선택 UI
+      let versionSelector = '';
+      if (history.length >= 2) {
+        const versionOptions = history.map((entry, index) => {
+          const entryId = entry.meta?.id || index.toString();
+          const entryDate = entry.meta?.createdAt || entry.createdAt || entry.timestamp || entry.created_at;
+          const entryDateText = entryDate ? new Date(entryDate).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+          const isSelected = entryId === currentId;
+          const label = index === history.length - 1 ? '최신' : `이전 ${history.length - index - 1}`;
+          return `<option value="${esc(entryId)}" ${isSelected ? 'selected' : ''}>${label}${entryDateText ? ` (${esc(entryDateText)})` : ''}</option>`;
+        }).join('');
+        
+        versionSelector = `
+          <div style="margin-top: 8px; margin-bottom: 8px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted);">버전:</label>
+            <select id="evidenceVersionSelect" style="width: 100%; padding: 6px; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);">
+              ${versionOptions}
+            </select>
+          </div>
+        `;
+      }
+      
       return `
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
+        ${versionSelector}
         ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
         ${items.length > 0 ? `
           <div style="margin-top: 8px;">
