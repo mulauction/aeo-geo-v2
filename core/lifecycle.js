@@ -5,7 +5,16 @@ import { renderHeader } from "./header.js";
 import { createLoginModal, createCreditModal } from "./modal.js";
 import { setModals, gateOrWarn } from "./gate.js";
 
+// ✅ [Phase 6-0] 초기화 함수 중복 실행 방지 가드
+let __lifecycleBooted = false;
+let __lifecycleIntervalId = null;
+// ✅ [Phase 6-0] render 호출 빈도 제한을 위한 throttle 가드
+let __lastRenderTime = performance.now();
+
 export function boot() {
+  // ✅ [Phase 6-0] 중복 실행 방지: 이미 초기화되었으면 즉시 return
+  if (__lifecycleBooted) return;
+  __lifecycleBooted = true;
   const root = {
     inputText: document.getElementById("inputText"),
     btnAnalyze: document.getElementById("btnAnalyze"),
@@ -78,9 +87,22 @@ export function boot() {
   bindActions(root);
   render(root, getState());
 
-  setInterval(() => {
-    // ✅ 클릭 중에는 렌더를 건너뛰어 click이 취소되지 않게 함
-    if (window.__uiPointerIsDown) return;
-    render(root, getState());
-  }, 120);
+  // ✅ [Phase 6-0] analyze.html에서는 setInterval 시작하지 않음
+  const isAnalyzePage = window.location.pathname.endsWith('/analyze.html');
+  if (isAnalyzePage) return;
+
+  // ✅ [Phase 6-0] setInterval 중복 생성 방지: intervalId가 없을 때만 생성
+  if (__lifecycleIntervalId == null) {
+    __lifecycleIntervalId = setInterval(() => {
+      // ✅ [Phase 6-0] throttle/early-return을 콜백 최상단으로 이동
+      // document.hidden 또는 포인터 다운 중이면 즉시 return (getState/render 호출 전)
+      if (document.hidden || window.__uiPointerIsDown) return;
+      // ✅ [Phase 6-0] throttle 체크: performance.now() 기반 800ms
+      const now = performance.now();
+      if (now - __lastRenderTime < 800) return;
+      __lastRenderTime = now;
+      // ✅ throttle 통과 후에만 getState()/render() 호출
+      render(root, getState());
+    }, 120);
+  }
 }
