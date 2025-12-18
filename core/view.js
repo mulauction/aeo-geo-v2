@@ -11,6 +11,23 @@ if (typeof window !== 'undefined' && !window.__freezeAnalyzeRerenderUntil) {
   window.__freezeAnalyzeRerenderUntil = 0;
 }
 
+// ✅ [Phase 6-1A] Analyze/Evidence 이벤트 핸들러 중복 등록 방지 (element reference 기반)
+let __lastUrlCtaEl = null;
+let __lastEvidenceDetailsEl = null;
+let __lastEvidenceVersionSelectEl = null;
+let __lastEvidenceGenerateBtnEl = null;
+let __lastEvidenceLoginBtnEl = null;
+let __lastEvidenceSelectFreezeEl = null;
+
+// ✅ [Phase 6-1B] render() 호출 빈도 계측 (DEV 전용)
+let __renderMetrics = {
+  renderCountTotal: 0,
+  renderCountAnalyze: 0,
+  lastRenderAt: 0,
+  lastLogAt: 0,
+  firstStackSample: null
+};
+
 /**
  * ✅ [Phase 3-2C] 공통 KPI 렌더 함수
  * @param {Object} param0 - { label, value }
@@ -32,6 +49,45 @@ export function renderKpi({ label, value }) {
 }
 
 export function render(root, state) {
+    // ✅ [Phase 6-1B] render() 호출 빈도 계측 (DEV 전용)
+    const devMetricsEnabled = typeof window !== 'undefined' && typeof localStorage !== 'undefined' && localStorage.getItem('__DEV_RENDER_METRICS') === '1';
+    if (devMetricsEnabled) {
+      const now = Date.now();
+      __renderMetrics.renderCountTotal++;
+      __renderMetrics.lastRenderAt = now;
+      
+      const isAnalyzePage = typeof window !== 'undefined' && window.location.pathname.endsWith('/analyze.html');
+      if (isAnalyzePage) {
+        __renderMetrics.renderCountAnalyze++;
+      }
+      
+      // 첫 번째 호출 시 stack 샘플 1회만 저장
+      if (!__renderMetrics.firstStackSample) {
+        try {
+          const stack = new Error().stack;
+          if (stack) {
+            const lines = stack.split('\n');
+            __renderMetrics.firstStackSample = lines.length > 2 ? lines[2].trim() : null;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      
+      // 2초에 1번만 요약 로그 출력
+      if (now - __renderMetrics.lastLogAt >= 2000) {
+        __renderMetrics.lastLogAt = now;
+        const logParts = [
+          `[DEV] render() metrics: total=${__renderMetrics.renderCountTotal}`,
+          `analyze=${__renderMetrics.renderCountAnalyze}`
+        ];
+        if (__renderMetrics.firstStackSample) {
+          logParts.push(`sample=${__renderMetrics.firstStackSample}`);
+        }
+        console.log(logParts.join(', '));
+      }
+    }
+    
     // ✅ [Phase 5-7 Fix] Evidence select 드롭다운이 열려있는 동안 리렌더 스킵
     if (Date.now() < (window.__freezeAnalyzeRerenderUntil || 0)) {
       return; // 이번 렌더 스킵 (UI만 스킵, 데이터 저장/파이프라인에는 영향 없음)
@@ -159,9 +215,10 @@ export function render(root, state) {
         }
       }
       
-      // URL 구조 점수 CTA 클릭 차단 우회용 로컬 핸들러
+      // ✅ [Phase 6-1A] URL 구조 점수 CTA 클릭 차단 우회용 로컬 핸들러 (element reference 기반)
       const urlCta = root.result.querySelector('[data-cta="url-structure"]');
-      if (urlCta && !urlCta.__localClickBound) {
+      if (urlCta && urlCta !== __lastUrlCtaEl && !urlCta.__localClickBound) {
+        __lastUrlCtaEl = urlCta;
         urlCta.__localClickBound = true;
         urlCta.addEventListener('click', () => {
           // intentionally empty
@@ -169,9 +226,10 @@ export function render(root, state) {
         });
       }
       
-      // Evidence details 토글 상태 동기화
+      // ✅ [Phase 6-1A] Evidence details 토글 상태 동기화 (element reference 기반)
       const evidenceDetails = root.result.querySelector('details[data-evidence="1"]');
-      if (evidenceDetails && !evidenceDetails.__boundEvidenceV1) {
+      if (evidenceDetails && evidenceDetails !== __lastEvidenceDetailsEl && !evidenceDetails.__boundEvidenceV1) {
+        __lastEvidenceDetailsEl = evidenceDetails;
         evidenceDetails.__boundEvidenceV1 = true;
         evidenceDetails.addEventListener("toggle", () => {
           __evidenceOpenV1 = evidenceDetails.open;
@@ -292,15 +350,18 @@ export function render(root, state) {
         }
       }
       
+      // ✅ [Phase 6-1A] Evidence 생성 버튼 핸들러 (element reference 기반)
       const btnGenerateEvidence = root.result.querySelector('[data-evidence-generate="1"]');
-      if (btnGenerateEvidence && !btnGenerateEvidence.__boundEvidenceGenV1) {
+      if (btnGenerateEvidence && btnGenerateEvidence !== __lastEvidenceGenerateBtnEl && !btnGenerateEvidence.__boundEvidenceGenV1) {
+        __lastEvidenceGenerateBtnEl = btnGenerateEvidence;
         btnGenerateEvidence.__boundEvidenceGenV1 = true;
         btnGenerateEvidence.addEventListener('click', handleGenerateEvidence);
       }
       
-      // Evidence 로그인 버튼 핸들러
+      // ✅ [Phase 6-1A] Evidence 로그인 버튼 핸들러 (element reference 기반)
       const btnEvidenceLogin = root.result.querySelector('#btnEvidenceLogin');
-      if (btnEvidenceLogin && !btnEvidenceLogin.__boundEvidenceLoginV1) {
+      if (btnEvidenceLogin && btnEvidenceLogin !== __lastEvidenceLoginBtnEl && !btnEvidenceLogin.__boundEvidenceLoginV1) {
+        __lastEvidenceLoginBtnEl = btnEvidenceLogin;
         btnEvidenceLogin.__boundEvidenceLoginV1 = true;
         btnEvidenceLogin.addEventListener('click', () => {
           const loginModal = window.loginModalInstance;
@@ -310,33 +371,35 @@ export function render(root, state) {
         });
       }
       
-      // Evidence 버전 선택 핸들러 바인딩
+      // ✅ [Phase 6-1A] Evidence 버전 선택 핸들러 바인딩 (element reference 기반)
       const evidenceVersionSelect = root.result.querySelector('#evidenceVersionSelect');
-      if (evidenceVersionSelect && !evidenceVersionSelect.__boundEvidenceVersionV1) {
+      if (evidenceVersionSelect && evidenceVersionSelect !== __lastEvidenceVersionSelectEl && !evidenceVersionSelect.__boundEvidenceVersionV1) {
+        __lastEvidenceVersionSelectEl = evidenceVersionSelect;
         evidenceVersionSelect.__boundEvidenceVersionV1 = true;
         evidenceVersionSelect.addEventListener('change', handleEvidenceVersionChange);
-        
-        // ✅ [Phase 5-7 Fix] select 드롭다운 열림 동안 리렌더 프리즈
-        if (!evidenceVersionSelect.__boundEvidenceFreezeV1) {
-          evidenceVersionSelect.__boundEvidenceFreezeV1 = true;
-          // mousedown 또는 pointerdown 시 리렌더 프리즈 시작 (2초)
-          evidenceVersionSelect.addEventListener('mousedown', () => {
-            window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
-          });
-          evidenceVersionSelect.addEventListener('pointerdown', () => {
-            window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
-          });
-          // blur 또는 change 시 리렌더 프리즈 해제
-          evidenceVersionSelect.addEventListener('blur', () => {
+      }
+      
+      // ✅ [Phase 6-1A] Evidence select 드롭다운 열림 동안 리렌더 프리즈 (element reference 기반)
+      if (evidenceVersionSelect && evidenceVersionSelect !== __lastEvidenceSelectFreezeEl && !evidenceVersionSelect.__boundEvidenceFreezeV1) {
+        __lastEvidenceSelectFreezeEl = evidenceVersionSelect;
+        evidenceVersionSelect.__boundEvidenceFreezeV1 = true;
+        // mousedown 또는 pointerdown 시 리렌더 프리즈 시작 (2초)
+        evidenceVersionSelect.addEventListener('mousedown', () => {
+          window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+        });
+        evidenceVersionSelect.addEventListener('pointerdown', () => {
+          window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+        });
+        // blur 또는 change 시 리렌더 프리즈 해제
+        evidenceVersionSelect.addEventListener('blur', () => {
+          window.__freezeAnalyzeRerenderUntil = 0;
+        });
+        evidenceVersionSelect.addEventListener('change', () => {
+          // change 이벤트 후 약간의 지연을 두고 해제 (선택 완료 후 UI 업데이트 허용)
+          setTimeout(() => {
             window.__freezeAnalyzeRerenderUntil = 0;
-          });
-          evidenceVersionSelect.addEventListener('change', () => {
-            // change 이벤트 후 약간의 지연을 두고 해제 (선택 완료 후 UI 업데이트 허용)
-            setTimeout(() => {
-              window.__freezeAnalyzeRerenderUntil = 0;
-            }, 100);
-          });
-        }
+          }, 100);
+        });
       }
     }
   }
