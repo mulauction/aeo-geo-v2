@@ -348,7 +348,8 @@ export function esc(v) {
       .replaceAll(">", "&gt;");
   }
 
-function renderEvidenceContent(evidenceParam = null, stateParam = null) {
+// ✅ [Phase 5-8] Share 화면에서도 사용할 수 있도록 export
+export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
   const evidenceRoot = evidenceParam !== null ? evidenceParam : loadEvidence();
   const isAuthed = isLoggedIn();
   const state = stateParam !== null ? stateParam : getState();
