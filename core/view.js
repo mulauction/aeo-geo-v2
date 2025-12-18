@@ -111,6 +111,30 @@ export function render(root, state) {
           <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">현재 점수는 엔티티(상품/브랜드) 기반 부분 결과입니다.</p>
           <a data-cta="url-structure" class="btn btn-primary" href="./generate/index.html#url" style="width: 100%; display: inline-block; text-align: center; text-decoration: none;">URL 구조 점수 측정하기</a>
         </div>
+        
+        <!-- ✅ [Phase 5] Evidence 섹션 (껍데기) -->
+        <div class="evidence-section" style="margin-top: 24px;">
+          <button class="evidence-toggle" style="width: 100%; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; text-align: left; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center;">
+            <span>Evidence</span>
+            <span class="evidence-toggle-icon" style="transition: transform 0.2s;">▼</span>
+          </button>
+          <div class="evidence-content" style="display: none; margin-top: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            ${(() => {
+              const loggedIn = isLoggedIn();
+              if (loggedIn) {
+                return `
+                  <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능은 준비 중입니다.</p>
+                  <p style="margin: 0; font-size: 12px; color: var(--muted);">곧 제공될 예정입니다.</p>
+                `;
+              } else {
+                return `
+                  <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
+                  <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+                `;
+              }
+            })()}
+          </div>
+        </div>
       `;
       
       // URL 구조 점수 CTA 클릭 차단 우회용 로컬 핸들러
@@ -120,6 +144,21 @@ export function render(root, state) {
         urlCta.addEventListener('click', () => {
           // intentionally empty
           // presence of local click handler is required to bypass analyze-level interception
+        });
+      }
+      
+      // Evidence accordion 토글 핸들러
+      const evidenceToggle = root.result.querySelector('.evidence-toggle');
+      if (evidenceToggle && !evidenceToggle.__toggleBound) {
+        evidenceToggle.__toggleBound = true;
+        evidenceToggle.addEventListener('click', () => {
+          const content = root.result.querySelector('.evidence-content');
+          const icon = root.result.querySelector('.evidence-toggle-icon');
+          if (content && icon) {
+            const isOpen = content.style.display !== 'none';
+            content.style.display = isOpen ? 'none' : 'block';
+            icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+          }
         });
       }
     }

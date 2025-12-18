@@ -6,6 +6,7 @@ import { buildReportPayload } from "./report.js";
 import { buildImprovementsFromReport } from "./improvements.js";
 import { buildImproveRequestV1, requestImproveV1 } from "./api/improveClient.js";
 
+
 export function bindActions(root) {
   root.btnAnalyze.addEventListener("click", async () => {
     const input = root.inputText.value.trim();
@@ -44,6 +45,23 @@ export function bindActions(root) {
         contentStructureV2: contentStructureV2Result
       };
 
+      // ✅ [Phase 5-0 Commit C] Evidence 계산 (옵션 슬롯)
+      let evidenceData = null;
+      if (globalThis.FEATURE_EVIDENCE === true && input && input.trim().length > 0) {
+        try {
+          const evidenceResult = computeContentStructureV2Evidence({
+            html: input,
+            url: undefined,
+            inputMeta: undefined
+          });
+          evidenceData = {
+            contentStructureV2: evidenceResult
+          };
+        } catch (error) {
+          console.warn('[Phase 5-0 Commit C] Evidence 계산 실패:', error);
+        }
+      }
+
       setState({
         phase: "done",
         result: {
@@ -72,7 +90,8 @@ export function bindActions(root) {
           },
         },
         analysis: {
-          scores: analysisScores
+          scores: analysisScores,
+          ...(evidenceData ? { evidence: evidenceData } : {})
         }
       });
     } finally {

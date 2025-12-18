@@ -219,3 +219,8 @@ section {
   font-size: 14px;
 }
 
+/* ✅ [Phase 5] Evidence Accordion */
+.evidence-toggle:hover {
+  opacity: 0.85;
+}
+
