@@ -162,11 +162,33 @@ export function render(root, state) {
             newBtn.__boundEvidenceGenV1 = true;
             newBtn.addEventListener('click', handleGenerateEvidence);
           }
+          const newLoginBtn = root.result.querySelector('#btnEvidenceLogin');
+          if (newLoginBtn && !newLoginBtn.__boundEvidenceLoginV1) {
+            newLoginBtn.__boundEvidenceLoginV1 = true;
+            newLoginBtn.addEventListener('click', () => {
+              const loginModal = window.loginModalInstance;
+              if (loginModal) {
+                loginModal.open("Evidence를 보려면 로그인이 필요합니다.");
+              }
+            });
+          }
         }
       }
       if (btnGenerateEvidence && !btnGenerateEvidence.__boundEvidenceGenV1) {
         btnGenerateEvidence.__boundEvidenceGenV1 = true;
         btnGenerateEvidence.addEventListener('click', handleGenerateEvidence);
+      }
+      
+      // Evidence 로그인 버튼 핸들러
+      const btnEvidenceLogin = root.result.querySelector('#btnEvidenceLogin');
+      if (btnEvidenceLogin && !btnEvidenceLogin.__boundEvidenceLoginV1) {
+        btnEvidenceLogin.__boundEvidenceLoginV1 = true;
+        btnEvidenceLogin.addEventListener('click', () => {
+          const loginModal = window.loginModalInstance;
+          if (loginModal) {
+            loginModal.open("Evidence를 보려면 로그인이 필요합니다.");
+          }
+        });
       }
     }
   }
@@ -180,11 +202,11 @@ export function esc(v) {
 
 function renderEvidenceContent(evidenceParam = null) {
   const evidence = evidenceParam !== null ? evidenceParam : loadEvidence();
-  const loggedIn = isLoggedIn();
+  const isAuthed = isLoggedIn();
   
   if (evidence === null) {
     // Evidence 없음
-    if (loggedIn) {
+    if (isAuthed) {
       return `
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
         <p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">Evidence가 저장되지 않았습니다.</p>
@@ -193,21 +215,36 @@ function renderEvidenceContent(evidenceParam = null) {
     } else {
       return `
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
-        <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+        <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); text-align: center;">
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence를 보려면 로그인이 필요합니다.</p>
+          <button id="btnEvidenceLogin" class="btn btn-primary" style="width: 100%;">로그인</button>
+        </div>
       `;
     }
   } else {
-    // Evidence 있음 - 최소 메타 정보만 표시
-    const itemCount = Array.isArray(evidence) ? evidence.length : (evidence.items ? evidence.items.length : 0);
-    const createdAt = evidence.meta?.createdAt || evidence.createdAt || evidence.timestamp || evidence.created_at || null;
-    const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
-    
-    return `
-      <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
-      ${itemCount > 0 ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: var(--muted);">항목 수: ${esc(itemCount)}</p>` : ''}
-      ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
-      ${loggedIn ? `<button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>` : ''}
-    `;
+    // Evidence 있음
+    if (!isAuthed) {
+      // 로그아웃 상태: 상태만 표시, items는 숨김, 로그인 유도
+      return `
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
+        <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); text-align: center;">
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence를 보려면 로그인이 필요합니다.</p>
+          <button id="btnEvidenceLogin" class="btn btn-primary" style="width: 100%;">로그인</button>
+        </div>
+      `;
+    } else {
+      // 로그인 상태: meta + items 정보 표시
+      const itemCount = Array.isArray(evidence) ? evidence.length : (evidence.items ? evidence.items.length : 0);
+      const createdAt = evidence.meta?.createdAt || evidence.createdAt || evidence.timestamp || evidence.created_at || null;
+      const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
+      
+      return `
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
+        ${itemCount > 0 ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: var(--muted);">항목 수: ${esc(itemCount)}</p>` : ''}
+        ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
+        <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>
+      `;
+    }
   }
 }
   
