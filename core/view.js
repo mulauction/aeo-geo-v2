@@ -1,10 +1,13 @@
 import { isLoggedIn } from "./gate.js";
-import { loadEvidence, getCurrentEvidence } from "./evidenceStore.js";
+import { loadEvidence, getCurrentEvidence, appendEvidence } from "./evidenceStore.js";
 import { buildEvidenceFromViewContext } from "./evidenceBuilder.js";
 import { getState } from "./state.js";
 
 let __evidenceOpenV1 = false;
 let __selectedEvidenceId = null;
+
+// ✅ [Phase 5-8] Evidence history append 가드 (중복 방지)
+let __lastEvidenceSavedId = null;
 
 // ✅ [Phase 5-7 Fix] Evidence select 드롭다운 리렌더 프리즈 플래그
 if (typeof window !== 'undefined' && !window.__freezeAnalyzeRerenderUntil) {
@@ -144,6 +147,65 @@ export function render(root, state) {
           </div>
         </details>
       `;
+      
+      // ✅ [Phase 5-8] Evidence history append (렌더 직후 1회 실행)
+      try {
+        // id 추출: localStorage.__currentReportId 우선, 없으면 window.__lastV2 내부 id/메타 id
+        let id = null;
+        const currentReportId = localStorage.getItem('__currentReportId');
+        if (currentReportId) {
+          id = currentReportId;
+        } else if (window.__lastV2) {
+          // window.__lastV2 내부에서 id 찾기
+          if (window.__lastV2.id) {
+            id = window.__lastV2.id;
+          } else if (window.__lastV2.meta && window.__lastV2.meta.id) {
+            id = window.__lastV2.meta.id;
+          } else if (window.__lastV2.reportId) {
+            id = window.__lastV2.reportId;
+          }
+        }
+        
+        // id가 없으면 저장하지 않음
+        if (!id) {
+          // id 없음 - 저장 스킵 (조용히 실패)
+        } else {
+          // 중복 방지: 이미 저장된 id인지 확인
+          if (__lastEvidenceSavedId === id) {
+            // 이미 저장됨 - 스킵
+          } else {
+            // history에 이미 같은 id가 있는지 확인
+            const existingEvidence = loadEvidence();
+            let alreadyExists = false;
+            if (existingEvidence && existingEvidence.history && Array.isArray(existingEvidence.history)) {
+              alreadyExists = existingEvidence.history.some(entry => entry.meta && entry.meta.id === id);
+            }
+            
+            if (!alreadyExists) {
+              // v2Summary 추출: window.__lastV2에서 가져오기
+              const v2Summary = window.__lastV2 || null;
+              
+              // entry 생성
+              const entry = {
+                meta: {
+                  id: id,
+                  ts: Date.now()
+                },
+                v2Summary: v2Summary
+              };
+              
+              // append
+              appendEvidence(entry);
+              
+              // 가드 업데이트
+              __lastEvidenceSavedId = id;
+            }
+          }
+        }
+      } catch (error) {
+        // 실패를 삼키고 console.warn만 남김
+        console.warn('[Phase 5-8] Evidence history append 실패:', error);
+      }
       
       // ✅ [Phase 5-7 Fix] select가 포커스 상태였으면 기존 내용을 복원하고 select 값 유지
       if (isEvidenceSelectFocused && preservedEvidenceBodyContent && preservedSelectValue !== null) {
