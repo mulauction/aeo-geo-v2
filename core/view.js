@@ -12,6 +12,9 @@ let __lastEvidenceSavedId = null;
 // ✅ [Phase 7-2] 히스토리 비교 토글 상태
 let __evidenceCompareEnabled = false;
 
+// ✅ [Phase 7-3A] WHY 시뮬레이터 상태 (view-only, no storage)
+let __whySimulatorMode = 'OFF'; // 'OFF' | 'NONE' | 'A' | 'B'
+
 // ✅ [Phase 5-7 Fix] Evidence select 드롭다운 리렌더 프리즈 플래그
 if (typeof window !== 'undefined' && !window.__freezeAnalyzeRerenderUntil) {
   window.__freezeAnalyzeRerenderUntil = 0;
@@ -38,6 +41,11 @@ export function renderKpi({ label, value }) {
 }
 
 export function render(root, state) {
+    // ✅ [Phase 7-3C] 전역 rerender 콜백 등록 (WHY 시뮬레이터용)
+    if (typeof window !== 'undefined') {
+      window.__rerenderEvidenceViewV1 = () => render(root, getState());
+    }
+    
     // ✅ [Phase 5-7 Fix] Evidence select 드롭다운이 열려있는 동안 리렌더 스킵
     if (Date.now() < (window.__freezeAnalyzeRerenderUntil || 0)) {
       return; // 이번 렌더 스킵 (UI만 스킵, 데이터 저장/파이프라인에는 영향 없음)
@@ -243,6 +251,51 @@ export function render(root, state) {
         });
       }
       
+      // ✅ [Phase 7-3D] WHY 시뮬레이터 select 바인딩 함수
+      function bindWhySimulatorSelect(root) {
+        const whySimulatorSelect = root.result.querySelector('#whySimulatorSelect');
+        if (!whySimulatorSelect) return;
+
+        // 값 유지
+        whySimulatorSelect.value = __whySimulatorMode;
+
+        // change 바인딩 (1회)
+        if (!whySimulatorSelect.__boundWhySimulatorV1) {
+          whySimulatorSelect.__boundWhySimulatorV1 = true;
+          whySimulatorSelect.addEventListener('change', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            __whySimulatorMode = whySimulatorSelect.value || 'OFF';
+
+            const evidenceBody = root.result.querySelector('.evidence-body');
+            if (evidenceBody) {
+              const currentState = getState();
+              const evidenceRoot = loadEvidence();
+              evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+            }
+
+            window.__freezeAnalyzeRerenderUntil = 0;
+          });
+        }
+
+        // ✅ 프리즈(10분) - 드롭다운이 리렌더로 닫히는 현상 방지
+        if (!whySimulatorSelect.__boundWhySimulatorFreezeV1) {
+          whySimulatorSelect.__boundWhySimulatorFreezeV1 = true;
+          whySimulatorSelect.addEventListener('mousedown', () => {
+            window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+          });
+          whySimulatorSelect.addEventListener('pointerdown', () => {
+            window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+          });
+          whySimulatorSelect.addEventListener('focus', () => {
+            window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+          });
+          whySimulatorSelect.addEventListener('blur', () => {
+            window.__freezeAnalyzeRerenderUntil = 0;
+          });
+        }
+      }
+      
       // Evidence 버전 선택 핸들러 (먼저 정의)
       function handleEvidenceVersionChange(e) {
         __selectedEvidenceId = e.target.value;
@@ -267,18 +320,19 @@ export function render(root, state) {
               if (!newSelect.__boundEvidenceFreezeV1) {
                 newSelect.__boundEvidenceFreezeV1 = true;
                 newSelect.addEventListener('mousedown', () => {
-                  window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+                  window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
                 });
                 newSelect.addEventListener('pointerdown', () => {
-                  window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+                  window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                });
+                newSelect.addEventListener('focus', () => {
+                  window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
                 });
                 newSelect.addEventListener('blur', () => {
                   window.__freezeAnalyzeRerenderUntil = 0;
                 });
                 newSelect.addEventListener('change', () => {
-                  setTimeout(() => {
-                    window.__freezeAnalyzeRerenderUntil = 0;
-                  }, 100);
+                  window.__freezeAnalyzeRerenderUntil = 0;
                 });
               }
             }
@@ -353,18 +407,19 @@ export function render(root, state) {
             if (!newSelect.__boundEvidenceFreezeV1) {
               newSelect.__boundEvidenceFreezeV1 = true;
               newSelect.addEventListener('mousedown', () => {
-                window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+                window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
               });
               newSelect.addEventListener('pointerdown', () => {
-                window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+                window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+              });
+              newSelect.addEventListener('focus', () => {
+                window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
               });
               newSelect.addEventListener('blur', () => {
                 window.__freezeAnalyzeRerenderUntil = 0;
               });
               newSelect.addEventListener('change', () => {
-                setTimeout(() => {
-                  window.__freezeAnalyzeRerenderUntil = 0;
-                }, 100);
+                window.__freezeAnalyzeRerenderUntil = 0;
               });
             }
           }
@@ -412,25 +467,28 @@ export function render(root, state) {
         // ✅ [Phase 5-7 Fix] select 드롭다운 열림 동안 리렌더 프리즈
         if (!evidenceVersionSelect.__boundEvidenceFreezeV1) {
           evidenceVersionSelect.__boundEvidenceFreezeV1 = true;
-          // mousedown 또는 pointerdown 시 리렌더 프리즈 시작 (2초)
+          // mousedown/pointerdown/focus 시 리렌더 프리즈 시작 (10분)
           evidenceVersionSelect.addEventListener('mousedown', () => {
-            window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+            window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
           });
           evidenceVersionSelect.addEventListener('pointerdown', () => {
-            window.__freezeAnalyzeRerenderUntil = Date.now() + 2000;
+            window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+          });
+          evidenceVersionSelect.addEventListener('focus', () => {
+            window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
           });
           // blur 또는 change 시 리렌더 프리즈 해제
           evidenceVersionSelect.addEventListener('blur', () => {
             window.__freezeAnalyzeRerenderUntil = 0;
           });
           evidenceVersionSelect.addEventListener('change', () => {
-            // change 이벤트 후 약간의 지연을 두고 해제 (선택 완료 후 UI 업데이트 허용)
-            setTimeout(() => {
-              window.__freezeAnalyzeRerenderUntil = 0;
-            }, 100);
+            window.__freezeAnalyzeRerenderUntil = 0;
           });
         }
       }
+      
+      // ✅ [Phase 7-3D] WHY 시뮬레이터 select 바인딩
+      bindWhySimulatorSelect(root);
       
       // ✅ [Phase 7-2] 히스토리 비교 토글 핸들러 바인딩
       const evidenceCompareToggle = root.result.querySelector('#evidenceCompareToggle');
@@ -443,6 +501,9 @@ export function render(root, state) {
             const currentState = getState();
             const evidenceRoot = loadEvidence();
             evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+            
+            // ✅ [Phase 7-3D] WHY 시뮬레이터 select 바인딩
+            bindWhySimulatorSelect(root);
             
             // 재렌더링 후 모든 핸들러 재바인딩 (handleEvidenceVersionChange와 동일한 로직)
             const newSelect = root.result.querySelector('#evidenceVersionSelect');
@@ -563,8 +624,29 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
     if (evidenceRoot.history && Array.isArray(evidenceRoot.history)) {
       // 새로운 root 구조
       history = evidenceRoot.history;
-      currentId = __selectedEvidenceId || evidenceRoot.currentId;
-      currentEvidence = history.find(e => e.meta?.id === currentId) || history[history.length - 1];
+      
+      // ✅ [Phase 7-3B] latest id fallback
+      const latest = history[history.length - 1];
+      const latestId = latest?.meta?.id || latest?.id || null;
+      
+      // ✅ [Phase 7-3B] currentId normalize (must exist in history)
+      currentId = __selectedEvidenceId || evidenceRoot.currentId || latestId;
+      
+      // ✅ [Phase 7-3B] find currentEvidence by (meta.id || id)
+      currentEvidence =
+        history.find(e => (e?.meta?.id || e?.id) === currentId) ||
+        latest;
+      
+      // ✅ [Phase 7-3B] if still empty, bind to currentEvidence id
+      if (!currentId) {
+        currentId = currentEvidence?.meta?.id || currentEvidence?.id || latestId;
+      }
+      
+      // ✅ [Phase 7-3B] if currentId is not found in history, fallback to currentEvidence/latest
+      const exists = history.some(e => (e?.meta?.id || e?.id) === currentId);
+      if (!exists) {
+        currentId = currentEvidence?.meta?.id || currentEvidence?.id || latestId;
+      }
     } else {
       // 레거시 단일 객체
       currentEvidence = evidenceRoot;
@@ -670,8 +752,45 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       // ✅ [Phase 7-2a] diff 계산: trim() 후 문자열 완전 일치 기반
       const currBulletsTrimmed = currBullets.map(item => String(item).trim());
       const prevBulletsTrimmed = prevBullets.map(item => String(item).trim());
-      const addedItems = (currBulletsTrimmed || []).filter(item => !prevBulletsTrimmed.includes(item)).slice(0, 7);
-      const removedItems = (prevBulletsTrimmed || []).filter(item => !currBulletsTrimmed.includes(item)).slice(0, 7);
+      let addedItems = (currBulletsTrimmed || []).filter(item => !prevBulletsTrimmed.includes(item)).slice(0, 7);
+      let removedItems = (prevBulletsTrimmed || []).filter(item => !currBulletsTrimmed.includes(item)).slice(0, 7);
+      
+      // ✅ [Phase 7-2B] WHY 시뮬레이터: 가짜 diff 주입 (렌더링 단계에서만 오버라이드)
+      let simulatedAddedItems = null;
+      let simulatedRemovedItems = null;
+      let simulatedScoreDeltas = null;
+      
+      if (__whySimulatorMode !== 'OFF' && __evidenceCompareEnabled && prevEvidence) {
+        if (__whySimulatorMode === 'NONE') {
+          simulatedAddedItems = [];
+          simulatedRemovedItems = [];
+          simulatedScoreDeltas = { branding: 0, contentStructureV2: 0, urlStructureV1: 0 };
+        } else if (__whySimulatorMode === 'A') {
+          simulatedAddedItems = [
+            'H3 제목 추가',
+            'UL 리스트 구조 개선',
+            '핵심 문장 강조 추가'
+          ];
+          simulatedRemovedItems = [];
+          simulatedScoreDeltas = { branding: 0, contentStructureV2: 8, urlStructureV1: 0 };
+        } else if (__whySimulatorMode === 'B') {
+          simulatedAddedItems = [];
+          simulatedRemovedItems = [
+            'H2 제목 제거',
+            '리스트 구조 제거',
+            '핵심 문장 제거'
+          ];
+          simulatedScoreDeltas = { branding: 0, contentStructureV2: -8, urlStructureV1: 0 };
+        }
+        
+        // 시뮬레이터 모드일 때 diff 오버라이드
+        if (simulatedAddedItems !== null) {
+          addedItems = simulatedAddedItems;
+        }
+        if (simulatedRemovedItems !== null) {
+          removedItems = simulatedRemovedItems;
+        }
+      }
       
       // 히스토리 버전 선택 UI
       let versionSelector = '';
@@ -715,6 +834,17 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               <span>비교 보기 (이전 vs 선택)</span>
             </label>
           </div>
+          ${compareEnabled ? `
+            <div style="margin-top: 8px; margin-bottom: 8px; padding: 8px; background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius);">
+              <label style="display: block; margin-bottom: 4px; font-size: 11px; color: var(--text); font-weight: 600;">WHY 시뮬레이터(DEV)</label>
+              <select id="whySimulatorSelect" style="width: 100%; padding: 4px; font-size: 11px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);">
+                <option value="OFF" ${__whySimulatorMode === 'OFF' ? 'selected' : ''}>OFF</option>
+                <option value="A" ${__whySimulatorMode === 'A' ? 'selected' : ''}>A (개선 예시)</option>
+                <option value="B" ${__whySimulatorMode === 'B' ? 'selected' : ''}>B (하락 예시)</option>
+                <option value="NONE" ${__whySimulatorMode === 'NONE' ? 'selected' : ''}>NONE (변경없음)</option>
+              </select>
+            </div>
+          ` : ''}
         `;
         
         if (compareEnabled) {
@@ -855,6 +985,150 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               </div>
             `;
             
+            // ✅ [Phase 7-2B] WHY 패널: KPI 점수 변화 설명 (실제 evidence 비교 기반)
+            let whyPanelHtml = '';
+            try {
+              // selectedScores와 prevScores 추출
+              let selectedScores = currentEvidence?.v2Summary?.analysis?.scores || scores || {};
+              let prevScores = prevEvidence?.v2Summary?.analysis?.scores || {};
+              
+              // ✅ [Phase 7-2B] 시뮬레이터 모드일 때 가짜 점수 주입
+              if (simulatedScoreDeltas !== null) {
+                // 가짜 점수 생성: prevScores를 기준으로 delta를 더해서 selectedScores 생성
+                // prevScores가 없으면 기본값(score: 0) 사용
+                const getBaseScore = (scoreObj) => {
+                  if (scoreObj && scoreObj.score !== null && scoreObj.score !== undefined) {
+                    return scoreObj.score;
+                  }
+                  return 0; // 기본값
+                };
+                
+                // prevScores 복사본 생성 (원본 변경 방지)
+                const prevScoresCopy = {
+                  branding: prevScores.branding ? { ...prevScores.branding } : { score: 0 },
+                  contentStructureV2: prevScores.contentStructureV2 ? { ...prevScores.contentStructureV2 } : { score: 0 },
+                  urlStructureV1: prevScores.urlStructureV1 ? { ...prevScores.urlStructureV1 } : { score: 0 }
+                };
+                
+                selectedScores = {
+                  branding: {
+                    ...prevScoresCopy.branding,
+                    score: getBaseScore(prevScoresCopy.branding) + (simulatedScoreDeltas.branding || 0)
+                  },
+                  contentStructureV2: {
+                    ...prevScoresCopy.contentStructureV2,
+                    score: getBaseScore(prevScoresCopy.contentStructureV2) + (simulatedScoreDeltas.contentStructureV2 || 0)
+                  },
+                  urlStructureV1: {
+                    ...prevScoresCopy.urlStructureV1,
+                    score: getBaseScore(prevScoresCopy.urlStructureV1) + (simulatedScoreDeltas.urlStructureV1 || 0)
+                  }
+                };
+                
+                // prevScores를 복사본으로 교체 (WHY 패널에서 사용)
+                prevScores = prevScoresCopy;
+              }
+              
+              // 점수 추출 및 포맷팅 함수
+              const getScoreValue = (scoreObj) => {
+                if (!scoreObj || scoreObj.score === null || scoreObj.score === undefined) {
+                  return null;
+                }
+                return scoreObj.score;
+              };
+              
+              const formatScore = (score) => {
+                return score !== null && score !== undefined ? String(score) : '측정 필요';
+              };
+              
+              // delta 계산 함수
+              const calculateDelta = (selected, prev) => {
+                const selectedScore = getScoreValue(selected);
+                const prevScore = getScoreValue(prev);
+                
+                if (selectedScore !== null && prevScore !== null) {
+                  return selectedScore - prevScore;
+                }
+                return null;
+              };
+              
+              // delta 표시 형식
+              const formatDelta = (delta) => {
+                if (delta === null) {
+                  return null;
+                } else if (delta > 0) {
+                  return `+${delta}`;
+                } else if (delta < 0) {
+                  return `${delta}`;
+                } else {
+                  return 0;
+                }
+              };
+              
+              // 각 KPI의 점수 및 delta 계산
+              const brandingPrev = getScoreValue(prevScores.branding);
+              const brandingCurr = getScoreValue(selectedScores.branding);
+              const brandingDelta = calculateDelta(selectedScores.branding, prevScores.branding);
+              
+              const contentStructurePrev = getScoreValue(prevScores.contentStructureV2);
+              const contentStructureCurr = getScoreValue(selectedScores.contentStructureV2);
+              const contentStructureDelta = calculateDelta(selectedScores.contentStructureV2, prevScores.contentStructureV2);
+              
+              const urlStructurePrev = getScoreValue(prevScores.urlStructureV1);
+              const urlStructureCurr = getScoreValue(selectedScores.urlStructureV1);
+              const urlStructureDelta = calculateDelta(selectedScores.urlStructureV1, prevScores.urlStructureV1);
+              
+              // KPI 행 HTML 생성 함수
+              const renderKpiRow = (label, prev, curr, delta) => {
+                const prevText = formatScore(prev);
+                const currText = formatScore(curr);
+                const deltaText = formatDelta(delta);
+                const deltaDisplay = deltaText !== null ? (deltaText === 0 ? '0' : (deltaText > 0 ? `+${deltaText}` : deltaText)) : '측정 필요';
+                
+                return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                    <span style="font-size: 12px; color: var(--text); font-weight: 500;">${esc(label)}</span>
+                    <div style="display: flex; gap: 12px; align-items: center; font-size: 12px;">
+                      <span style="color: var(--muted);">이전: ${esc(prevText)}</span>
+                      <span style="color: var(--text);">현재: ${esc(currText)}</span>
+                      <span style="color: ${deltaText !== null && deltaText !== 0 ? (deltaText > 0 ? '#2e7d32' : '#c62828') : 'var(--muted)'}; font-weight: 600;">변화(Δ): ${esc(deltaDisplay)}</span>
+                    </div>
+                  </div>
+                `;
+              };
+              
+              // 설명 문장 생성
+              const safeAddedItems = addedItems || [];
+              const safeRemovedItems = removedItems || [];
+              
+              let explanationText = '';
+              const hasAnyChange = (brandingDelta !== null && brandingDelta !== 0) || 
+                                   (contentStructureDelta !== null && contentStructureDelta !== 0) || 
+                                   (urlStructureDelta !== null && urlStructureDelta !== 0);
+              
+              if (!hasAnyChange) {
+                explanationText = '점수는 동일합니다. 변경이 점수 기준(임계치/가중치)에 영향이 없었을 수 있습니다.';
+              } else {
+                explanationText = '점수가 변했습니다. 아래 변경사항이 영향 가능성이 큽니다.';
+              }
+              
+              whyPanelHtml = `
+                <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+                  <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: var(--text);">WHY (점수 변화 설명)</p>
+                  ${renderKpiRow('브랜딩', brandingPrev, brandingCurr, brandingDelta)}
+                  ${renderKpiRow('콘텐츠 구조', contentStructurePrev, contentStructureCurr, contentStructureDelta)}
+                  ${renderKpiRow('URL 구조', urlStructurePrev, urlStructureCurr, urlStructureDelta)}
+                  <p style="margin: 12px 0 0 0; font-size: 12px; color: var(--text); line-height: 1.5;">${esc(explanationText)}</p>
+                </div>
+              `;
+            } catch (error) {
+              // 실패를 삼키고 WHY 패널만 표시하지 않음
+              if (globalThis.DEBUG) {
+                console.warn('[Phase 7-2B] WHY 패널 렌더링 실패:', error);
+              }
+              whyPanelHtml = '';
+            }
+            
             // ✅ [Phase 7-2a] "변경사항이 없습니다."는 diff 섹션 하단에만 표시 (렌더 막지 않음)
             const noChangesMessageHtml = (addedItems.length === 0 && removedItems.length === 0) ? `
               <div style="margin-top: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
@@ -872,6 +1146,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
                 ${diffSectionHtml}
                 ${noChangesMessageHtml}
                 ${insightHtml}
+                ${whyPanelHtml}
               </div>
             `;
           }
@@ -911,6 +1186,28 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             </div>
           `;
         }
+      }
+      
+      // ✅ [Phase 7-3C] WHY 시뮬레이터 단일 바인딩 (compareEnabled일 때만)
+      if (history.length >= 2 && __evidenceCompareEnabled && prevEvidence) {
+        queueMicrotask(() => {
+          const sel = document.getElementById('whySimulatorSelect');
+          if (!sel) return;
+          
+          sel.value = __whySimulatorMode;
+          
+          if (sel.__boundWhySimulatorV1) return;
+          sel.__boundWhySimulatorV1 = true;
+          
+          sel.addEventListener('change', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            __whySimulatorMode = sel.value || 'OFF';
+            if (typeof window !== 'undefined' && typeof window.__rerenderEvidenceViewV1 === 'function') {
+              window.__rerenderEvidenceViewV1();
+            }
+          });
+        });
       }
       
       return `
