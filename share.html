@@ -86,10 +86,16 @@
       padding: 10px 20px;
     }
     
+    /* Print Footer - 화면에서는 숨김 */
+    .print-footer {
+      display: none;
+    }
+    
     /* ✅ [Phase 3-2D] PDF 인쇄 스타일 */
     @media print {
       body {
         padding: 0;
+        padding-bottom: 20mm;
       }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .home-link,
@@ -107,6 +113,21 @@
       #shareContent {
         border: none;
         padding: 0;
+      }
+      /* Print Footer - 인쇄에서만 표시 */
+      .print-footer {
+        display: block;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px 12px;
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        z-index: 1000;
       }
     }
   </style>
@@ -271,6 +292,7 @@
       renderShareContent();
     }
   </script>
+  <div class="print-footer">리포트 버전: phase6-1b-metrics-stable</div>
 </body>
 </html>
 
