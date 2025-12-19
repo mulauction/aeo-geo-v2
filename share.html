@@ -23,6 +23,40 @@
     h1 {
       margin: 0 0 24px 0;
     }
+    .report-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      align-items: center;
+      margin: -12px 0 16px 0;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .report-meta .meta-item {
+      display: inline-flex;
+      gap: 6px;
+      align-items: baseline;
+      white-space: nowrap;
+    }
+    .report-meta .meta-value {
+      color: var(--text);
+      font-weight: 600;
+      white-space: normal;
+    }
+    .report-meta .meta-label {
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .report-meta .meta-sep {
+      color: var(--muted);
+    }
     #shareContent {
       margin-top: 16px;
       padding: 12px 14px;
@@ -57,10 +91,12 @@
       body {
         padding: 0;
       }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .home-link,
       #btnExportPDF {
         display: none;
       }
+      .report-meta { break-inside: avoid; page-break-inside: avoid; margin: 0 0 12px 0; }
       .kpi-section {
         page-break-inside: avoid;
         margin-bottom: 16px;
@@ -81,6 +117,12 @@
     
     <h1>Share - 리포트 공유</h1>
     
+    <div class="report-meta" role="note" aria-label="리포트 메타 정보">
+      <span class="meta-item"><span class="meta-label">생성 시각</span><span class="meta-sep">:</span><span class="meta-value" data-meta="createdAt">-</span></span>
+      <span class="meta-item"><span class="meta-label">분석 범위</span><span class="meta-sep">:</span><span class="meta-value" data-meta="scope">-</span></span>
+      <span class="meta-item"><span class="meta-label">리포트 버전</span><span class="meta-sep">:</span><span class="meta-value" data-meta="version">phase6-1b-metrics-stable</span></span>
+    </div>
+
     <div id="shareContent">
       <!-- KPI 섹션은 JavaScript로 동적 렌더링 -->
     </div>
