@@ -11,66 +11,316 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
       margin: 0;
       padding: 24px;
+      background: #f5f5f5;
     }
     .app {
       max-width: 960px;
       margin: 0 auto;
+      background: #fff;
+      padding: 32px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     .home-link {
       margin-bottom: 24px;
       display: inline-block;
     }
-    h1 {
-      margin: 0 0 24px 0;
+    
+    /* 리포트 헤더 */
+    .report-header {
+      border-bottom: 3px solid #333;
+      padding-bottom: 20px;
+      margin-bottom: 32px;
     }
-    #shareContent {
-      margin-top: 16px;
-      padding: 12px 14px;
-      border-radius: var(--radius);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      font-size: 14px;
+    .report-header h1 {
+      margin: 0 0 16px 0;
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a1a;
     }
-    .kpi-section {
-      margin-bottom: 24px;
+    .report-header-meta {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      font-size: 14px;
+      color: #666;
     }
-    .kpi-item {
-      padding: 8px 12px;
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      font-size: 13px;
+    .report-header-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
-    .kpi-item.muted {
-      color: var(--muted);
+    .report-header-meta-label {
+      font-weight: 600;
+      color: #333;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    #btnExportPDF {
-      margin-top: 16px;
-      padding: 10px 20px;
+    .report-header-meta-value {
+      color: #666;
     }
     
-    /* ✅ [Phase 3-2D] PDF 인쇄 스타일 */
+    /* KPI 그리드 (3단 카드형) */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .kpi-card {
+      padding: 20px;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      border-left: 4px solid #4a90e2;
+    }
+    .kpi-card-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .kpi-card-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    .kpi-card-grade {
+      font-size: 14px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .kpi-card.muted {
+      border-left-color: #ccc;
+    }
+    .kpi-card.muted .kpi-card-value {
+      color: #999;
+    }
+    
+    /* 콘텐츠 섹션 */
+    #shareContent {
+      margin-top: 0;
+    }
+    .content-section {
+      margin-bottom: 32px;
+    }
+    .content-section h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 16px 0;
+      color: #1a1a1a;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .content-section h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 24px 0 12px 0;
+      color: #333;
+    }
+    .content-section h4 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 20px 0 12px 0;
+      color: #333;
+    }
+    .content-section p {
+      line-height: 1.8;
+      color: #444;
+      margin: 0 0 12px 0;
+    }
+    .content-section ul {
+      margin: 0 0 20px 0;
+      padding-left: 24px;
+    }
+    .content-section li {
+      margin-bottom: 8px;
+      line-height: 1.8;
+      color: #444;
+    }
+    .score-display {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 16px 0;
+    }
+    
+    /* Evidence 안내 박스 */
+    .notice-card {
+      margin-top: 32px;
+      padding: 20px;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      border-left: 4px solid #999;
+    }
+    .notice-card h4 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    .notice-card p {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+    }
+    
+    #btnExportPDF {
+      margin-top: 24px;
+      padding: 12px 24px;
+      font-size: 16px;
+    }
+    
+    /* ✅ [Phase 5-8] PDF 인쇄 스타일 (A4 기준, 리포트 품질) */
     @media print {
+      @page {
+        size: A4;
+        margin: 20mm 20mm 20mm 20mm;
+      }
+      
       body {
         padding: 0;
+        background: #fff;
+        font-size: 11pt;
+        line-height: 1.6;
+        color: #000;
       }
-      .home-link,
-      #btnExportPDF {
-        display: none;
-      }
-      .kpi-section {
-        page-break-inside: avoid;
-        margin-bottom: 16px;
-      }
-      .kpi-item {
-        page-break-inside: avoid;
-      }
-      #shareContent {
-        border: none;
+      
+      .app {
+        max-width: 100%;
+        margin: 0;
         padding: 0;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      
+      /* 버튼/입력/네비 숨김 */
+      .home-link,
+      #btnExportPDF,
+      button,
+      input,
+      select,
+      .btn {
+        display: none !important;
+      }
+      
+      /* 리포트 헤더 */
+      .report-header {
+        border-bottom: 2px solid #000;
+        padding-bottom: 16px;
+        margin-bottom: 24px;
+        page-break-after: avoid;
+      }
+      .report-header h1 {
+        font-size: 24pt;
+        margin: 0 0 12px 0;
+      }
+      .report-header-meta {
+        font-size: 10pt;
+        gap: 12px;
+      }
+      .report-header-meta-label {
+        font-size: 9pt;
+      }
+      
+      /* KPI 그리드 */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 24px;
+        page-break-inside: avoid;
+      }
+      .kpi-card {
+        padding: 16px;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        border-left: 3px solid #333;
+        page-break-inside: avoid;
+      }
+      .kpi-card-label {
+        font-size: 9pt;
+      }
+      .kpi-card-value {
+        font-size: 18pt;
+      }
+      .kpi-card-grade {
+        font-size: 11pt;
+      }
+      
+      /* 콘텐츠 섹션 */
+      .content-section {
+        margin-bottom: 24px;
+        page-break-inside: avoid;
+      }
+      .content-section h2 {
+        font-size: 16pt;
+        margin: 0 0 12px 0;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #000;
+        page-break-after: avoid;
+      }
+      .content-section h3 {
+        font-size: 14pt;
+        margin: 20px 0 10px 0;
+        page-break-after: avoid;
+      }
+      .content-section h4 {
+        font-size: 12pt;
+        margin: 16px 0 8px 0;
+        page-break-after: avoid;
+      }
+      .content-section p {
+        font-size: 11pt;
+        line-height: 1.6;
+        margin: 0 0 10px 0;
+        orphans: 3;
+        widows: 3;
+      }
+      .content-section ul {
+        margin: 0 0 16px 0;
+        padding-left: 20px;
+        page-break-inside: avoid;
+      }
+      .content-section li {
+        margin-bottom: 6px;
+        line-height: 1.6;
+        font-size: 11pt;
+      }
+      .score-display {
+        font-size: 24pt;
+        margin: 12px 0;
+      }
+      
+      /* Evidence 안내 박스 */
+      .notice-card {
+        margin-top: 24px;
+        padding: 16px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-left: 3px solid #666;
+        page-break-inside: avoid;
+      }
+      .notice-card h4 {
+        font-size: 12pt;
+        margin: 0 0 10px 0;
+      }
+      .notice-card p {
+        font-size: 10pt;
+        margin: 0 0 6px 0;
+      }
+      
+      /* 페이지 나누기 제어 */
+      .report-header,
+      .kpi-grid,
+      .content-section,
+      .notice-card {
+        page-break-inside: avoid;
       }
     }
   </style>
@@ -79,10 +329,12 @@
   <div class="app">
     <a href="./home.html" class="home-link">Home</a>
     
-    <h1>Share - 리포트 공유</h1>
+    <div id="reportHeader" class="report-header">
+      <!-- 리포트 헤더는 JavaScript로 동적 렌더링 -->
+    </div>
     
     <div id="shareContent">
-      <!-- KPI 섹션은 JavaScript로 동적 렌더링 -->
+      <!-- 리포트 콘텐츠는 JavaScript로 동적 렌더링 -->
     </div>
     
     <button id="btnExportPDF" class="btn btn-primary">PDF로 내보내기</button>
@@ -154,64 +406,127 @@
         const contentStructureV2Score = scores.contentStructureV2;
         const urlStructureV1Score = scores.urlStructureV1;
         
-        // ✅ [Phase 3-2D] Share 화면 KPI 섹션 (Phase 3-2C 규격 사용)
-        const kpiSection = `
-          <div class="kpi-section">
-            ${renderKpi({ label: '엔티티 점수', value: brandingScore })}
-            ${renderKpi({ label: '콘텐츠 구조 점수', value: contentStructureV2Score })}
+        // ✅ [Phase 5-8] 리포트 헤더 렌더링
+        let analysisTarget = '분석 대상 없음';
+        if (payload.input) {
+          // HTML 태그 제거 및 텍스트만 추출
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = payload.input;
+          let textContent = tempDiv.textContent || tempDiv.innerText || '';
+          textContent = textContent.trim();
+          if (textContent.length > 80) {
+            analysisTarget = textContent.substring(0, 80) + '...';
+          } else {
+            analysisTarget = textContent || 'HTML 콘텐츠';
+          }
+        }
+        const analysisDate = payload.generatedAt ? new Date(payload.generatedAt).toLocaleString('ko-KR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : new Date().toLocaleString('ko-KR');
+        
+        const reportHeader = `
+          <h1>AEO/GEO 분석 리포트</h1>
+          <div class="report-header-meta">
+            <div class="report-header-meta-item">
+              <span class="report-header-meta-label">분석 대상</span>
+              <span class="report-header-meta-value">${esc(analysisTarget)}</span>
+            </div>
+            <div class="report-header-meta-item">
+              <span class="report-header-meta-label">분석 일시</span>
+              <span class="report-header-meta-value">${esc(analysisDate)}</span>
+            </div>
+          </div>
+        `;
+        
+        // ✅ [Phase 5-8] KPI 그리드 (3단 카드형)
+        const kpiCard = (label, value) => {
+          if (value === null || value === undefined) {
+            return `
+              <div class="kpi-card muted">
+                <div class="kpi-card-label">${esc(label)}</div>
+                <div class="kpi-card-value">측정 필요</div>
+              </div>
+            `;
+          }
+          const score = value.score !== null && value.score !== undefined ? value.score : 'N/A';
+          const grade = value.grade || 'N/A';
+          return `
+            <div class="kpi-card">
+              <div class="kpi-card-label">${esc(label)}</div>
+              <div class="kpi-card-value">${esc(score)}</div>
+              <div class="kpi-card-grade">등급: ${esc(grade)}</div>
+            </div>
+          `;
+        };
+        
+        const kpiGrid = `
+          <div class="kpi-grid">
+            ${kpiCard('엔티티 점수', brandingScore)}
+            ${kpiCard('콘텐츠 구조 점수', contentStructureV2Score)}
             ${(() => {
-              const urlKpi = renderKpi({ label: 'URL 구조 점수', value: urlStructureV1Score });
+              const card = kpiCard('URL 구조 점수', urlStructureV1Score);
               if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
-                return urlKpi.replace('</span>', ` · 연결됨</span>`);
-              } else {
-                return urlKpi.replace('</span>', ` · 측정 필요</span>`);
+                return card.replace('</div>', ` <span style="font-size: 11px; color: #4a90e2;">· 연결됨</span></div>`);
               }
+              return card;
             })()}
           </div>
         `;
         
-        // ✅ [Phase 3-2D] 콘텐츠 구조 점수 근거 섹션
+        // ✅ [Phase 5-8] 콘텐츠 구조 점수 근거 섹션
         let contentStructureEvidenceSection = '';
         if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
           contentStructureEvidenceSection = `
-            <div style="margin-bottom: 24px;">
-              <h4 style="margin: 0 0 12px 0;">콘텐츠 구조 점수 근거</h4>
-              <ul style="margin: 0; padding-left: 24px;">
-                ${contentStructureV2Score.evidence.map(e => `<li style="margin-bottom: 4px;">${esc(e)}</li>`).join("")}
+            <div class="content-section">
+              <h3>콘텐츠 구조 점수 근거</h3>
+              <ul>
+                ${contentStructureV2Score.evidence.map(e => `<li>${esc(e)}</li>`).join("")}
               </ul>
             </div>
           `;
         }
         
+        // ✅ [Phase 5-8] 결과 섹션
         const result = payload.result;
         let resultSection = '';
         if (result) {
           resultSection = `
-            <div><strong>${esc(result.score)}점 / ${esc(result.grade)}</strong></div>
-            <p>${esc(result.summary)}</p>
-            <h4>근거</h4>
-            <ul>${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
-            <h4>액션</h4>
-            <ul>${result.actions.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
+            <div class="content-section">
+              <h2>분석 결과</h2>
+              <div class="score-display">${esc(result.score)}점 / ${esc(result.grade)}</div>
+              <p>${esc(result.summary)}</p>
+              <h3>근거</h3>
+              <ul>
+                ${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}
+              </ul>
+              <h3>액션</h3>
+              <ul>
+                ${result.actions.map(a => `<li>${esc(a)}</li>`).join("")}
+              </ul>
+            </div>
           `;
         }
         
-        // ✅ [Phase 5] Evidence 섹션 (껍데기)
+        // ✅ [Phase 5-8] Evidence 안내 박스 (회색 notice-card)
         const loggedIn = isLoggedIn();
         const evidenceSection = `
-          <div style="margin-top: 24px; padding: 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
-            <h4 style="margin: 0 0 12px 0;">Evidence</h4>
+          <div class="notice-card">
+            <h4>Evidence</h4>
             ${loggedIn ? `
-              <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능은 준비 중입니다.</p>
-              <p style="margin: 0; font-size: 12px; color: var(--muted);">곧 제공될 예정입니다.</p>
+              <p>Evidence 기능은 준비 중입니다.</p>
+              <p>곧 제공될 예정입니다.</p>
             ` : `
-              <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
-              <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--muted); text-align: center;">로그인 후 사용 가능</p>
+              <p>Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
             `}
           </div>
         `;
         
-        document.getElementById('shareContent').innerHTML = kpiSection + contentStructureEvidenceSection + resultSection + evidenceSection;
+        document.getElementById('reportHeader').innerHTML = reportHeader;
+        document.getElementById('shareContent').innerHTML = kpiGrid + contentStructureEvidenceSection + resultSection + evidenceSection;
       }
       
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
