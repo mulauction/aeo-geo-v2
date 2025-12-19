@@ -9,6 +9,9 @@ let __selectedEvidenceId = null;
 // ✅ [Phase 5-8] Evidence history append 가드 (중복 방지)
 let __lastEvidenceSavedId = null;
 
+// ✅ [Phase 7-2] 히스토리 비교 토글 상태
+let __evidenceCompareEnabled = false;
+
 // ✅ [Phase 5-7 Fix] Evidence select 드롭다운 리렌더 프리즈 플래그
 if (typeof window !== 'undefined' && !window.__freezeAnalyzeRerenderUntil) {
   window.__freezeAnalyzeRerenderUntil = 0;
@@ -294,6 +297,20 @@ export function render(root, state) {
                 }
               });
             }
+            // ✅ [Phase 7-2] 비교 토글 핸들러 재바인딩
+            const newToggle = root.result.querySelector('#evidenceCompareToggle');
+            if (newToggle && !newToggle.__boundEvidenceCompareV1) {
+              newToggle.__boundEvidenceCompareV1 = true;
+              newToggle.addEventListener('change', (e) => {
+                __evidenceCompareEnabled = e.target.checked;
+                const evidenceBody = root.result.querySelector('.evidence-body');
+                if (evidenceBody) {
+                  const currentState = getState();
+                  const evidenceRoot = loadEvidence();
+                  evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                }
+              });
+            }
           }
         }
       }
@@ -351,6 +368,20 @@ export function render(root, state) {
               });
             }
           }
+          // ✅ [Phase 7-2] 비교 토글 핸들러 재바인딩
+          const newToggle = root.result.querySelector('#evidenceCompareToggle');
+          if (newToggle && !newToggle.__boundEvidenceCompareV1) {
+            newToggle.__boundEvidenceCompareV1 = true;
+            newToggle.addEventListener('change', (e) => {
+              __evidenceCompareEnabled = e.target.checked;
+              const evidenceBody = root.result.querySelector('.evidence-body');
+              if (evidenceBody) {
+                const currentState = getState();
+                const evidenceRoot = loadEvidence();
+                evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+              }
+            });
+          }
         }
       }
       
@@ -400,6 +431,56 @@ export function render(root, state) {
           });
         }
       }
+      
+      // ✅ [Phase 7-2] 히스토리 비교 토글 핸들러 바인딩
+      const evidenceCompareToggle = root.result.querySelector('#evidenceCompareToggle');
+      if (evidenceCompareToggle && !evidenceCompareToggle.__boundEvidenceCompareV1) {
+        evidenceCompareToggle.__boundEvidenceCompareV1 = true;
+        evidenceCompareToggle.addEventListener('change', (e) => {
+          __evidenceCompareEnabled = e.target.checked;
+          const evidenceBody = root.result.querySelector('.evidence-body');
+          if (evidenceBody) {
+            const currentState = getState();
+            const evidenceRoot = loadEvidence();
+            evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+            
+            // 재렌더링 후 모든 핸들러 재바인딩 (handleEvidenceVersionChange와 동일한 로직)
+            const newSelect = root.result.querySelector('#evidenceVersionSelect');
+            if (newSelect && !newSelect.__boundEvidenceVersionV1) {
+              newSelect.__boundEvidenceVersionV1 = true;
+              newSelect.addEventListener('change', handleEvidenceVersionChange);
+            }
+            const newToggle = root.result.querySelector('#evidenceCompareToggle');
+            if (newToggle && !newToggle.__boundEvidenceCompareV1) {
+              newToggle.__boundEvidenceCompareV1 = true;
+              newToggle.addEventListener('change', (e) => {
+                __evidenceCompareEnabled = e.target.checked;
+                const evidenceBody = root.result.querySelector('.evidence-body');
+                if (evidenceBody) {
+                  const currentState = getState();
+                  const evidenceRoot = loadEvidence();
+                  evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                }
+              });
+            }
+            const newBtn = root.result.querySelector('[data-evidence-generate="1"]');
+            if (newBtn && !newBtn.__boundEvidenceGenV1) {
+              newBtn.__boundEvidenceGenV1 = true;
+              newBtn.addEventListener('click', handleGenerateEvidence);
+            }
+            const newLoginBtn = root.result.querySelector('#btnEvidenceLogin');
+            if (newLoginBtn && !newLoginBtn.__boundEvidenceLoginV1) {
+              newLoginBtn.__boundEvidenceLoginV1 = true;
+              newLoginBtn.addEventListener('click', () => {
+                const loginModal = window.loginModalInstance;
+                if (loginModal) {
+                  loginModal.open("Evidence를 보려면 로그인이 필요합니다.");
+                }
+              });
+            }
+          }
+        });
+      }
     }
   }
   
@@ -409,6 +490,62 @@ export function esc(v) {
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
   }
+
+/**
+ * ✅ [Phase 7-2] Evidence entry에서 bullet 리스트 추출
+ * @param {Object} entry - Evidence entry 객체 (v2Summary 포함 가능)
+ * @param {Object} scores - analysis.scores 객체 (현재 분석 결과)
+ * @returns {string[]} Evidence bullet 리스트 (최대 7개)
+ */
+function getEvidenceBullets(entry, scores) {
+  try {
+    // entry에서 v2Summary 추출 시도
+    let contentStructureV2 = null;
+    
+    if (entry && entry.v2Summary) {
+      // v2Summary에서 analysis.scores.contentStructureV2 찾기
+      contentStructureV2 = entry.v2Summary?.analysis?.scores?.contentStructureV2;
+    }
+    
+    // entry에 직접 contentStructureV2가 있는 경우
+    if (!contentStructureV2 && entry && entry.contentStructureV2) {
+      contentStructureV2 = entry.contentStructureV2;
+    }
+    
+    // scores에서 직접 가져오기 (현재 분석 결과)
+    if (!contentStructureV2 && scores && scores.contentStructureV2) {
+      contentStructureV2 = scores.contentStructureV2;
+    }
+    
+    if (contentStructureV2 && contentStructureV2.evidence && Array.isArray(contentStructureV2.evidence)) {
+      // 불충족 항목 추출
+      const failedItems = contentStructureV2.evidence
+        .filter(e => {
+          const text = typeof e === 'string' ? e : String(e);
+          return text.includes('부재') || text.includes('부족') || text.includes('없음') || 
+                 text.includes('미흡') || text.includes('부족함') || text.includes('누락');
+        })
+        .map(e => {
+          const text = typeof e === 'string' ? e : String(e);
+          const parts = text.split(':');
+          if (parts.length > 1) {
+            return parts[1].trim();
+          }
+          return text;
+        })
+        .slice(0, 7); // 최대 7개
+      
+      return failedItems;
+    }
+    
+    return [];
+  } catch (error) {
+    if (globalThis.DEBUG) {
+      console.warn('[Phase 7-2] getEvidenceBullets 실패:', error);
+    }
+    return [];
+  }
+}
 
 // ✅ [Phase 5-8] Share 화면에서도 사용할 수 있도록 export
 export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
@@ -436,37 +573,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
     }
   }
   
-  // ✅ [Phase 5-8 v3] 실제 분석 결과에서 Evidence 추출
-  let analysisEvidenceItems = [];
-  try {
-    const contentStructureV2 = scores.contentStructureV2;
-    if (contentStructureV2 && contentStructureV2.evidence && Array.isArray(contentStructureV2.evidence)) {
-      // 불충족 항목 추출 (부재, 부족, 없음 등이 포함된 항목)
-      const failedItems = contentStructureV2.evidence
-        .filter(e => {
-          const text = typeof e === 'string' ? e : String(e);
-          return text.includes('부재') || text.includes('부족') || text.includes('없음') || 
-                 text.includes('미흡') || text.includes('부족함') || text.includes('누락');
-        })
-        .map(e => {
-          const text = typeof e === 'string' ? e : String(e);
-          // "체크명: 문제" 형식에서 문제 부분만 추출하거나, 전체를 사람이 이해하는 문장으로 변환
-          const parts = text.split(':');
-          if (parts.length > 1) {
-            return parts[1].trim();
-          }
-          return text;
-        })
-        .slice(0, 7); // 최대 7개
-      
-      analysisEvidenceItems = failedItems;
-    }
-  } catch (error) {
-    // 실패를 삼키고 계속 진행
-    if (globalThis.DEBUG) {
-      console.warn('[Phase 5-8 v3] Evidence 추출 실패:', error);
-    }
-  }
+  // ✅ [Phase 7-2] 실제 분석 결과에서 Evidence 추출 (함수 재사용)
+  const analysisEvidenceItems = getEvidenceBullets(null, scores);
   
   if (!currentEvidence) {
     // Evidence 없음 - 실제 분석 결과 표시
@@ -547,6 +655,24 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         }
       }
       
+      // ✅ [Phase 7-2] 현재 선택된 entry의 인덱스 찾기
+      const currentIndex = history.findIndex(e => {
+        const entryId = e.meta?.id || e.id;
+        return entryId === currentId;
+      });
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : -1;
+      const prevEvidence = prevIndex >= 0 ? history[prevIndex] : null;
+      
+      // ✅ [Phase 7-2] 비교용 Evidence bullet 추출
+      const currBullets = getEvidenceBullets(currentEvidence, scores);
+      const prevBullets = prevEvidence ? getEvidenceBullets(prevEvidence, scores) : [];
+      
+      // ✅ [Phase 7-2a] diff 계산: trim() 후 문자열 완전 일치 기반
+      const currBulletsTrimmed = currBullets.map(item => String(item).trim());
+      const prevBulletsTrimmed = prevBullets.map(item => String(item).trim());
+      const addedItems = currBulletsTrimmed.filter(item => !prevBulletsTrimmed.includes(item)).slice(0, 7);
+      const removedItems = prevBulletsTrimmed.filter(item => !currBulletsTrimmed.includes(item)).slice(0, 7);
+      
       // 히스토리 버전 선택 UI
       let versionSelector = '';
       if (history.length >= 2) {
@@ -572,6 +698,127 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             <select id="evidenceVersionSelect" data-evidence-version="1" style="width: 100%; padding: 6px; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);">
               ${versionOptions}
             </select>
+          </div>
+        `;
+      }
+      
+      // ✅ [Phase 7-2] 히스토리 비교 토글 UI
+      let compareToggleHtml = '';
+      let compareDiffHtml = '';
+      
+      if (history.length >= 2) {
+        const compareEnabled = __evidenceCompareEnabled && prevEvidence;
+        compareToggleHtml = `
+          <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer;">
+              <input type="checkbox" id="evidenceCompareToggle" ${compareEnabled ? 'checked' : ''} style="cursor: pointer;">
+              <span>비교 보기 (이전 vs 선택)</span>
+            </label>
+          </div>
+        `;
+        
+        if (compareEnabled) {
+          if (!prevEvidence) {
+            // i=0인 경우: 이전 기록이 없음
+            compareDiffHtml = `
+              <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">이전 기록이 없어 비교할 수 없습니다.</p>
+              </div>
+            `;
+          } else {
+            // ✅ [Phase 7-2] curr와 prev의 Evidence bullet 리스트 동시 출력
+            const currBulletsHtml = currBullets.length > 0 ? `
+              <div style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 200px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">선택된 버전</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text);">
+                  ${currBullets.map(item => `<li style="margin-bottom: 4px; line-height: 1.4;">${esc(item)}</li>`).join('')}
+                </ul>
+              </div>
+            ` : `
+              <div style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 200px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">선택된 버전</p>
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">Evidence 데이터 부족(측정 필요)</p>
+              </div>
+            `;
+            
+            const prevBulletsHtml = prevBullets.length > 0 ? `
+              <div style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 200px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">이전 버전</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text);">
+                  ${prevBullets.map(item => `<li style="margin-bottom: 4px; line-height: 1.4;">${esc(item)}</li>`).join('')}
+                </ul>
+              </div>
+            ` : `
+              <div style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 200px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">이전 버전</p>
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">Evidence 데이터 부족(측정 필요)</p>
+              </div>
+            `;
+            
+            // ✅ [Phase 7-2a] diff 섹션: Added/Removed 박스 (항목이 없어도 표시)
+            const addedHtml = `
+              <div style="flex: 1; padding: 12px; background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: var(--radius); min-width: 200px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #2e7d32;">Added</p>
+                ${addedItems.length > 0 ? `
+                  <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text);">
+                    ${addedItems.map(item => `<li style="margin-bottom: 4px; line-height: 1.4;">${esc(item)}</li>`).join('')}
+                  </ul>
+                ` : `
+                  <p style="margin: 0; font-size: 12px; color: var(--muted);">추가된 항목 없음</p>
+                `}
+              </div>
+            `;
+            
+            const removedHtml = `
+              <div style="flex: 1; padding: 12px; background: #ffebee; border: 1px solid #ffcdd2; border-radius: var(--radius); min-width: 200px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #c62828;">Removed</p>
+                ${removedItems.length > 0 ? `
+                  <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text);">
+                    ${removedItems.map(item => `<li style="margin-bottom: 4px; line-height: 1.4;">${esc(item)}</li>`).join('')}
+                  </ul>
+                ` : `
+                  <p style="margin: 0; font-size: 12px; color: var(--muted);">사라진 항목 없음</p>
+                `}
+              </div>
+            `;
+            
+            // ✅ [Phase 7-2a] diff 섹션은 항상 렌더링
+            const diffSectionHtml = `
+              <div style="margin-top: 12px;">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  ${addedHtml}
+                  ${removedHtml}
+                </div>
+              </div>
+            `;
+            
+            // ✅ [Phase 7-2a] "변경사항이 없습니다."는 diff 섹션 하단에만 표시 (렌더 막지 않음)
+            const noChangesMessageHtml = (addedItems.length === 0 && removedItems.length === 0) ? `
+              <div style="margin-top: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">변경사항이 없습니다.</p>
+              </div>
+            ` : '';
+            
+            compareDiffHtml = `
+              <div style="margin-top: 12px;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">비교 결과</p>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
+                  ${currBulletsHtml}
+                  ${prevBulletsHtml}
+                </div>
+                ${diffSectionHtml}
+                ${noChangesMessageHtml}
+              </div>
+            `;
+          }
+        }
+      } else {
+        compareToggleHtml = `
+          <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);">
+              <input type="checkbox" disabled style="cursor: not-allowed;">
+              <span>비교 보기 (비교하려면 최소 2개 기록이 필요)</span>
+            </label>
           </div>
         `;
       }
@@ -605,6 +852,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       return `
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
         ${versionSelector}
+        ${compareToggleHtml}
         ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
         ${itemsHtml ? `
           <div style="margin-top: 8px;">
@@ -612,6 +860,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
           </div>
         ` : ''}
         ${analysisResultHtml}
+        ${compareDiffHtml}
         <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 12px;">근거 생성(테스트)</button>
       `;
     }
