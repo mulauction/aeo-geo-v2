@@ -792,6 +792,69 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               </div>
             `;
             
+            // ✅ [Phase 7-2B] Insight 섹션
+            const x = addedItems.length;
+            const y = removedItems.length;
+            
+            // 요약 1줄
+            const summaryLine = `추가 ${x} · 제거 ${y}`;
+            
+            // 해석 문장
+            let interpretationText = '';
+            if (x === 0 && y === 0) {
+              interpretationText = '구조 변화 없음. 다음은 문장/키워드 품질 개선 또는 H1/H2/리스트 구성 등 구조 자체 추가를 권장.';
+            } else if (x > 0 && y === 0) {
+              interpretationText = '구조 요소가 추가되어 개선 방향이 보임. 새로 추가된 항목이 KPI에 반영될 수 있음.';
+            } else if (x === 0 && y > 0) {
+              interpretationText = '구조 요소가 사라져 품질 하락 가능. 제거된 항목을 복구 권장.';
+            } else {
+              interpretationText = '구조 재구성이 발생. 추가/제거 항목을 확인해 의도한 방향인지 점검 필요.';
+            }
+            
+            // Top Changes 미니 리스트
+            const topAdded = addedItems.slice(0, 3);
+            const topRemoved = removedItems.slice(0, 3);
+            
+            const topAddedHtml = topAdded.length > 0 ? `
+              <div style="flex: 1; min-width: 200px;">
+                <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 600; color: var(--text);">Added 상위</p>
+                <ul style="margin: 0; padding-left: 18px; font-size: 11px; color: var(--text);">
+                  ${topAdded.map(item => `<li style="margin-bottom: 3px; line-height: 1.3;">${esc(item)}</li>`).join('')}
+                </ul>
+              </div>
+            ` : `
+              <div style="flex: 1; min-width: 200px;">
+                <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 600; color: var(--text);">Added 상위</p>
+                <p style="margin: 0; font-size: 11px; color: var(--muted);">없음</p>
+              </div>
+            `;
+            
+            const topRemovedHtml = topRemoved.length > 0 ? `
+              <div style="flex: 1; min-width: 200px;">
+                <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 600; color: var(--text);">Removed 상위</p>
+                <ul style="margin: 0; padding-left: 18px; font-size: 11px; color: var(--text);">
+                  ${topRemoved.map(item => `<li style="margin-bottom: 3px; line-height: 1.3;">${esc(item)}</li>`).join('')}
+                </ul>
+              </div>
+            ` : `
+              <div style="flex: 1; min-width: 200px;">
+                <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 600; color: var(--text);">Removed 상위</p>
+                <p style="margin: 0; font-size: 11px; color: var(--muted);">없음</p>
+              </div>
+            `;
+            
+            const insightHtml = `
+              <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">Insight</p>
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">${esc(summaryLine)}</p>
+                <p style="margin: 0 0 12px 0; font-size: 12px; color: var(--text); line-height: 1.5;">${esc(interpretationText)}</p>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  ${topAddedHtml}
+                  ${topRemovedHtml}
+                </div>
+              </div>
+            `;
+            
             // ✅ [Phase 7-2a] "변경사항이 없습니다."는 diff 섹션 하단에만 표시 (렌더 막지 않음)
             const noChangesMessageHtml = (addedItems.length === 0 && removedItems.length === 0) ? `
               <div style="margin-top: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
@@ -808,6 +871,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
                 </div>
                 ${diffSectionHtml}
                 ${noChangesMessageHtml}
+                ${insightHtml}
               </div>
             `;
           }
