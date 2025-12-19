@@ -436,19 +436,74 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
     }
   }
   
+  // ✅ [Phase 5-8 v3] 실제 분석 결과에서 Evidence 추출
+  let analysisEvidenceItems = [];
+  try {
+    const contentStructureV2 = scores.contentStructureV2;
+    if (contentStructureV2 && contentStructureV2.evidence && Array.isArray(contentStructureV2.evidence)) {
+      // 불충족 항목 추출 (부재, 부족, 없음 등이 포함된 항목)
+      const failedItems = contentStructureV2.evidence
+        .filter(e => {
+          const text = typeof e === 'string' ? e : String(e);
+          return text.includes('부재') || text.includes('부족') || text.includes('없음') || 
+                 text.includes('미흡') || text.includes('부족함') || text.includes('누락');
+        })
+        .map(e => {
+          const text = typeof e === 'string' ? e : String(e);
+          // "체크명: 문제" 형식에서 문제 부분만 추출하거나, 전체를 사람이 이해하는 문장으로 변환
+          const parts = text.split(':');
+          if (parts.length > 1) {
+            return parts[1].trim();
+          }
+          return text;
+        })
+        .slice(0, 7); // 최대 7개
+      
+      analysisEvidenceItems = failedItems;
+    }
+  } catch (error) {
+    // 실패를 삼키고 계속 진행
+    if (globalThis.DEBUG) {
+      console.warn('[Phase 5-8 v3] Evidence 추출 실패:', error);
+    }
+  }
+  
   if (!currentEvidence) {
-    // Evidence 없음
+    // Evidence 없음 - 실제 분석 결과 표시
     if (isAuthed) {
-      return `
-        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
-        <p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">Evidence가 저장되지 않았습니다.</p>
-        <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>
-      `;
+      // 실제 분석 결과가 있으면 표시
+      if (analysisEvidenceItems.length > 0) {
+        const evidenceListHtml = analysisEvidenceItems
+          .map(item => `<li style="margin-bottom: 6px; line-height: 1.5;">${esc(item)}</li>`)
+          .join('');
+        return `
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">분석 결과 요약</p>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: var(--text);">
+            ${evidenceListHtml}
+          </ul>
+          <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 12px;">근거 생성(테스트)</button>
+        `;
+      } else {
+        // 분석 결과가 있지만 불충족 항목이 없는 경우
+        const contentStructureV2 = scores.contentStructureV2;
+        if (contentStructureV2 && contentStructureV2.score !== null && contentStructureV2.score !== undefined) {
+          return `
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">분석 결과 요약</p>
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">핵심 구조 체크를 대부분 충족했습니다.</p>
+            <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>
+          `;
+        } else {
+          // 측정 필요
+          return `
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">이번 리포트에서는 Evidence를 생성할 데이터가 부족합니다(측정 필요).</p>
+            <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 8px;">근거 생성(테스트)</button>
+          `;
+        }
+      }
     } else {
       return `
-        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence 없음</p>
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence를 보려면 로그인이 필요합니다.</p>
         <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); text-align: center;">
-          <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--muted);">Evidence를 보려면 로그인이 필요합니다.</p>
           <button id="btnEvidenceLogin" class="btn btn-primary" style="width: 100%;">로그인</button>
         </div>
       `;
@@ -521,6 +576,32 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         `;
       }
       
+      // ✅ [Phase 5-8 v3] 히스토리가 있어도 실제 분석 결과를 우선 표시
+      let analysisResultHtml = '';
+      if (analysisEvidenceItems.length > 0) {
+        const evidenceListHtml = analysisEvidenceItems
+          .map(item => `<li style="margin-bottom: 6px; line-height: 1.5;">${esc(item)}</li>`)
+          .join('');
+        analysisResultHtml = `
+          <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: var(--text);">현재 분석 결과 요약</p>
+            <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: var(--text);">
+              ${evidenceListHtml}
+            </ul>
+          </div>
+        `;
+      } else {
+        const contentStructureV2 = scores.contentStructureV2;
+        if (contentStructureV2 && contentStructureV2.score !== null && contentStructureV2.score !== undefined) {
+          analysisResultHtml = `
+            <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+              <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: var(--text);">현재 분석 결과 요약</p>
+              <p style="margin: 0; font-size: 13px; color: var(--text);">핵심 구조 체크를 대부분 충족했습니다.</p>
+            </div>
+          `;
+        }
+      }
+      
       return `
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
         ${versionSelector}
@@ -530,6 +611,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             ${itemsHtml}
           </div>
         ` : ''}
+        ${analysisResultHtml}
         <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 12px;">근거 생성(테스트)</button>
       `;
     }
