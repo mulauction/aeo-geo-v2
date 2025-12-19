@@ -670,8 +670,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       // ✅ [Phase 7-2a] diff 계산: trim() 후 문자열 완전 일치 기반
       const currBulletsTrimmed = currBullets.map(item => String(item).trim());
       const prevBulletsTrimmed = prevBullets.map(item => String(item).trim());
-      const addedItems = currBulletsTrimmed.filter(item => !prevBulletsTrimmed.includes(item)).slice(0, 7);
-      const removedItems = prevBulletsTrimmed.filter(item => !currBulletsTrimmed.includes(item)).slice(0, 7);
+      const addedItems = (currBulletsTrimmed || []).filter(item => !prevBulletsTrimmed.includes(item)).slice(0, 7);
+      const removedItems = (prevBulletsTrimmed || []).filter(item => !currBulletsTrimmed.includes(item)).slice(0, 7);
       
       // 히스토리 버전 선택 UI
       let versionSelector = '';
