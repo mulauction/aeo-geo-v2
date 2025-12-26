@@ -1429,14 +1429,15 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       // ✅ [Phase 7-4] 상태 3단 분기: history.length 기준
       const historyLength = history && Array.isArray(history) ? history.length : 0;
       
+      // ✅ [Phase 7-6] 비교보기 안내 문구 (view-only)
+      const compareHintText = historyLength < 2
+        ? "비교보기는 기록이 2개 이상일 때 활성화됩니다. 아래 '근거 생성(테스트)'를 한 번 더 실행해 주세요."
+        : "비교보기는 '선택 버전 vs 이전 버전' 구조 변화를 요약합니다. 최종 리포트 공유/출력은 Share 화면을 사용하세요.";
+      const compareHintHtml = `<div style="margin-top: 6px; margin-bottom: 8px; font-size: 12px; color: var(--muted);">${esc(compareHintText)}</div>`;
+      
       if (historyLength < 2) {
-        // 상태 1: history.length < 2 → 체크박스 없음, 안내 카드만 표시
-        compareToggleHtml = `
-          <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: var(--text);">비교 기능 안내</p>
-            <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 최소 2개의 기록이 필요합니다. 아래 '근거 생성(테스트)'를 한 번 더 실행해주세요.</p>
-          </div>
-        `;
+        // 상태 1: history.length < 2 → 체크박스 없음, Phase7-6 안내 1줄만 표시 (박스형 안내 제거)
+        compareToggleHtml = '';
         // compareDiffHtml은 빈 문자열 유지 (Compare 결과 숨김)
         compareDiffHtml = '';
       } else {
@@ -1939,6 +1940,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text);">Evidence 있음</p>
         ${versionSelector}
         ${compareToggleHtml}
+        ${compareHintHtml}
         ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
         ${itemsHtml ? `
           <div style="margin-top: 8px;">
