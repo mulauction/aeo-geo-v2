@@ -427,7 +427,7 @@ export function render(root, state) {
               });
             }
           }
-          // ✅ [Phase 7-2] 비교 토글 핸들러 재바인딩
+          // ✅ [Phase 7-3C] 비교보기 체크박스 핸들러 재바인딩 (재렌더 후에도 클릭 가능하도록)
           const newToggle = root.result.querySelector('#evidenceCompareToggle');
           if (newToggle && !newToggle.__boundEvidenceCompareV1) {
             newToggle.__boundEvidenceCompareV1 = true;
@@ -438,6 +438,33 @@ export function render(root, state) {
                 const currentState = getState();
                 const evidenceRoot = loadEvidence();
                 evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                
+                // ✅ [Phase 7-3C] 재렌더 후 모든 핸들러 재바인딩
+                const newBtn = root.result.querySelector('[data-evidence-generate="1"]');
+                if (newBtn && !newBtn.__boundEvidenceGenV1) {
+                  newBtn.__boundEvidenceGenV1 = true;
+                  newBtn.addEventListener('click', handleGenerateEvidence);
+                }
+                const newToggle2 = root.result.querySelector('#evidenceCompareToggle');
+                if (newToggle2 && !newToggle2.__boundEvidenceCompareV1) {
+                  newToggle2.__boundEvidenceCompareV1 = true;
+                  newToggle2.addEventListener('change', (e) => {
+                    __evidenceCompareEnabled = e.target.checked;
+                    const evidenceBody = root.result.querySelector('.evidence-body');
+                    if (evidenceBody) {
+                      const currentState = getState();
+                      const evidenceRoot = loadEvidence();
+                      evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                    }
+                  });
+                }
+                const newSelect2 = root.result.querySelector('#evidenceVersionSelect');
+                if (newSelect2 && !newSelect2.__boundEvidenceVersionV1) {
+                  newSelect2.__boundEvidenceVersionV1 = true;
+                  newSelect2.addEventListener('change', handleEvidenceVersionChange);
+                }
+                bindAbCompareControls(root);
+                bindWhySimulatorSelect(root);
               }
             });
           }
@@ -1187,14 +1214,19 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       // ✅ [Phase 7-2] 히스토리 비교 토글 UI
       let compareToggleHtml = '';
       let compareDiffHtml = '';
+      // ✅ [Phase 7-3C] compareEnabled: 함수 스코프에서 선언 (렌더링 조건에서 사용)
+      let compareEnabled = false;
       
-      if (history.length >= 2) {
+      // ✅ [Phase 7-3C] canCompare: history.length >= 2일 때만 비교 가능
+      const canCompare = history && history.length >= 2;
+      
+      if (canCompare) {
         // ✅ [Phase 7-3C] compareEnabled: 체크박스 상태만 확인 (prevEvidence 여부와 무관)
-        const compareEnabled = __evidenceCompareEnabled;
+        compareEnabled = __evidenceCompareEnabled;
         compareToggleHtml = `
           <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
             <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer;">
-              <input type="checkbox" id="evidenceCompareToggle" ${compareEnabled ? 'checked' : ''} style="cursor: pointer;">
+              <input type="checkbox" id="evidenceCompareToggle" ${compareEnabled ? 'checked' : ''} style="cursor: pointer; pointer-events: auto;">
               <span>비교 보기 (이전 vs 선택)</span>
             </label>
           </div>
@@ -1217,7 +1249,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
           if (!prevEvidence || !currentEvidence) {
             compareDiffHtml = `
               <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-                <p style="margin: 0; font-size: 12px; color: var(--muted);">비교할 이전 결과가 없습니다. 다른 버전을 선택하거나 근거를 더 생성하세요.</p>
+                <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: var(--text);">비교할 이전 기록이 없습니다</p>
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 최소 2개의 Evidence 기록이 필요합니다. 아래 [근거 생성(테스트)]를 한 번 더 실행해 기록을 추가하세요.</p>
               </div>
             `;
           } else {
@@ -1508,7 +1541,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             if (history.length >= 2 && prevEvidence) {
               const abSelectOptions = __abDrafts.length > 0
                 ? __abDrafts.map(d => `<option value="${esc(d.id)}" ${d.id === __abSelectedId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')
-                : '<option value="" disabled>개선안이 없습니다. [개선안(더미) 추가]를 눌러 생성하세요.</option>';
+                : '<option value="" disabled>개선안(더미)이 없습니다. [개선안(더미) 추가]를 눌러주세요.</option>';
               
               abCompareControlsHtml = `
                 <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
@@ -1539,12 +1572,10 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
           }
         }
       } else {
+        // ✅ [Phase 7-3C] history.length < 2일 때: 체크박스 렌더링하지 않고 안내 카드만 표시
         compareToggleHtml = `
-          <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);">
-              <input type="checkbox" disabled style="cursor: not-allowed;">
-              <span>비교 보기 (비교하려면 최소 2개 기록이 필요)</span>
-            </label>
+          <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 최소 2개 기록이 필요합니다. 근거 생성(테스트)을 한 번 더 실행해주세요.</p>
           </div>
         `;
       }
@@ -1607,7 +1638,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             ${itemsHtml}
           </div>
         ` : ''}
-        ${analysisResultHtml}
+        ${compareEnabled ? '' : analysisResultHtml}
         ${compareDiffHtml}
         <button data-evidence-generate="1" class="btn btn-primary" style="width: 100%; margin-top: 12px;">근거 생성(테스트)</button>
       `;
