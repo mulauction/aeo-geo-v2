@@ -1435,6 +1435,13 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         : "비교보기는 '선택 버전 vs 이전 버전' 구조 변화를 요약합니다. 최종 리포트 공유/출력은 Share 화면을 사용하세요.";
       const compareHintHtml = `<div style="margin-top: 6px; margin-bottom: 8px; font-size: 12px; color: var(--muted);">${esc(compareHintText)}</div>`;
       
+      // ✅ [Phase 7-7] 최종 리포트(Share) 열기 버튼 (history >= 2일 때만 표시)
+      const shareButtonHtml = historyLength >= 2 ? `
+        <div style="margin-top: 6px; margin-bottom: 8px; display: flex; justify-content: flex-end;">
+          <button onclick="(() => { const r = new URLSearchParams(location.search).get('r'); location.href = r ? 'share.html?r=' + encodeURIComponent(r) : 'share.html'; })()" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">최종 리포트(Share) 열기</button>
+        </div>
+      ` : '';
+      
       if (historyLength < 2) {
         // 상태 1: history.length < 2 → 체크박스 없음, Phase7-6 안내 1줄만 표시 (박스형 안내 제거)
         compareToggleHtml = '';
@@ -1941,6 +1948,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         ${versionSelector}
         ${compareToggleHtml}
         ${compareHintHtml}
+        ${shareButtonHtml}
         ${createdAtText ? `<p style="margin: 0 0 8px 0; font-size: 12px; color: var(--muted);">생성 시간: ${esc(createdAtText)}</p>` : ''}
         ${itemsHtml ? `
           <div style="margin-top: 8px;">
