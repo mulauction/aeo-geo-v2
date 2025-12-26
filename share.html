@@ -110,6 +110,29 @@
       color: #999;
       white-space: nowrap;
     }
+    /* ✅ [Phase 8-2B] 측정 필요 CTA */
+    .measurement-cta {
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .measurement-cta-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    .measurement-cta-link {
+      color: #0066cc;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .measurement-cta-link:hover {
+      text-decoration: underline;
+    }
     .kpi-bar-item {
       margin-bottom: 24px;
     }
@@ -501,6 +524,21 @@
         color: #888;
         white-space: nowrap;
       }
+      .measurement-cta {
+        margin-bottom: 20px;
+        padding: 12px;
+        background: #fffbf0;
+        border: 1px solid #ddd;
+        font-size: 10pt;
+        page-break-inside: avoid;
+      }
+      .measurement-cta-title {
+        font-size: 10pt;
+        margin-bottom: 6px;
+      }
+      .measurement-cta-link {
+        font-size: 10pt;
+      }
       .kpi-bar-item {
         margin-bottom: 16px;
         page-break-inside: avoid;
@@ -870,35 +908,44 @@
           `;
         };
         
-        // ✅ [Phase 8-2A] 신뢰도 계산
-        const isMissing = (value) => {
-          return value === null || value === undefined || value.score === null || value.score === undefined;
+        // ✅ [Phase 8-2A/8-2B] 신뢰도 계산 (evidence 기반 규칙 고정)
+        const isMeasured = (value) => {
+          if (value === null || value === undefined) return false;
+          const score = value.score;
+          return score !== null && score !== undefined && !isNaN(score) && isFinite(score);
         };
         
-        // ✅ [Phase 8-2B] 측정 필요 항목 추적
+        const hasEvidence = contentStructureV2Score && 
+          contentStructureV2Score.evidence && 
+          Array.isArray(contentStructureV2Score.evidence) && 
+          contentStructureV2Score.evidence.length > 0;
+        
+        const isDummyState = !hasEvidence && 
+          !isMeasured(brandingScore) && 
+          !isMeasured(contentStructureV2Score) && 
+          !isMeasured(urlStructureV1Score);
+        
+        // ✅ [Phase 8-2B] 측정 상태 추적
+        const brandStatus = isMeasured(brandingScore) ? '측정됨' : '미측정';
+        const contentStatus = isMeasured(contentStructureV2Score) ? '측정됨' : '미측정';
+        const urlStatus = isMeasured(urlStructureV1Score) ? '측정됨' : '미측정';
+        
         const missingItems = [];
-        const itemLabels = { branding: 'Brand', contentStructureV2: 'Content', urlStructureV1: 'URL' };
-        if (isMissing(brandingScore)) missingItems.push('Brand');
-        if (isMissing(contentStructureV2Score)) missingItems.push('Content');
-        if (isMissing(urlStructureV1Score)) missingItems.push('URL');
+        if (!isMeasured(brandingScore)) missingItems.push('BRAND');
+        if (!isMeasured(contentStructureV2Score)) missingItems.push('CONTENT');
+        if (!isMeasured(urlStructureV1Score)) missingItems.push('URL');
         const missingCount = missingItems.length;
         
+        // ✅ [Phase 8-2B] 신뢰도 레벨 결정 (evidence 기반 규칙)
         let reliabilityLevel = '높음';
-        if (missingCount >= 2) {
+        if (!hasEvidence || isDummyState) {
           reliabilityLevel = '낮음';
-        } else if (missingCount === 1) {
-          reliabilityLevel = '보통';
+        } else if (missingCount >= 1) {
+          reliabilityLevel = missingCount >= 2 ? '낮음' : '보통';
         }
         
-        // ✅ [Phase 8-2B] Reason line 생성
-        let reasonText = '';
-        if (missingCount === 0) {
-          reasonText = '측정 필요 0개. 3개 항목 모두 측정 완료.';
-        } else if (missingCount === 1) {
-          reasonText = `측정 필요 1개(${esc(missingItems[0])}). 나머지 2개는 측정 완료.`;
-        } else {
-          reasonText = `측정 필요 ${missingCount}개(${esc(missingItems.join(', '))}). 신뢰도 향상을 위해 측정을 완료하세요.`;
-        }
+        // ✅ [Phase 8-2B] Reason line 생성 ("BRAND 미측정 · CONTENT 측정됨 · URL 측정됨" 형태)
+        const reasonText = `BRAND ${brandStatus} · CONTENT ${contentStatus} · URL ${urlStatus}`;
         
         const reliabilityBadge = `
           <div class="reliability-container">
@@ -908,6 +955,18 @@
             <div class="reliability-reason">${reasonText}</div>
           </div>
         `;
+        
+        // ✅ [Phase 8-2B] 측정 필요 CTA 생성
+        let measurementCta = '';
+        if (missingCount > 0) {
+          const missingItemsText = missingItems.join(', ');
+          measurementCta = `
+            <div class="measurement-cta">
+              <div class="measurement-cta-title">측정 필요: ${esc(missingItemsText)}</div>
+              <div>정확한 분석을 위해 누락된 항목을 측정해주세요. <a href="./analyze.html" class="measurement-cta-link">Analyze 페이지로 이동</a></div>
+            </div>
+          `;
+        }
         
         const kpiBars = `
           <div class="kpi-bars">
@@ -1067,7 +1126,7 @@
         `;
         
         document.getElementById('reportHeader').innerHTML = reportHeader;
-        document.getElementById('shareContent').innerHTML = kpiBars + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
+        document.getElementById('shareContent').innerHTML = measurementCta + kpiBars + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
         // ✅ [Phase 8-1] 측정 기준 토글 기능
