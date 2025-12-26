@@ -83,6 +83,32 @@
     /* KPI Bar 그래프 (3종 시각화) */
     .kpi-bars {
       margin-bottom: 32px;
+      position: relative;
+    }
+    /* ✅ [Phase 8-2A] 신뢰도 배지 */
+    .reliability-container {
+      position: absolute;
+      top: 0;
+      right: 0;
+      text-align: right;
+    }
+    .reliability-badge {
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #333;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    /* ✅ [Phase 8-2B] 신뢰도 Reason line */
+    .reliability-reason {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #999;
+      white-space: nowrap;
     }
     .kpi-bar-item {
       margin-bottom: 24px;
@@ -455,6 +481,26 @@
         margin-bottom: 24px;
         page-break-inside: avoid;
       }
+      /* 신뢰도 배지 */
+      .reliability-container {
+        position: absolute;
+        top: 0;
+        right: 0;
+        text-align: right;
+      }
+      .reliability-badge {
+        padding: 4px 8px;
+        font-size: 10pt;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        display: inline-block;
+      }
+      .reliability-reason {
+        margin-top: 3px;
+        font-size: 9pt;
+        color: #888;
+        white-space: nowrap;
+      }
       .kpi-bar-item {
         margin-bottom: 16px;
         page-break-inside: avoid;
@@ -824,8 +870,48 @@
           `;
         };
         
+        // ✅ [Phase 8-2A] 신뢰도 계산
+        const isMissing = (value) => {
+          return value === null || value === undefined || value.score === null || value.score === undefined;
+        };
+        
+        // ✅ [Phase 8-2B] 측정 필요 항목 추적
+        const missingItems = [];
+        const itemLabels = { branding: 'Brand', contentStructureV2: 'Content', urlStructureV1: 'URL' };
+        if (isMissing(brandingScore)) missingItems.push('Brand');
+        if (isMissing(contentStructureV2Score)) missingItems.push('Content');
+        if (isMissing(urlStructureV1Score)) missingItems.push('URL');
+        const missingCount = missingItems.length;
+        
+        let reliabilityLevel = '높음';
+        if (missingCount >= 2) {
+          reliabilityLevel = '낮음';
+        } else if (missingCount === 1) {
+          reliabilityLevel = '보통';
+        }
+        
+        // ✅ [Phase 8-2B] Reason line 생성
+        let reasonText = '';
+        if (missingCount === 0) {
+          reasonText = '측정 필요 0개. 3개 항목 모두 측정 완료.';
+        } else if (missingCount === 1) {
+          reasonText = `측정 필요 1개(${esc(missingItems[0])}). 나머지 2개는 측정 완료.`;
+        } else {
+          reasonText = `측정 필요 ${missingCount}개(${esc(missingItems.join(', '))}). 신뢰도 향상을 위해 측정을 완료하세요.`;
+        }
+        
+        const reliabilityBadge = `
+          <div class="reliability-container">
+            <div class="reliability-badge" title="측정 필요 항목이 많을수록 신뢰도는 낮게 표시됩니다.">
+              신뢰도: ${esc(reliabilityLevel)}
+            </div>
+            <div class="reliability-reason">${reasonText}</div>
+          </div>
+        `;
+        
         const kpiBars = `
           <div class="kpi-bars">
+            ${reliabilityBadge}
             ${kpiBar('Brand', brandingScore)}
             ${kpiBar('Content Structure', contentStructureV2Score)}
             ${kpiBar('URL Structure', urlStructureV1Score)}
