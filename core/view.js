@@ -1189,7 +1189,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       let compareDiffHtml = '';
       
       if (history.length >= 2) {
-        const compareEnabled = __evidenceCompareEnabled && prevEvidence;
+        // ✅ [Phase 7-3C] compareEnabled: 체크박스 상태만 확인 (prevEvidence 여부와 무관)
+        const compareEnabled = __evidenceCompareEnabled;
         compareToggleHtml = `
           <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
             <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer;">
@@ -1197,7 +1198,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               <span>비교 보기 (이전 vs 선택)</span>
             </label>
           </div>
-          ${compareEnabled ? `
+          ${compareEnabled && prevEvidence ? `
             <div style="margin-top: 8px; margin-bottom: 8px; padding: 8px; background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius);">
               <label style="display: block; margin-bottom: 4px; font-size: 11px; color: var(--text); font-weight: 600;">WHY 시뮬레이터(DEV)</label>
               <select id="whySimulatorSelect" style="width: 100%; padding: 4px; font-size: 11px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);">
@@ -1210,16 +1211,17 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
           ` : ''}
         `;
         
+        // ✅ [Phase 7-3C] 비교보기 ON일 때만 Compare UI 또는 안내 카드 표시
         if (compareEnabled) {
-          if (!prevEvidence) {
-            // i=0인 경우: 이전 기록이 없음
-            // ✅ [Phase 7-3B] AB Compare: prevEvidence 없을 때 안내 문구
+          // ✅ [Phase 7-3C] 이전 Evidence 없을 때: 안내 카드만 표시 (AB Compare 컨트롤 숨김)
+          if (!prevEvidence || !currentEvidence) {
             compareDiffHtml = `
               <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-                <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 근거 생성(테스트)을 2회 실행해 이전 버전을 만든 뒤 다시 시도하세요.</p>
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">비교할 이전 결과가 없습니다. 다른 버전을 선택하거나 근거를 더 생성하세요.</p>
               </div>
             `;
           } else {
+            // ✅ [Phase 7-3C] 이전 Evidence 있을 때: Compare UI + AB Compare 컨트롤 표시
             // ✅ [Phase 7-2] curr와 prev의 Evidence bullet 리스트 동시 출력
             const currBulletsHtml = currBullets.length > 0 ? `
               <div style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 200px;">
@@ -1501,12 +1503,12 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               </div>
             ` : '';
             
-            // ✅ [Phase 7-3B] AB Compare 컨트롤 HTML
+            // ✅ [Phase 7-3C] AB Compare 컨트롤 HTML (비교보기 ON + prevEvidence 있을 때만 표시)
             let abCompareControlsHtml = '';
-            if (history.length >= 2) {
+            if (history.length >= 2 && prevEvidence) {
               const abSelectOptions = __abDrafts.length > 0
                 ? __abDrafts.map(d => `<option value="${esc(d.id)}" ${d.id === __abSelectedId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')
-                : '<option value="" disabled>개선안 없음</option>';
+                : '<option value="" disabled>개선안이 없습니다. [개선안(더미) 추가]를 눌러 생성하세요.</option>';
               
               abCompareControlsHtml = `
                 <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
