@@ -770,6 +770,131 @@
     import { renderKpi } from './core/view.js';
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
     
+    /**
+     * ✅ [Share 복원 로직] reportModel 복원 함수
+     * 우선순위: (1) URL 파라미터 r → (2) window.__lastV2 / localStorage '__lastV2' → (3) localStorage 'aeo_state_v2'
+     * @returns {Object|null} reportModel 객체 또는 null
+     */
+    function loadReportModel() {
+      // (1) URL 파라미터 r로 공유리포트 로드 시도
+      const urlParams = new URLSearchParams(window.location.search);
+      const rParam = urlParams.get('r');
+      if (rParam) {
+        try {
+          const decoded = decodeURIComponent(rParam);
+          const parsed = JSON.parse(decoded);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        } catch (e) {
+          // URL 파라미터 파싱 실패 시 다음 우선순위로 진행
+        }
+      }
+      
+      // (2) window.__lastV2 또는 localStorage '__lastV2'
+      if (window.__lastV2) {
+        return window.__lastV2;
+      }
+      
+      try {
+        const lastV2Str = localStorage.getItem('__lastV2');
+        if (lastV2Str) {
+          const parsed = JSON.parse(lastV2Str);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        // localStorage '__lastV2' 파싱 실패 시 다음 우선순위로 진행
+      }
+      
+      // (3) localStorage 'aeo_state_v2' 기반 복원 (신규)
+      try {
+        const stStr = localStorage.getItem('aeo_state_v2');
+        if (!stStr) {
+          return null;
+        }
+        
+        const st = JSON.parse(stStr);
+        if (!st || typeof st !== 'object') {
+          return null;
+        }
+        
+        // reportModel 생성
+        const reportModel = {
+          inputs: {},
+          analysis: {
+            scores: st.analysis?.scores || {
+              branding: null,
+              contentStructureV2: null,
+              urlStructureV1: null
+            }
+          },
+          createdAt: null
+        };
+        
+        // createdAt: st.updatedAt(밀리초) 있으면 ISO 문자열로 변환
+        if (st.updatedAt && typeof st.updatedAt === 'number') {
+          reportModel.createdAt = new Date(st.updatedAt).toISOString();
+        }
+        
+        // inputs.brand/product: URLSearchParams에서 brand/product 있으면 사용, 없으면 st.input 문자열을 그대로 inputs.product에 넣기(brand는 빈값)
+        const brandParam = urlParams.get('brand');
+        const productParam = urlParams.get('product');
+        
+        if (brandParam) {
+          reportModel.inputs.brand = brandParam;
+        } else {
+          reportModel.inputs.brand = '';
+        }
+        
+        if (productParam) {
+          reportModel.inputs.product = productParam;
+        } else if (st.input && typeof st.input === 'string') {
+          reportModel.inputs.product = st.input;
+        } else {
+          reportModel.inputs.product = '';
+        }
+        
+        // 누락된 필드 안전하게 기본값 처리
+        reportModel.result = st.result || null;
+        reportModel.input = st.input || null;
+        
+        return reportModel;
+      } catch (e) {
+        // localStorage 'aeo_state_v2' 파싱 실패 시 null 반환
+        return null;
+      }
+    }
+    
+    /**
+     * ✅ [Share 복원 로직] reportModel을 기반으로 reportPayload 생성
+     * @param {Object|null} reportModel - 복원된 reportModel 또는 null
+     * @returns {Object} reportPayload 객체
+     */
+    function buildReportPayloadFromModel(reportModel) {
+      if (!reportModel) {
+        // reportModel이 없으면 기존 방식 사용
+        return buildReportPayload();
+      }
+      
+      // reportModel에서 reportPayload 생성
+      const reportPayload = {
+        input: reportModel.input || reportModel.inputs?.product || null,
+        result: reportModel.result || null,
+        analysis: {
+          scores: reportModel.analysis?.scores || {
+            branding: null,
+            contentStructureV2: null,
+            urlStructureV1: null
+          }
+        },
+        generatedAt: reportModel.createdAt ? new Date(reportModel.createdAt).getTime() : Date.now()
+      };
+      
+      return reportPayload;
+    }
+    
     // ✅ [Phase 4-2 Gate] share.html 진입 즉시 로그인 체크
     // 리포트 렌더/복원 로직을 절대 실행하지 않도록 가장 먼저 체크
     if (!isLoggedIn()) {
@@ -825,7 +950,9 @@
       }
       
       function renderShareContent() {
-        const payload = buildReportPayload();
+        // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
+        const reportModel = loadReportModel();
+        const payload = buildReportPayloadFromModel(reportModel);
         const scores = payload.analysis?.scores || {};
         const brandingScore = scores.branding;
         const contentStructureV2Score = scores.contentStructureV2;
