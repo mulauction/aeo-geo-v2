@@ -369,6 +369,22 @@ export function render(root, state) {
                 }
               });
             }
+            // ✅ [Phase 7-5] 복사 버튼 핸들러 재바인딩
+            const newCopyBtn = root.result.querySelector('#compareCopyBtn');
+            if (newCopyBtn && !newCopyBtn.__boundCompareCopyV1) {
+              newCopyBtn.__boundCompareCopyV1 = true;
+              newCopyBtn.addEventListener('click', async () => {
+                const copyText = newCopyBtn.getAttribute('data-copy-text') || '';
+                if (copyText) {
+                  const success = await copyToClipboard(copyText);
+                  if (success) {
+                    showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+                  } else {
+                    showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+                  }
+                }
+              });
+            }
           }
         }
       }
@@ -463,8 +479,40 @@ export function render(root, state) {
                   newSelect2.__boundEvidenceVersionV1 = true;
                   newSelect2.addEventListener('change', handleEvidenceVersionChange);
                 }
+                // ✅ [Phase 7-5] 복사 버튼 핸들러 재바인딩
+                const newCopyBtn2 = root.result.querySelector('#compareCopyBtn');
+                if (newCopyBtn2 && !newCopyBtn2.__boundCompareCopyV1) {
+                  newCopyBtn2.__boundCompareCopyV1 = true;
+                  newCopyBtn2.addEventListener('click', async () => {
+                    const copyText = newCopyBtn2.getAttribute('data-copy-text') || '';
+                    if (copyText) {
+                      const success = await copyToClipboard(copyText);
+                      if (success) {
+                        showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+                      } else {
+                        showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+                      }
+                    }
+                  });
+                }
                 bindAbCompareControls(root);
                 bindWhySimulatorSelect(root);
+              }
+            });
+          }
+          // ✅ [Phase 7-5] 복사 버튼 핸들러 재바인딩
+          const newCopyBtn = root.result.querySelector('#compareCopyBtn');
+          if (newCopyBtn && !newCopyBtn.__boundCompareCopyV1) {
+            newCopyBtn.__boundCompareCopyV1 = true;
+            newCopyBtn.addEventListener('click', async () => {
+              const copyText = newCopyBtn.getAttribute('data-copy-text') || '';
+              if (copyText) {
+                const success = await copyToClipboard(copyText);
+                if (success) {
+                  showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+                } else {
+                  showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+                }
               }
             });
           }
@@ -629,6 +677,23 @@ export function render(root, state) {
                 
                 // WHY 시뮬레이터 재바인딩
                 bindWhySimulatorSelect(root);
+                
+                // ✅ [Phase 7-5] 복사 버튼 핸들러 재바인딩
+                const newCopyBtn = root.result.querySelector('#compareCopyBtn');
+                if (newCopyBtn && !newCopyBtn.__boundCompareCopyV1) {
+                  newCopyBtn.__boundCompareCopyV1 = true;
+                  newCopyBtn.addEventListener('click', async () => {
+                    const copyText = newCopyBtn.getAttribute('data-copy-text') || '';
+                    if (copyText) {
+                      const success = await copyToClipboard(copyText);
+                      if (success) {
+                        showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+                      } else {
+                        showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+                      }
+                    }
+                  });
+                }
               }
             } catch (error) {
               if (globalThis.DEBUG) {
@@ -713,6 +778,23 @@ export function render(root, state) {
                 
                 // WHY 시뮬레이터 재바인딩
                 bindWhySimulatorSelect(root);
+                
+                // ✅ [Phase 7-5] 복사 버튼 핸들러 재바인딩
+                const newCopyBtn = root.result.querySelector('#compareCopyBtn');
+                if (newCopyBtn && !newCopyBtn.__boundCompareCopyV1) {
+                  newCopyBtn.__boundCompareCopyV1 = true;
+                  newCopyBtn.addEventListener('click', async () => {
+                    const copyText = newCopyBtn.getAttribute('data-copy-text') || '';
+                    if (copyText) {
+                      const success = await copyToClipboard(copyText);
+                      if (success) {
+                        showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+                      } else {
+                        showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+                      }
+                    }
+                  });
+                }
               }
             } catch (error) {
               if (globalThis.DEBUG) {
@@ -795,6 +877,39 @@ export function render(root, state) {
                 }
               });
             }
+            // ✅ [Phase 7-5] 복사 버튼 핸들러 재바인딩
+            const newCopyBtn = root.result.querySelector('#compareCopyBtn');
+            if (newCopyBtn && !newCopyBtn.__boundCompareCopyV1) {
+              newCopyBtn.__boundCompareCopyV1 = true;
+              newCopyBtn.addEventListener('click', async () => {
+                const copyText = newCopyBtn.getAttribute('data-copy-text') || '';
+                if (copyText) {
+                  const success = await copyToClipboard(copyText);
+                  if (success) {
+                    showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+                  } else {
+                    showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+                  }
+                }
+              });
+            }
+          }
+        });
+      }
+      
+      // ✅ [Phase 7-5] 복사 버튼 핸들러 바인딩
+      const compareCopyBtn = root.result.querySelector('#compareCopyBtn');
+      if (compareCopyBtn && !compareCopyBtn.__boundCompareCopyV1) {
+        compareCopyBtn.__boundCompareCopyV1 = true;
+        compareCopyBtn.addEventListener('click', async () => {
+          const copyText = compareCopyBtn.getAttribute('data-copy-text') || '';
+          if (copyText) {
+            const success = await copyToClipboard(copyText);
+            if (success) {
+              showToast('비교 요약이 클립보드에 복사되었습니다.', true);
+            } else {
+              showToast('복사에 실패했습니다. 다시 시도해주세요.', false);
+            }
           }
         });
       }
@@ -807,6 +922,100 @@ export function esc(v) {
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
   }
+
+/**
+ * ✅ [Phase 7-5] 클립보드 복사 함수 (fallback 포함)
+ * @param {string} text - 복사할 텍스트
+ * @returns {Promise<boolean>} 성공 여부
+ */
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    // clipboard API 실패 시 fallback 시도
+  }
+  
+  // Fallback: textarea 생성 → select → execCommand
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-999999px';
+    textarea.style.top = '-999999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const success = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return success;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * ✅ [Phase 7-5] 토스트 메시지 표시 함수 (view-only, 2초 후 자동 제거)
+ * @param {string} message - 표시할 메시지
+ * @param {boolean} isSuccess - 성공(true) 또는 실패(false)
+ */
+function showToast(message, isSuccess = true) {
+  // CSS 애니메이션 동적 추가 (1회만)
+  if (!document.getElementById('toast-animations')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animations';
+    style.textContent = `
+      @keyframes toastSlideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      @keyframes toastSlideOut {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    background: ${isSuccess ? '#4caf50' : '#f44336'};
+    color: white;
+    border-radius: var(--radius, 4px);
+    font-size: 13px;
+    z-index: 10000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    animation: toastSlideIn 0.3s ease-out;
+  `;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'toastSlideOut 0.3s ease-out';
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 300);
+  }, 2000);
+}
 
 /**
  * ✅ [Phase 7-2] Evidence entry에서 bullet 리스트 추출
@@ -1580,10 +1789,90 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               `;
             }
             
+            // ✅ [Phase 7-5.1] 복사 텍스트 생성 함수 (표현 개선)
+            const generateCopyText = () => {
+              try {
+                // 버전 정보 추출
+                const currentEntryDate = currentEvidenceForRender?.meta?.createdAt || currentEvidenceForRender?.createdAt || currentEvidenceForRender?.timestamp || currentEvidenceForRender?.created_at;
+                const currentDateText = currentEntryDate ? new Date(currentEntryDate).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                const currentLabel = currentIndex === history.length - 1 ? '최신 결과' : `이전 결과 #${history.length - currentIndex - 1}`;
+                
+                const prevEntryDate = prevEvidence?.meta?.createdAt || prevEvidence?.createdAt || prevEvidence?.timestamp || prevEvidence?.created_at;
+                const prevDateText = prevEntryDate ? new Date(prevEntryDate).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                const prevLabel = prevIndex === history.length - 1 ? '최신 결과' : `이전 결과 #${history.length - prevIndex - 1}`;
+                
+                // 시간 정보 조합 (보조 1줄)
+                let timeLine = '';
+                if (currentDateText || prevDateText) {
+                  if (currentDateText && prevDateText) {
+                    timeLine = `생성 시각: 최신=${currentDateText}, 이전=${prevDateText}`;
+                  } else if (currentDateText) {
+                    timeLine = `생성 시각: 최신=${currentDateText}`;
+                  } else if (prevDateText) {
+                    timeLine = `생성 시각: 이전=${prevDateText}`;
+                  }
+                }
+                
+                // Added/Removed 요약 (0/0일 때 의미 보강)
+                let changeSummary = '';
+                if (addedItems.length === 0 && removedItems.length === 0) {
+                  changeSummary = '구조 변경: 없음 (Added 0 / Removed 0)';
+                } else {
+                  changeSummary = `Added: ${addedItems.length}개 / Removed: ${removedItems.length}개`;
+                }
+                
+                // 핵심 인사이트 (비어있을 때 처리)
+                const insightText = interpretationText && interpretationText.trim() ? interpretationText : '(없음)';
+                
+                // WHY 시뮬레이터 요약
+                let whySummary = 'OFF';
+                if (__whySimulatorMode !== 'OFF' && simulatedScoreDeltas !== null) {
+                  const deltas = simulatedScoreDeltas;
+                  const deltaTexts = [];
+                  if (deltas.branding !== 0) deltaTexts.push(`브랜딩 ${deltas.branding > 0 ? '+' : ''}${deltas.branding}`);
+                  if (deltas.contentStructureV2 !== 0) deltaTexts.push(`콘텐츠 구조 ${deltas.contentStructureV2 > 0 ? '+' : ''}${deltas.contentStructureV2}`);
+                  if (deltas.urlStructureV1 !== 0) deltaTexts.push(`URL 구조 ${deltas.urlStructureV1 > 0 ? '+' : ''}${deltas.urlStructureV1}`);
+                  if (deltaTexts.length > 0) {
+                    whySummary = `${__whySimulatorMode}: ${deltaTexts.join(', ')}`;
+                  } else {
+                    whySummary = __whySimulatorMode === 'NONE' ? 'NONE (변경없음)' : __whySimulatorMode;
+                  }
+                }
+                
+                // 개선안(더미) 정보
+                const abDraftLabel = __abSelectedId && __abDrafts.length > 0 
+                  ? (__abDrafts.find(d => d.id === __abSelectedId)?.label || '없음')
+                  : '없음';
+                
+                // 복사 텍스트 조합 (각 줄을 '\n'로 명확히 분리)
+                const lines = [
+                  '[Compare 요약]',
+                  `비교 대상: ${currentLabel} vs ${prevLabel}`,
+                  timeLine ? timeLine : null,
+                  changeSummary,
+                  `핵심 인사이트: ${insightText}`,
+                  `WHY: ${whySummary}`,
+                  `개선안(더미): ${abDraftLabel}`
+                ].filter(line => line !== null);
+                
+                return lines.join('\n');
+              } catch (error) {
+                return '';
+              }
+            };
+            
+            // ✅ [Phase 7-5] 복사 버튼 HTML (Compare 결과가 보일 때만 표시)
+            const copyButtonHtml = `
+              <div style="margin-top: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <p style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text);">비교 결과</p>
+                <button id="compareCopyBtn" data-copy-text="${esc(generateCopyText())}" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">비교 요약 복사</button>
+              </div>
+            `;
+            
             compareDiffHtml = `
               <div style="margin-top: 12px;">
                 ${abCompareControlsHtml}
-                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">비교 결과</p>
+                ${copyButtonHtml}
                 <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
                   ${currBulletsHtml}
                   ${prevBulletsHtml}
