@@ -80,43 +80,94 @@
       color: #666;
     }
     
-    /* KPI 그리드 (3단 카드형) */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
+    /* KPI Bar 그래프 (3종 시각화) */
+    .kpi-bars {
       margin-bottom: 32px;
     }
-    .kpi-card {
-      padding: 20px;
-      background: #f8f9fa;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      border-left: 4px solid #4a90e2;
+    .kpi-bar-item {
+      margin-bottom: 24px;
     }
-    .kpi-card-label {
-      font-size: 12px;
-      color: #666;
+    .kpi-bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       margin-bottom: 8px;
-      font-weight: 500;
+    }
+    .kpi-bar-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .kpi-card-value {
-      font-size: 24px;
-      font-weight: 700;
+    .kpi-bar-value {
+      font-size: 16px;
+      font-weight: 600;
       color: #1a1a1a;
     }
-    .kpi-card-grade {
-      font-size: 14px;
-      color: #666;
-      margin-top: 4px;
+    .kpi-bar-container {
+      height: 32px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
     }
-    .kpi-card.muted {
-      border-left-color: #ccc;
+    .kpi-bar-fill {
+      height: 100%;
+      background: #4a90e2;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
     }
-    .kpi-card.muted .kpi-card-value {
+    .kpi-bar-item.muted .kpi-bar-container {
+      background: #f5f5f5;
+    }
+    .kpi-bar-item.muted .kpi-bar-fill {
+      display: none;
+    }
+    .kpi-bar-item.muted::after {
+      content: '측정 필요';
+      display: block;
+      margin-top: 8px;
+      font-size: 13px;
       color: #999;
+      font-style: italic;
+    }
+    
+    /* 신뢰 문구 섹션 */
+    .trust-statements {
+      margin-bottom: 24px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-left: 4px solid #666;
+      border-radius: 4px;
+    }
+    .trust-statements p {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #555;
+    }
+    .trust-statements p:last-child {
+      margin-bottom: 0;
+    }
+    
+    /* 한국 시장 특화 문구 */
+    .market-context {
+      margin-bottom: 32px;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #666;
     }
     
     /* 콘텐츠 섹션 */
@@ -331,29 +382,53 @@
         border-top: 1px solid #ccc;
       }
       
-      /* KPI 그리드 */
-      .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
+      /* KPI Bar 그래프 */
+      .kpi-bars {
         margin-bottom: 24px;
         page-break-inside: avoid;
       }
-      .kpi-card {
+      .kpi-bar-item {
+        margin-bottom: 16px;
+        page-break-inside: avoid;
+      }
+      .kpi-bar-label {
+        font-size: 10pt;
+      }
+      .kpi-bar-value {
+        font-size: 11pt;
+      }
+      .kpi-bar-container {
+        height: 24px;
+      }
+      .kpi-bar-fill {
+        font-size: 9pt;
+        padding-right: 6px;
+      }
+      .kpi-bar-item.muted::after {
+        font-size: 9pt;
+        margin-top: 6px;
+      }
+      
+      /* 신뢰 문구 섹션 */
+      .trust-statements {
+        margin-bottom: 20px;
         padding: 16px;
         background: #f8f8f8;
-        border: 1px solid #ddd;
         border-left: 3px solid #333;
         page-break-inside: avoid;
       }
-      .kpi-card-label {
+      .trust-statements p {
         font-size: 9pt;
+        margin: 0 0 8px 0;
       }
-      .kpi-card-value {
-        font-size: 18pt;
-      }
-      .kpi-card-grade {
-        font-size: 11pt;
+      
+      /* 한국 시장 특화 문구 */
+      .market-context {
+        margin-bottom: 24px;
+        padding: 12px;
+        border: 1px solid #ddd;
+        font-size: 9pt;
+        page-break-inside: avoid;
       }
       
       /* 콘텐츠 섹션 */
@@ -471,7 +546,9 @@
       
       /* 페이지 나누기 제어 */
       .report-header,
-      .kpi-grid,
+      .kpi-bars,
+      .trust-statements,
+      .market-context,
       .content-section,
       .notice-card,
       .action-grid,
@@ -615,38 +692,54 @@
           </div>
         `;
         
-        // ✅ [Phase 5-8] KPI 그리드 (3단 카드형)
-        const kpiCard = (label, value) => {
-          if (value === null || value === undefined) {
+        // ✅ [Phase 8-0] KPI Bar 그래프 (3종 시각화)
+        const kpiBar = (label, value) => {
+          if (value === null || value === undefined || value.score === null || value.score === undefined) {
             return `
-              <div class="kpi-card muted">
-                <div class="kpi-card-label">${esc(label)}</div>
-                <div class="kpi-card-value">측정 필요</div>
+              <div class="kpi-bar-item muted">
+                <div class="kpi-bar-header">
+                  <span class="kpi-bar-label">${esc(label)}</span>
+                </div>
+                <div class="kpi-bar-container"></div>
               </div>
             `;
           }
-          const score = value.score !== null && value.score !== undefined ? value.score : 'N/A';
-          const grade = value.grade || 'N/A';
+          const score = value.score;
+          const grade = value.grade || '';
+          const percentage = Math.min(Math.max(score, 0), 100);
           return `
-            <div class="kpi-card">
-              <div class="kpi-card-label">${esc(label)}</div>
-              <div class="kpi-card-value">${esc(score)}</div>
-              <div class="kpi-card-grade">등급: ${esc(grade)}</div>
+            <div class="kpi-bar-item">
+              <div class="kpi-bar-header">
+                <span class="kpi-bar-label">${esc(label)}</span>
+                <span class="kpi-bar-value">${esc(score)}${grade ? ' / ' + esc(grade) : ''}</span>
+              </div>
+              <div class="kpi-bar-container">
+                <div class="kpi-bar-fill" style="width: ${percentage}%">${esc(score)}</div>
+              </div>
             </div>
           `;
         };
         
-        const kpiGrid = `
-          <div class="kpi-grid">
-            ${kpiCard('엔티티 점수', brandingScore)}
-            ${kpiCard('콘텐츠 구조 점수', contentStructureV2Score)}
-            ${(() => {
-              const card = kpiCard('URL 구조 점수', urlStructureV1Score);
-              if (urlStructureV1Score && urlStructureV1Score.score !== null && urlStructureV1Score.score !== undefined) {
-                return card.replace('</div>', ` <span style="font-size: 11px; color: #4a90e2;">· 연결됨</span></div>`);
-              }
-              return card;
-            })()}
+        const kpiBars = `
+          <div class="kpi-bars">
+            ${kpiBar('Brand', brandingScore)}
+            ${kpiBar('Content Structure', contentStructureV2Score)}
+            ${kpiBar('URL Structure', urlStructureV1Score)}
+          </div>
+        `;
+        
+        // ✅ [Phase 8-0] 신뢰 문구 2줄
+        const trustStatements = `
+          <div class="trust-statements">
+            <p>이 리포트는 AI 검색·추천 환경에서의 인식 가능성을 구조 중심으로 분석합니다.</p>
+            <p>각 항목은 독립적으로 측정되며, '측정 필요' 항목은 점수에 반영되지 않습니다.</p>
+          </div>
+        `;
+        
+        // ✅ [Phase 8-0] 한국 시장 특화 문구 1줄
+        const marketContext = `
+          <div class="market-context">
+            국내 쇼핑몰은 이미지 중심 구조로 인해 AI가 정보를 해석하기 어려운 경우가 많습니다.
           </div>
         `;
         
@@ -764,7 +857,7 @@
         `;
         
         document.getElementById('reportHeader').innerHTML = reportHeader;
-        document.getElementById('shareContent').innerHTML = kpiGrid + contentStructureEvidenceSection + resultSection + evidenceSection;
+        document.getElementById('shareContent').innerHTML = kpiBars + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
       }
       
