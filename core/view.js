@@ -15,6 +15,10 @@ let __evidenceCompareEnabled = false;
 // ✅ [Phase 7-3A] WHY 시뮬레이터 상태 (view-only, no storage)
 let __whySimulatorMode = 'OFF'; // 'OFF' | 'NONE' | 'A' | 'B'
 
+// ✅ [Phase 7-3B] AB Compare 더미 개선안 상태 (view-only, no storage)
+let __abDrafts = []; // [{id, label, evidenceLike}]
+let __abSelectedId = null;
+
 // ✅ [Phase 5-7 Fix] Evidence select 드롭다운 리렌더 프리즈 플래그
 if (typeof window !== 'undefined' && !window.__freezeAnalyzeRerenderUntil) {
   window.__freezeAnalyzeRerenderUntil = 0;
@@ -490,6 +494,231 @@ export function render(root, state) {
       // ✅ [Phase 7-3D] WHY 시뮬레이터 select 바인딩
       bindWhySimulatorSelect(root);
       
+      // ✅ [Phase 7-3B] AB Compare 더미 개선안 컨트롤 바인딩
+      function bindAbCompareControls(root) {
+        const abAddBtn = root.result.querySelector('#ab-add-dummy');
+        const abSelect = root.result.querySelector('#ab-select-dummy');
+        
+        if (abAddBtn && !abAddBtn.__boundAbAddV1) {
+          abAddBtn.__boundAbAddV1 = true;
+          abAddBtn.addEventListener('click', () => {
+            try {
+              // 이미 2개가 있으면 재생성하지 않음
+              if (__abDrafts.length >= 2) {
+                return;
+              }
+              
+              // currentEvidence 가져오기
+              const evidenceRoot = loadEvidence();
+              let currentEvidence = null;
+              if (evidenceRoot) {
+                if (evidenceRoot.history && Array.isArray(evidenceRoot.history)) {
+                  const history = evidenceRoot.history;
+                  const latest = history[history.length - 1];
+                  const latestId = latest?.meta?.id || latest?.id || null;
+                  const currentId = __selectedEvidenceId || evidenceRoot.currentId || latestId;
+                  currentEvidence = history.find(e => (e?.meta?.id || e?.id) === currentId) || latest;
+                } else {
+                  currentEvidence = evidenceRoot;
+                }
+              }
+              
+              if (!currentEvidence) {
+                return; // currentEvidence가 없으면 동작하지 않음
+              }
+              
+              // 더미 개선안 생성
+              __abDrafts = buildDummyImprovementDrafts(currentEvidence);
+              if (__abDrafts.length > 0) {
+                __abSelectedId = __abDrafts[0].id;
+              }
+              
+              // 화면 갱신 (Evidence Compare 다시 렌더)
+              const evidenceBody = root.result.querySelector('.evidence-body');
+              if (evidenceBody) {
+                const evidenceRoot = loadEvidence();
+                const currentState = getState();
+                evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                
+                // 재렌더링 후 모든 핸들러 재바인딩
+                const newSelect = root.result.querySelector('#evidenceVersionSelect');
+                if (newSelect && !newSelect.__boundEvidenceVersionV1) {
+                  newSelect.__boundEvidenceVersionV1 = true;
+                  newSelect.addEventListener('change', handleEvidenceVersionChange);
+                  
+                  if (!newSelect.__boundEvidenceFreezeV1) {
+                    newSelect.__boundEvidenceFreezeV1 = true;
+                    newSelect.addEventListener('mousedown', () => {
+                      window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                    });
+                    newSelect.addEventListener('pointerdown', () => {
+                      window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                    });
+                    newSelect.addEventListener('focus', () => {
+                      window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                    });
+                    newSelect.addEventListener('blur', () => {
+                      window.__freezeAnalyzeRerenderUntil = 0;
+                    });
+                    newSelect.addEventListener('change', () => {
+                      window.__freezeAnalyzeRerenderUntil = 0;
+                    });
+                  }
+                }
+                
+                const newToggle = root.result.querySelector('#evidenceCompareToggle');
+                if (newToggle && !newToggle.__boundEvidenceCompareV1) {
+                  newToggle.__boundEvidenceCompareV1 = true;
+                  newToggle.addEventListener('change', (e) => {
+                    __evidenceCompareEnabled = e.target.checked;
+                    const evidenceBody = root.result.querySelector('.evidence-body');
+                    if (evidenceBody) {
+                      const currentState = getState();
+                      const evidenceRoot = loadEvidence();
+                      evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                    }
+                  });
+                }
+                
+                const newBtn = root.result.querySelector('[data-evidence-generate="1"]');
+                if (newBtn && !newBtn.__boundEvidenceGenV1) {
+                  newBtn.__boundEvidenceGenV1 = true;
+                  newBtn.addEventListener('click', handleGenerateEvidence);
+                }
+                
+                const newLoginBtn = root.result.querySelector('#btnEvidenceLogin');
+                if (newLoginBtn && !newLoginBtn.__boundEvidenceLoginV1) {
+                  newLoginBtn.__boundEvidenceLoginV1 = true;
+                  newLoginBtn.addEventListener('click', () => {
+                    const loginModal = window.loginModalInstance;
+                    if (loginModal) {
+                      loginModal.open("Evidence를 보려면 로그인이 필요합니다.");
+                    }
+                  });
+                }
+                
+                // AB Compare 컨트롤 재바인딩
+                bindAbCompareControls(root);
+                
+                // WHY 시뮬레이터 재바인딩
+                bindWhySimulatorSelect(root);
+              }
+            } catch (error) {
+              if (globalThis.DEBUG) {
+                console.warn('[Phase 7-3B] AB Compare 더미 추가 실패:', error);
+              }
+            }
+          });
+        }
+        
+        if (abSelect && !abSelect.__boundAbSelectV1) {
+          abSelect.__boundAbSelectV1 = true;
+          abSelect.addEventListener('change', (e) => {
+            try {
+              __abSelectedId = e.target.value || null;
+              
+              // 화면 갱신 (Compare/Insight/WHY만 바뀌면 됨)
+              const evidenceBody = root.result.querySelector('.evidence-body');
+              if (evidenceBody) {
+                const evidenceRoot = loadEvidence();
+                const currentState = getState();
+                evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                
+                // 재렌더링 후 모든 핸들러 재바인딩
+                const newSelect = root.result.querySelector('#evidenceVersionSelect');
+                if (newSelect && !newSelect.__boundEvidenceVersionV1) {
+                  newSelect.__boundEvidenceVersionV1 = true;
+                  newSelect.addEventListener('change', handleEvidenceVersionChange);
+                  
+                  if (!newSelect.__boundEvidenceFreezeV1) {
+                    newSelect.__boundEvidenceFreezeV1 = true;
+                    newSelect.addEventListener('mousedown', () => {
+                      window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                    });
+                    newSelect.addEventListener('pointerdown', () => {
+                      window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                    });
+                    newSelect.addEventListener('focus', () => {
+                      window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+                    });
+                    newSelect.addEventListener('blur', () => {
+                      window.__freezeAnalyzeRerenderUntil = 0;
+                    });
+                    newSelect.addEventListener('change', () => {
+                      window.__freezeAnalyzeRerenderUntil = 0;
+                    });
+                  }
+                }
+                
+                const newToggle = root.result.querySelector('#evidenceCompareToggle');
+                if (newToggle && !newToggle.__boundEvidenceCompareV1) {
+                  newToggle.__boundEvidenceCompareV1 = true;
+                  newToggle.addEventListener('change', (e) => {
+                    __evidenceCompareEnabled = e.target.checked;
+                    const evidenceBody = root.result.querySelector('.evidence-body');
+                    if (evidenceBody) {
+                      const currentState = getState();
+                      const evidenceRoot = loadEvidence();
+                      evidenceBody.innerHTML = renderEvidenceContent(evidenceRoot, currentState);
+                    }
+                  });
+                }
+                
+                const newBtn = root.result.querySelector('[data-evidence-generate="1"]');
+                if (newBtn && !newBtn.__boundEvidenceGenV1) {
+                  newBtn.__boundEvidenceGenV1 = true;
+                  newBtn.addEventListener('click', handleGenerateEvidence);
+                }
+                
+                const newLoginBtn = root.result.querySelector('#btnEvidenceLogin');
+                if (newLoginBtn && !newLoginBtn.__boundEvidenceLoginV1) {
+                  newLoginBtn.__boundEvidenceLoginV1 = true;
+                  newLoginBtn.addEventListener('click', () => {
+                    const loginModal = window.loginModalInstance;
+                    if (loginModal) {
+                      loginModal.open("Evidence를 보려면 로그인이 필요합니다.");
+                    }
+                  });
+                }
+                
+                // AB Compare 컨트롤 재바인딩
+                bindAbCompareControls(root);
+                
+                // WHY 시뮬레이터 재바인딩
+                bindWhySimulatorSelect(root);
+              }
+            } catch (error) {
+              if (globalThis.DEBUG) {
+                console.warn('[Phase 7-3B] AB Compare 선택 변경 실패:', error);
+              }
+            }
+          });
+          
+          // 드롭다운 프리즈 (기존 패턴 따라)
+          if (!abSelect.__boundAbFreezeV1) {
+            abSelect.__boundAbFreezeV1 = true;
+            abSelect.addEventListener('mousedown', () => {
+              window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+            });
+            abSelect.addEventListener('pointerdown', () => {
+              window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+            });
+            abSelect.addEventListener('focus', () => {
+              window.__freezeAnalyzeRerenderUntil = Date.now() + 600000;
+            });
+            abSelect.addEventListener('blur', () => {
+              window.__freezeAnalyzeRerenderUntil = 0;
+            });
+            abSelect.addEventListener('change', () => {
+              window.__freezeAnalyzeRerenderUntil = 0;
+            });
+          }
+        }
+      }
+      
+      // AB Compare 컨트롤 바인딩 호출
+      bindAbCompareControls(root);
+      
       // ✅ [Phase 7-2] 히스토리 비교 토글 핸들러 바인딩
       const evidenceCompareToggle = root.result.querySelector('#evidenceCompareToggle');
       if (evidenceCompareToggle && !evidenceCompareToggle.__boundEvidenceCompareV1) {
@@ -608,6 +837,109 @@ function getEvidenceBullets(entry, scores) {
   }
 }
 
+/**
+ * ✅ [Phase 7-3B] 더미 개선안 생성 함수
+ * @param {Object} baseEvidence - 현재 evidence (currentEvidence)
+ * @returns {Array} 더미 개선안 배열 [{id, label, evidenceLike}]
+ */
+function buildDummyImprovementDrafts(baseEvidence) {
+  try {
+    if (!baseEvidence) {
+      return [];
+    }
+    
+    // 깊은 복사
+    const baseCopy = JSON.parse(JSON.stringify(baseEvidence));
+    
+    // v1: 점수 약간 증가
+    const v1Copy = JSON.parse(JSON.stringify(baseCopy));
+    if (!v1Copy.v2Summary) {
+      v1Copy.v2Summary = {};
+    }
+    if (!v1Copy.v2Summary.analysis) {
+      v1Copy.v2Summary.analysis = {};
+    }
+    if (!v1Copy.v2Summary.analysis.scores) {
+      v1Copy.v2Summary.analysis.scores = {};
+    }
+    
+    // 점수 조정 (기존 점수에서 소폭 증가, clamp 0~100)
+    const adjustScore = (scoreObj, delta) => {
+      const baseScore = scoreObj && scoreObj.score !== null && scoreObj.score !== undefined ? scoreObj.score : 50;
+      return { ...(scoreObj || {}), score: Math.max(0, Math.min(100, baseScore + delta)) };
+    };
+    
+    v1Copy.v2Summary.analysis.scores = {
+      ...v1Copy.v2Summary.analysis.scores,
+      branding: adjustScore(v1Copy.v2Summary.analysis.scores.branding, 6),
+      contentStructureV2: adjustScore(v1Copy.v2Summary.analysis.scores.contentStructureV2, 10),
+      urlStructureV1: adjustScore(v1Copy.v2Summary.analysis.scores.urlStructureV1, 4)
+    };
+    
+    // v1: insight 수정
+    v1Copy.v2Summary.insight = "개선안 v1: 콘텐츠 구조와 브랜딩 요소가 개선되었습니다.";
+    
+    // v1: evidence 배열 조작 (추가됨 1~2개)
+    const v1EvidencePath = v1Copy.v2Summary?.analysis?.scores?.contentStructureV2;
+    if (v1EvidencePath) {
+      if (!v1EvidencePath.evidence || !Array.isArray(v1EvidencePath.evidence)) {
+        v1EvidencePath.evidence = [];
+      }
+      // 추가: 1~2개 (기존 compare가 읽는 경로 그대로 사용)
+      v1EvidencePath.evidence.push("H3 제목 부재: 서브섹션 구조 개선 필요");
+      v1EvidencePath.evidence.push("UL 리스트 구조 부족: 항목 명확화 필요");
+    }
+    
+    // v2: 점수 더 많이 증가
+    const v2Copy = JSON.parse(JSON.stringify(baseCopy));
+    if (!v2Copy.v2Summary) {
+      v2Copy.v2Summary = {};
+    }
+    if (!v2Copy.v2Summary.analysis) {
+      v2Copy.v2Summary.analysis = {};
+    }
+    if (!v2Copy.v2Summary.analysis.scores) {
+      v2Copy.v2Summary.analysis.scores = {};
+    }
+    
+    v2Copy.v2Summary.analysis.scores = {
+      ...v2Copy.v2Summary.analysis.scores,
+      branding: adjustScore(v2Copy.v2Summary.analysis.scores.branding, 12),
+      contentStructureV2: adjustScore(v2Copy.v2Summary.analysis.scores.contentStructureV2, 18),
+      urlStructureV1: adjustScore(v2Copy.v2Summary.analysis.scores.urlStructureV1, 8)
+    };
+    
+    // v2: insight 수정
+    v2Copy.v2Summary.insight = "개선안 v2: 대폭적인 구조 개선과 브랜딩 강화가 이루어졌습니다.";
+    
+    // v2: evidence 배열 조작 (추가됨 2~3개, 제거됨 1개)
+    const v2EvidencePath = v2Copy.v2Summary?.analysis?.scores?.contentStructureV2;
+    if (v2EvidencePath) {
+      if (!v2EvidencePath.evidence || !Array.isArray(v2EvidencePath.evidence)) {
+        v2EvidencePath.evidence = [];
+      }
+      // 추가: 2~3개
+      v2EvidencePath.evidence.push("H2 제목 부재: 섹션 구조 명확화 필요");
+      v2EvidencePath.evidence.push("H3 제목 부재: 서브섹션 구조 개선 필요");
+      v2EvidencePath.evidence.push("핵심 문장 부족: 중요 정보 부각 필요");
+      // 제거: 1개 (첫 번째 항목이 있으면 제거)
+      if (v2EvidencePath.evidence.length > 3) {
+        v2EvidencePath.evidence.splice(0, 1);
+      }
+    }
+    
+    return [
+      { id: "ab_v1", label: "개선안 v1", evidenceLike: v1Copy },
+      { id: "ab_v2", label: "개선안 v2", evidenceLike: v2Copy }
+    ];
+  } catch (error) {
+    if (globalThis.DEBUG) {
+      console.warn('[Phase 7-3B] buildDummyImprovementDrafts 실패:', error);
+    }
+    return [];
+  }
+}
+
 // ✅ [Phase 5-8] Share 화면에서도 사용할 수 있도록 export
 export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
   const evidenceRoot = evidenceParam !== null ? evidenceParam : loadEvidence();
@@ -619,6 +951,9 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
   let currentEvidence = null;
   let history = [];
   let currentId = null;
+  
+  // ✅ [Phase 7-3B] AB Compare: currentEvidenceForRender 선언 (함수 스코프)
+  let currentEvidenceForRender = null;
   
   if (evidenceRoot) {
     if (evidenceRoot.history && Array.isArray(evidenceRoot.history)) {
@@ -653,6 +988,32 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       history = [evidenceRoot];
       currentId = evidenceRoot.meta?.id || Date.now().toString();
     }
+  }
+  
+  // ✅ [Phase 7-3B] AB Compare: 선택된 draft로 currentEvidence 교체 (함수 스코프에서 실행)
+  try {
+    currentEvidenceForRender = currentEvidence; // 기본값: currentEvidence
+    if (__abDrafts.length > 0 && currentEvidence) {
+      // __abSelectedId가 없으면 첫 draft를 기본 선택
+      if (!__abSelectedId && __abDrafts.length > 0) {
+        __abSelectedId = __abDrafts[0].id;
+      }
+      const selectedDraft = __abDrafts.find(d => d.id === __abSelectedId);
+      if (selectedDraft && selectedDraft.evidenceLike) {
+        currentEvidenceForRender = selectedDraft.evidenceLike;
+      }
+    }
+  } catch (error) {
+    // 에러 발생 시 currentEvidence로 fallback
+    currentEvidenceForRender = currentEvidence;
+    if (globalThis.DEBUG) {
+      console.warn('[Phase 7-3B] currentEvidenceForRender 설정 실패:', error);
+    }
+  }
+  
+  // currentEvidenceForRender가 null이면 currentEvidence로 fallback
+  if (!currentEvidenceForRender) {
+    currentEvidenceForRender = currentEvidence;
   }
   
   // ✅ [Phase 7-2] 실제 분석 결과에서 Evidence 추출 (함수 재사용)
@@ -711,12 +1072,13 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       `;
     } else {
       // 로그인 상태: 저장된 Evidence entry의 items 표시
-      const createdAt = currentEvidence.meta?.createdAt || currentEvidence.createdAt || currentEvidence.timestamp || currentEvidence.created_at || null;
+      // ✅ [Phase 7-3B] AB Compare: currentEvidenceForRender 사용
+      const createdAt = currentEvidenceForRender.meta?.createdAt || currentEvidenceForRender.createdAt || currentEvidenceForRender.timestamp || currentEvidenceForRender.created_at || null;
       const createdAtText = createdAt ? new Date(createdAt).toLocaleString('ko-KR') : '';
       
       // ✅ [Phase 5-7] Evidence entry의 items 구조 처리
       // items가 { id, label, title, detail } 형태인지 확인
-      const evidenceItems = currentEvidence.items || [];
+      const evidenceItems = currentEvidenceForRender.items || [];
       let itemsHtml = '';
       
       if (evidenceItems.length > 0) {
@@ -746,7 +1108,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       const prevEvidence = prevIndex >= 0 ? history[prevIndex] : null;
       
       // ✅ [Phase 7-2] 비교용 Evidence bullet 추출
-      const currBullets = getEvidenceBullets(currentEvidence, scores);
+      // ✅ [Phase 7-3B] AB Compare: currentEvidenceForRender 사용
+      const currBullets = getEvidenceBullets(currentEvidenceForRender, scores);
       const prevBullets = prevEvidence ? getEvidenceBullets(prevEvidence, scores) : [];
       
       // ✅ [Phase 7-2a] diff 계산: trim() 후 문자열 완전 일치 기반
@@ -850,9 +1213,10 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         if (compareEnabled) {
           if (!prevEvidence) {
             // i=0인 경우: 이전 기록이 없음
+            // ✅ [Phase 7-3B] AB Compare: prevEvidence 없을 때 안내 문구
             compareDiffHtml = `
               <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-                <p style="margin: 0; font-size: 12px; color: var(--muted);">이전 기록이 없어 비교할 수 없습니다.</p>
+                <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 근거 생성(테스트)을 2회 실행해 이전 버전을 만든 뒤 다시 시도하세요.</p>
               </div>
             `;
           } else {
@@ -989,7 +1353,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             let whyPanelHtml = '';
             try {
               // selectedScores와 prevScores 추출
-              let selectedScores = currentEvidence?.v2Summary?.analysis?.scores || scores || {};
+              // ✅ [Phase 7-3B] AB Compare: currentEvidenceForRender 사용
+              let selectedScores = currentEvidenceForRender?.v2Summary?.analysis?.scores || scores || {};
               let prevScores = prevEvidence?.v2Summary?.analysis?.scores || {};
               
               // ✅ [Phase 7-2B] 시뮬레이터 모드일 때 가짜 점수 주입
@@ -1136,8 +1501,28 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               </div>
             ` : '';
             
+            // ✅ [Phase 7-3B] AB Compare 컨트롤 HTML
+            let abCompareControlsHtml = '';
+            if (history.length >= 2) {
+              const abSelectOptions = __abDrafts.length > 0
+                ? __abDrafts.map(d => `<option value="${esc(d.id)}" ${d.id === __abSelectedId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')
+                : '<option value="" disabled>개선안 없음</option>';
+              
+              abCompareControlsHtml = `
+                <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+                  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button id="ab-add-dummy" class="btn btn-dark" style="flex: 0 0 auto; font-size: 12px; padding: 6px 12px;">개선안(더미) 추가</button>
+                    <select id="ab-select-dummy" style="flex: 1 1 auto; min-width: 150px; padding: 6px; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);" ${__abDrafts.length === 0 ? 'disabled' : ''}>
+                      ${abSelectOptions}
+                    </select>
+                  </div>
+                </div>
+              `;
+            }
+            
             compareDiffHtml = `
               <div style="margin-top: 12px;">
+                ${abCompareControlsHtml}
                 <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text);">비교 결과</p>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
                   ${currBulletsHtml}
