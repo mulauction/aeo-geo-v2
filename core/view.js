@@ -1211,42 +1211,67 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         `;
       }
       
-      // ✅ [Phase 7-2] 히스토리 비교 토글 UI
+      // ✅ [Phase 7-4] 히스토리 비교 토글 UI (3단 분기)
       let compareToggleHtml = '';
       let compareDiffHtml = '';
-      // ✅ [Phase 7-3C] compareEnabled: 함수 스코프에서 선언 (렌더링 조건에서 사용)
+      // ✅ [Phase 7-4] compareEnabled: 함수 스코프에서 선언 (렌더링 조건에서 사용)
       let compareEnabled = false;
       
-      // ✅ [Phase 7-3C] canCompare: history.length >= 2일 때만 비교 가능
-      const canCompare = history && history.length >= 2;
+      // ✅ [Phase 7-4] 상태 3단 분기: history.length 기준
+      const historyLength = history && Array.isArray(history) ? history.length : 0;
       
-      if (canCompare) {
-        // ✅ [Phase 7-3C] compareEnabled: 체크박스 상태만 확인 (prevEvidence 여부와 무관)
-        compareEnabled = __evidenceCompareEnabled;
+      if (historyLength < 2) {
+        // 상태 1: history.length < 2 → 체크박스 없음, 안내 카드만 표시
         compareToggleHtml = `
-          <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer;">
-              <input type="checkbox" id="evidenceCompareToggle" ${compareEnabled ? 'checked' : ''} style="cursor: pointer; pointer-events: auto;">
-              <span>비교 보기 (이전 vs 선택)</span>
-            </label>
+          <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: var(--text);">비교 기능 안내</p>
+            <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 최소 2개의 기록이 필요합니다. 아래 '근거 생성(테스트)'를 한 번 더 실행해주세요.</p>
           </div>
-          ${compareEnabled && prevEvidence ? `
-            <div style="margin-top: 8px; margin-bottom: 8px; padding: 8px; background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius);">
-              <label style="display: block; margin-bottom: 4px; font-size: 11px; color: var(--text); font-weight: 600;">WHY 시뮬레이터(DEV)</label>
-              <select id="whySimulatorSelect" style="width: 100%; padding: 4px; font-size: 11px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);">
-                <option value="OFF" ${__whySimulatorMode === 'OFF' ? 'selected' : ''}>OFF</option>
-                <option value="A" ${__whySimulatorMode === 'A' ? 'selected' : ''}>A (개선 예시)</option>
-                <option value="B" ${__whySimulatorMode === 'B' ? 'selected' : ''}>B (하락 예시)</option>
-                <option value="NONE" ${__whySimulatorMode === 'NONE' ? 'selected' : ''}>NONE (변경없음)</option>
-              </select>
-            </div>
-          ` : ''}
         `;
+        // compareDiffHtml은 빈 문자열 유지 (Compare 결과 숨김)
+        compareDiffHtml = '';
+      } else {
+        // 상태 2 또는 3: history.length >= 2
+        compareEnabled = __evidenceCompareEnabled;
         
-        // ✅ [Phase 7-3C] 비교보기 ON일 때만 Compare UI 또는 안내 카드 표시
-        if (compareEnabled) {
-          // ✅ [Phase 7-3C] 이전 Evidence 없을 때: 안내 카드만 표시 (AB Compare 컨트롤 숨김)
+        if (!compareEnabled) {
+          // 상태 2: history.length >= 2 AND compareEnabled = false → 체크박스 표시(OFF), Compare 결과 숨김
+          compareToggleHtml = `
+            <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer;">
+                <input type="checkbox" id="evidenceCompareToggle" style="cursor: pointer; pointer-events: auto;">
+                <span>비교 보기 (이전 vs 선택)</span>
+              </label>
+              <p style="margin: 8px 0 0 0; font-size: 11px; color: var(--muted);">현재 기록 ${historyLength}개 이상 → 비교 보기 가능</p>
+            </div>
+          `;
+          // compareDiffHtml은 빈 문자열 유지 (Compare 결과 숨김)
+          compareDiffHtml = '';
+        } else {
+          // 상태 3: history.length >= 2 AND compareEnabled = true → 체크박스 표시(ON), Compare 결과 표시
+          compareToggleHtml = `
+            <div style="margin-top: 12px; margin-bottom: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer;">
+                <input type="checkbox" id="evidenceCompareToggle" checked style="cursor: pointer; pointer-events: auto;">
+                <span>비교 보기 (이전 vs 선택)</span>
+              </label>
+            </div>
+            ${prevEvidence ? `
+              <div style="margin-top: 8px; margin-bottom: 8px; padding: 8px; background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius);">
+                <label style="display: block; margin-bottom: 4px; font-size: 11px; color: var(--text); font-weight: 600;">WHY 시뮬레이터(DEV)</label>
+                <select id="whySimulatorSelect" style="width: 100%; padding: 4px; font-size: 11px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);">
+                  <option value="OFF" ${__whySimulatorMode === 'OFF' ? 'selected' : ''}>OFF</option>
+                  <option value="A" ${__whySimulatorMode === 'A' ? 'selected' : ''}>A (개선 예시)</option>
+                  <option value="B" ${__whySimulatorMode === 'B' ? 'selected' : ''}>B (하락 예시)</option>
+                  <option value="NONE" ${__whySimulatorMode === 'NONE' ? 'selected' : ''}>NONE (변경없음)</option>
+                </select>
+              </div>
+            ` : ''}
+          `;
+          
+          // ✅ [Phase 7-4] Compare 결과 렌더링 (prevEvidence 있을 때만)
           if (!prevEvidence || !currentEvidence) {
+            // 이전 Evidence 없을 때: 안내 카드만 표시
             compareDiffHtml = `
               <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
                 <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: var(--text);">비교할 이전 기록이 없습니다</p>
@@ -1254,7 +1279,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
               </div>
             `;
           } else {
-            // ✅ [Phase 7-3C] 이전 Evidence 있을 때: Compare UI + AB Compare 컨트롤 표시
+            // ✅ [Phase 7-4] 이전 Evidence 있을 때: Compare UI 표시
             // ✅ [Phase 7-2] curr와 prev의 Evidence bullet 리스트 동시 출력
             const currBulletsHtml = currBullets.length > 0 ? `
               <div style="flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 200px;">
@@ -1571,13 +1596,6 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             `;
           }
         }
-      } else {
-        // ✅ [Phase 7-3C] history.length < 2일 때: 체크박스 렌더링하지 않고 안내 카드만 표시
-        compareToggleHtml = `
-          <div style="margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            <p style="margin: 0; font-size: 12px; color: var(--muted);">비교하려면 최소 2개 기록이 필요합니다. 근거 생성(테스트)을 한 번 더 실행해주세요.</p>
-          </div>
-        `;
       }
       
       // ✅ [Phase 5-8 v3] 히스토리가 있어도 실제 분석 결과를 우선 표시
