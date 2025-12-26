@@ -170,6 +170,74 @@
       color: #666;
     }
     
+    /* ✅ [Phase 8-1] 측정 기준 설명 레이어 */
+    .score-criteria-toggle {
+      margin-bottom: 16px;
+    }
+    .score-criteria-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 13px;
+      color: #666;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: inherit;
+    }
+    .score-criteria-btn:hover {
+      color: #333;
+    }
+    .score-criteria-btn .caret {
+      display: inline-block;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid #666;
+      transition: transform 0.2s ease;
+    }
+    .score-criteria-btn.open .caret {
+      transform: rotate(180deg);
+    }
+    .score-criteria-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .score-criteria-content.open {
+      max-height: 200px;
+    }
+    .score-criteria-list {
+      margin-top: 12px;
+      padding: 16px;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #555;
+    }
+    .score-criteria-list p {
+      margin: 0 0 8px 0;
+    }
+    .score-criteria-list p:last-child {
+      margin-bottom: 0;
+    }
+    
+    /* ✅ [Phase 8-1] Compare 안내 문구 */
+    .compare-notice {
+      margin-top: 24px;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #666;
+    }
+    
     /* 콘텐츠 섹션 */
     #shareContent {
       margin-top: 0;
@@ -431,6 +499,40 @@
         page-break-inside: avoid;
       }
       
+      /* 측정 기준 설명 레이어 */
+      .score-criteria-toggle {
+        margin-bottom: 12px;
+        page-break-inside: avoid;
+      }
+      .score-criteria-btn {
+        font-size: 9pt;
+      }
+      .score-criteria-content {
+        max-height: none !important;
+      }
+      .score-criteria-content.open {
+        max-height: none !important;
+      }
+      .score-criteria-list {
+        margin-top: 8px;
+        padding: 12px;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        font-size: 9pt;
+      }
+      .score-criteria-list p {
+        margin: 0 0 6px 0;
+      }
+      
+      /* Compare 안내 문구 */
+      .compare-notice {
+        margin-top: 16px;
+        padding: 12px;
+        border: 1px solid #ddd;
+        font-size: 9pt;
+        page-break-inside: avoid;
+      }
+      
       /* 콘텐츠 섹션 */
       .content-section {
         margin-bottom: 24px;
@@ -547,10 +649,12 @@
       /* 페이지 나누기 제어 */
       .report-header,
       .kpi-bars,
+      .score-criteria-toggle,
       .trust-statements,
       .market-context,
       .content-section,
       .notice-card,
+      .compare-notice,
       .action-grid,
       .report-footer {
         page-break-inside: avoid;
@@ -728,6 +832,23 @@
           </div>
         `;
         
+        // ✅ [Phase 8-1] 측정 기준 설명 레이어
+        const scoreCriteriaToggle = `
+          <div class="score-criteria-toggle">
+            <button class="score-criteria-btn" id="btnScoreCriteria" type="button">
+              <span class="caret"></span>
+              <span>측정 기준 보기</span>
+            </button>
+            <div class="score-criteria-content" id="scoreCriteriaContent">
+              <div class="score-criteria-list">
+                <p>Brand 점수는 브랜드/상품 엔티티 인식 여부와 명시성을 기준으로 평가합니다.</p>
+                <p>Content Structure 점수는 제목 구조, 문단 분리, 핵심 정보 배치를 중심으로 평가합니다.</p>
+                <p>URL Structure 점수는 주소 구조, 연결성, AI 탐색 가능성을 기준으로 평가합니다.</p>
+              </div>
+            </div>
+          </div>
+        `;
+        
         // ✅ [Phase 8-0] 신뢰 문구 2줄
         const trustStatements = `
           <div class="trust-statements">
@@ -848,6 +969,9 @@
               <p>Evidence 기능을 사용하려면 로그인이 필요합니다.</p>
             `}
           </div>
+          <div class="compare-notice">
+            비교 결과의 상세 구조 변화는 Analyze 화면의 Compare 기능에서 확인할 수 있습니다.
+          </div>
         `;
         
         // ✅ [Phase 5-8 v3] 리포트 푸터
@@ -857,8 +981,24 @@
         `;
         
         document.getElementById('reportHeader').innerHTML = reportHeader;
-        document.getElementById('shareContent').innerHTML = kpiBars + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
+        document.getElementById('shareContent').innerHTML = kpiBars + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
+        
+        // ✅ [Phase 8-1] 측정 기준 토글 기능
+        const btnScoreCriteria = document.getElementById('btnScoreCriteria');
+        const scoreCriteriaContent = document.getElementById('scoreCriteriaContent');
+        if (btnScoreCriteria && scoreCriteriaContent) {
+          btnScoreCriteria.addEventListener('click', () => {
+            const isOpen = scoreCriteriaContent.classList.contains('open');
+            if (isOpen) {
+              scoreCriteriaContent.classList.remove('open');
+              btnScoreCriteria.classList.remove('open');
+            } else {
+              scoreCriteriaContent.classList.add('open');
+              btnScoreCriteria.classList.add('open');
+            }
+          });
+        }
       }
       
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
