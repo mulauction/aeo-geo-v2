@@ -86,6 +86,37 @@
       font-weight: 600;
       color: #666;
     }
+    /* Share 링크 정책 안내 (MVP: same-browser only) */
+    .share-policy {
+      margin: 14px 0 18px;
+      padding: 10px 12px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.02);
+    }
+    .share-policy__title {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #1a1a1a;
+    }
+    .share-policy__body {
+      margin: 0;
+    }
+    .share-policy__body p {
+      margin: 0 0 6px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #444;
+    }
+    .share-policy__body p:last-child {
+      margin-bottom: 0;
+    }
+    .share-policy__sub {
+      margin-top: 2px;
+      opacity: 0.72;
+      font-size: 12px;
+    }
     /* ✅ [Phase 10-2] 리포트 없음 경고 박스 */
     .report-warning-box {
       margin: 24px 0;
@@ -790,6 +821,29 @@
         margin-top: 10px;
         padding-top: 10px;
         border-top: 1px solid #ccc;
+      }
+      /* ✅ [Phase 10-3] 공유 링크 정책 안내 - 인쇄 스타일 */
+      .share-policy {
+        margin: 10px 0;
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #f8f8f8;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .share-policy__title {
+        font-size: 10pt;
+        margin-bottom: 4px;
+      }
+      .share-policy__body p {
+        font-size: 9pt;
+        margin: 0 0 4px;
+        line-height: 1.4;
+      }
+      .share-policy__sub {
+        font-size: 8pt;
+        margin-top: 2px;
       }
       /* ✅ [Phase 10-2] 리포트 없음 경고 박스 - 인쇄 스타일 */
       .report-warning-box {
@@ -1507,6 +1561,14 @@
           <div class="report-header-summary">
             이 리포트는 AI 검색·추천 환경에서 해당 브랜드/콘텐츠가 얼마나 인식 가능한지, 구조적 기준으로 분석한 결과입니다. 점수는 '현재 상태'를 의미하며, 아래 액션은 개선 우선순위를 안내합니다.
           </div>
+          <section class="share-policy" role="note" aria-label="공유 링크 안내">
+            <div class="share-policy__title">공유 링크 안내</div>
+            <div class="share-policy__body">
+              <p>이 공유 링크는 현재 브라우저(동일 기기)에서만 리포트를 다시 열 수 있습니다.</p>
+              <p>다른 기기·다른 브라우저·시크릿 모드에서는 리포트를 불러올 수 없습니다.</p>
+              <p class="share-policy__sub">현재 버전(MVP)은 서버 저장 없이 로컬 분석 결과로만 표시됩니다.</p>
+            </div>
+          </section>
           <div class="report-header-meta">
             <div class="report-header-meta-item">
               <span class="report-header-meta-label">분석 대상</span>
@@ -1543,9 +1605,9 @@
               const shareUrl = location.origin + location.pathname + '?r=' + encodeURIComponent(currentR);
               return `
                 <div class="report-header-fixed">
-                  <span class="report-header-fixed-badge">공유 링크 고정됨</span>
+                  <span class="report-header-fixed-badge">재열람 링크 고정됨</span>
                   <span class="report-header-fixed-id">Report ID: ${esc(maskedId)}</span>
-                  <button class="report-header-fixed-copy-btn" type="button" data-share-url="${esc(shareUrl)}">공유 링크 복사</button>
+                  <button class="report-header-fixed-copy-btn" type="button" data-share-url="${esc(shareUrl)}">재열람 링크 복사</button>
                 </div>
               `;
             }
