@@ -2030,7 +2030,11 @@
         // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
         const { html: reliabilityHtml, bind: bindReliability } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
         
-        const kpiBars = `
+        // ✅ [Phase 13-2B] 리포트가 없는 상태(B/C)일 때 KPI 섹션 숨김
+        const kpiBars = shouldShowLoadFailedBanner ? `
+          <div id="reliability-badge-slot"></div>
+          <div id="why-panel"></div>
+        ` : `
           <div class="kpi-bars">
             ${reliabilityHtml}
             ${kpiBar('Brand', brandingScore)}
