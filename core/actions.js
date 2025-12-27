@@ -2,6 +2,7 @@ import { setState, getState } from "./state.js";
 import { requireLogin, requireCredit, isLoggedIn, gateOrWarn } from "./gate.js";
 import { spendCredit } from "./credit.js";
 import { computeContentStructureV2 } from "./analyzers/contentStructureV2.js";
+import { computeBrandingScore } from "./analyzers/branding.js";
 import { buildReportPayload } from "./report.js";
 import { buildImprovementsFromReport } from "./improvements.js";
 import { buildImproveRequestV1, requestImproveV1 } from "./api/improveClient.js";
@@ -38,11 +39,47 @@ export function bindActions(root) {
         console.log('[DEBUG] Evidence:', contentStructureV2Result.evidence);
       }
 
-      // analysis.scores 초기화 (없으면 생성)
+      // ✅ 브랜드 점수 계산 (inputs.brand가 있을 때만)
+      const urlParams = new URLSearchParams(window.location.search);
+      const brandFromUrl = urlParams.get("brand");
+      const productFromUrl = urlParams.get("product");
+      let brandingResult = null;
+      if (brandFromUrl && brandFromUrl.trim().length > 0) {
+        brandingResult = computeBrandingScore(brandFromUrl, input);
+        if (globalThis.DEBUG && brandingResult) {
+          console.log('[DEBUG] Branding 점수:', brandingResult.score, brandingResult.grade);
+        }
+      }
+
+      // ✅ [brand/product 변경 감지] 이전 __lastV2와 비교하여 URL 데이터 초기화 여부 결정
+      let shouldResetUrlData = false;
+      let prevLastV2 = null;
+      try {
+        const prevLastV2Str = localStorage.getItem('__lastV2');
+        if (prevLastV2Str) {
+          prevLastV2 = JSON.parse(prevLastV2Str);
+          if (prevLastV2 && prevLastV2.inputs) {
+            const prevBrand = prevLastV2.inputs.brand || '';
+            const prevProduct = prevLastV2.inputs.product || '';
+            const currentBrand = brandFromUrl || '';
+            const currentProduct = productFromUrl || '';
+            
+            // brand 또는 product가 변경되었으면 URL 데이터 초기화
+            if (prevBrand !== currentBrand || prevProduct !== currentProduct) {
+              shouldResetUrlData = true;
+            }
+          }
+        }
+      } catch (e) {
+        // 이전 __lastV2 읽기 실패 시 조용히 무시 (새 분석으로 간주)
+      }
+
+      // ✅ analysis.scores 명시적으로 재구성 (merge하지 않음, brand/product 변경 시 URL 초기화)
       const currentState = getState();
       const analysisScores = {
-        ...(currentState.analysis?.scores || {}),
-        contentStructureV2: contentStructureV2Result
+        branding: brandingResult,
+        contentStructureV2: contentStructureV2Result,
+        urlStructureV1: shouldResetUrlData ? null : (currentState.analysis?.scores?.urlStructureV1 || null)
       };
 
       // ✅ [Phase 5-0 Commit C] Evidence 계산 (옵션 슬롯)
@@ -94,6 +131,52 @@ export function bindActions(root) {
           ...(evidenceData ? { evidence: evidenceData } : {})
         }
       });
+      
+      // ✅ [inputs 복구] 분석 완료 시점에 __lastV2 스냅샷 생성 및 저장
+      const finalState = getState();
+      const reportPayload = buildReportPayload();
+      
+      // ✅ 이전 __lastV2에서 url 추출 (brand/product 변경되지 않았을 때만 유지)
+      const prevUrl = (!shouldResetUrlData && prevLastV2 && prevLastV2.inputs) 
+        ? (prevLastV2.inputs.url || null) 
+        : null;
+      
+      // inputs 구성: URL 파라미터 우선, 없으면 빈 문자열 (위에서 이미 읽은 값 재사용)
+      const inputs = {
+        brand: brandFromUrl || '',
+        product: productFromUrl || '',
+        url: shouldResetUrlData ? null : prevUrl
+      };
+      
+      // ✅ analysis.scores 명시적으로 재구성 (merge하지 않음, brand/product 변경 시 URL 초기화)
+      // reportPayload는 이미 shouldResetUrlData에 따라 업데이트된 state를 기반으로 생성됨
+      const v2SummaryAnalysisScores = {
+        branding: reportPayload.analysis?.scores?.branding || null,
+        contentStructureV2: reportPayload.analysis?.scores?.contentStructureV2 || null,
+        urlStructureV1: shouldResetUrlData ? null : (reportPayload.analysis?.scores?.urlStructureV1 || null)
+      };
+      
+      // v2Summary 리포트 모델 생성 (inputs 포함)
+      const v2Summary = {
+        inputs: inputs,
+        input: finalState.input || null,
+        result: reportPayload.result || null,
+        analysis: {
+          scores: v2SummaryAnalysisScores
+        },
+        generatedAt: reportPayload.generatedAt || Date.now(),
+        createdAt: new Date().toISOString()
+      };
+      
+      // window.__lastV2에 저장
+      window.__lastV2 = v2Summary;
+      
+      // localStorage '__lastV2'에 저장
+      try {
+        localStorage.setItem('__lastV2', JSON.stringify(v2Summary));
+      } catch (e) {
+        console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
+      }
     } finally {
       root.btnAnalyze.disabled = false;
       root.inputText.disabled = false;
@@ -114,6 +197,48 @@ export function bindActions(root) {
     if (event.target && event.target.id === "btnShareReport") {
       event.preventDefault();
       if (!gateOrWarn("리포트 공유 보기")) return;
+      
+      // ✅ [inputs 복구] 리포트 공유 전에 __lastV2 생성 및 저장
+      const state = getState();
+      const reportPayload = buildReportPayload();
+      
+      // URL 파라미터에서 brand/product 추출
+      const urlParams = new URLSearchParams(window.location.search);
+      const brandFromUrl = urlParams.get("brand");
+      const productFromUrl = urlParams.get("product");
+      
+      // inputs 구성: URL 파라미터 우선, 없으면 빈 문자열
+      const inputs = {
+        brand: brandFromUrl || '',
+        product: productFromUrl || ''
+      };
+      
+      // __lastV2 리포트 모델 생성 (inputs 포함)
+      const lastV2 = {
+        inputs: inputs,
+        input: state.input || null,
+        result: reportPayload.result || null,
+        analysis: reportPayload.analysis || {
+          scores: {
+            branding: null,
+            contentStructureV2: null,
+            urlStructureV1: null
+          }
+        },
+        generatedAt: reportPayload.generatedAt || Date.now(),
+        createdAt: new Date().toISOString()
+      };
+      
+      // window.__lastV2에 저장
+      window.__lastV2 = lastV2;
+      
+      // localStorage '__lastV2'에 저장
+      try {
+        localStorage.setItem('__lastV2', JSON.stringify(lastV2));
+      } catch (e) {
+        console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
+      }
+      
       window.location.href = "./share.html";
     }
     

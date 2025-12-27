@@ -4,6 +4,64 @@
  */
 
 /**
+ * ✅ [Phase 8-3A-1] 측정값이 실측 상태인지 엄격히 판정
+ * null/undefined/"측정 필요"/더미 플래그/NaN은 실측 아님
+ * @param {Object} value - 점수 객체
+ * @returns {boolean} 실측 여부
+ */
+function isStrictlyMeasured(value) {
+  if (value === null || value === undefined) return false;
+  const score = value.score;
+  return score !== null && score !== undefined && !isNaN(score) && isFinite(score);
+}
+
+/**
+ * ✅ [Phase 8-3A-1] 점수가 최소 기준(threshold)을 충족하는지 확인
+ * 기존 코드에서 점수가 0 이상이면 유효한 것으로 간주하므로, 0 이상이면 기준 충족
+ * @param {Object} value - 점수 객체
+ * @returns {boolean} 최소 기준 충족 여부
+ */
+function meetsMinimumThreshold(value) {
+  if (!isStrictlyMeasured(value)) return false;
+  const score = value.score;
+  // 점수가 0 이상이면 최소 기준 충족 (기존 코드의 isMeasured 로직 재사용)
+  return score >= 0;
+}
+
+/**
+ * ✅ [Phase 8-3A-1] '높음' 신뢰도 Gate 함수
+ * - measured 3개(branding/contentStructureV2/urlStructureV1)가 모두 "실측" 상태일 때만 '높음' 가능
+ * - 각 점수가 최소 기준(threshold)을 충족해야만 '높음'
+ * - 더미/미측정/null/NaN/측정 필요 상태가 하나라도 섞이면 '높음'은 절대 불가
+ * @param {Object} param0 - { brandingScore, contentStructureV2Score, urlStructureV1Score, hasEvidence }
+ * @returns {boolean} '높음' 신뢰도 가능 여부
+ */
+function canBeHighReliability({ brandingScore, contentStructureV2Score, urlStructureV1Score, hasEvidence }) {
+  // Evidence가 없으면 '높음' 불가
+  if (!hasEvidence) return false;
+  
+  // 3개 항목 모두 실측 상태인지 엄격히 판정
+  const brandMeasured = isStrictlyMeasured(brandingScore);
+  const contentMeasured = isStrictlyMeasured(contentStructureV2Score);
+  const urlMeasured = isStrictlyMeasured(urlStructureV1Score);
+  
+  if (!brandMeasured || !contentMeasured || !urlMeasured) {
+    return false;
+  }
+  
+  // 각 점수가 최소 기준을 충족하는지 확인
+  const brandMeetsThreshold = meetsMinimumThreshold(brandingScore);
+  const contentMeetsThreshold = meetsMinimumThreshold(contentStructureV2Score);
+  const urlMeetsThreshold = meetsMinimumThreshold(urlStructureV1Score);
+  
+  if (!brandMeetsThreshold || !contentMeetsThreshold || !urlMeetsThreshold) {
+    return false;
+  }
+  
+  return true;
+}
+
+/**
  * ✅ [Phase 8-2A/8-2B] 신뢰도 계산 (evidence 기반 규칙 고정)
  * @param {Object} reportModel - 리포트 모델 객체
  * @param {Object} opts - 옵션 객체 (현재 사용 안 함)
@@ -43,16 +101,48 @@ export function computeReliabilityV2(reportModel, opts = {}) {
   if (!isMeasured(urlStructureV1Score)) missingItems.push('URL');
   const missingCount = missingItems.length;
   
-  // ✅ [Phase 8-2B] 신뢰도 레벨 결정 (evidence 기반 규칙)
-  let reliabilityLevel = '높음';
-  if (!hasEvidence || isDummyState) {
-    reliabilityLevel = '낮음';
-  } else if (missingCount >= 1) {
-    reliabilityLevel = missingCount >= 2 ? '낮음' : '보통';
+  // ✅ [Phase 8-3A-1] 신뢰도 레벨 결정 (evidence 기반 규칙 + '높음' Gate 강화)
+  // '높음' Gate 통과 여부 확인 (가장 먼저 확인)
+  const canBeHigh = canBeHighReliability({
+    brandingScore,
+    contentStructureV2Score,
+    urlStructureV1Score,
+    hasEvidence
+  });
+  
+  let reliabilityLevel;
+  
+  if (!canBeHigh) {
+    // '높음' Gate를 통과하지 못하면 어떤 경우에도 '높음' 불가
+    if (!hasEvidence || isDummyState) {
+      reliabilityLevel = '낮음';
+    } else if (missingCount >= 1) {
+      reliabilityLevel = missingCount >= 2 ? '낮음' : '보통';
+    } else {
+      // 측정은 되었지만 Gate를 통과하지 못한 경우 (예: 최소 기준 미충족)
+      reliabilityLevel = '보통';
+    }
+  } else {
+    // '높음' Gate를 통과한 경우: 3개 모두 실측 + 최소 기준 충족
+    // canBeHigh가 true면 missingCount는 항상 0이어야 하므로 '높음' 가능
+    reliabilityLevel = '높음';
   }
   
   // ✅ [Phase 8-2B] Reason line 생성 ("BRAND 미측정 · CONTENT 측정됨 · URL 측정됨" 형태)
-  const reasonText = `BRAND ${brandStatus} · CONTENT ${contentStatus} · URL ${urlStatus}`;
+  // ✅ [Phase 8-3A-1] reason 문구 명확화: "3개 항목 모두 측정 + 최소 기준 충족 시에만 '높음' 가능"
+  let reasonText = `BRAND ${brandStatus} · CONTENT ${contentStatus} · URL ${urlStatus}`;
+  if (reliabilityLevel === '높음') {
+    // '높음'인 경우: 3개 항목 모두 측정 + 최소 기준 충족
+    reasonText += ' · 3개 항목 모두 측정 + 최소 기준 충족';
+  } else if (!canBeHigh) {
+    // Gate를 통과하지 못한 경우: 미측정/더미/최소 기준 미충족
+    if (missingCount > 0) {
+      // 미측정 항목이 있는 경우는 이미 brandStatus 등에 표시되므로 추가 문구 생략
+    } else {
+      // 측정은 되었지만 최소 기준 미충족 또는 기타 이유
+      reasonText += ' · 미측정/더미가 포함되면 "높음" 불가';
+    }
+  }
   
   return {
     level: reliabilityLevel,

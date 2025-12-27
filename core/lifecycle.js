@@ -1,4 +1,4 @@
-import { getState } from "./state.js";
+import { getState, setState } from "./state.js";
 import { render } from "./view.js";
 import { bindActions } from "./actions.js";
 import { renderHeader } from "./header.js";
@@ -77,6 +77,44 @@ export function boot() {
 
   bindActions(root);
   render(root, getState());
+
+  // ✅ [뒤로가기 복구] pageshow 이벤트 리스너: Generate에서 URL 점수 측정 후 뒤로가기 시 즉시 반영
+  window.addEventListener('pageshow', (event) => {
+    // bfcache에서 복원된 경우에만 처리
+    if (event.persisted) {
+      try {
+        // localStorage '__urlStructureV1'에서 URL 점수 읽기
+        const LS_KEY_URL = '__urlStructureV1';
+        const urlScoreStr = localStorage.getItem(LS_KEY_URL);
+        
+        if (urlScoreStr) {
+          const urlScore = JSON.parse(urlScoreStr);
+          
+          // 현재 state 가져오기
+          const currentState = getState();
+          
+          // result가 있으면 urlStructureV1 업데이트
+          if (currentState.result) {
+            const updatedResult = {
+              ...currentState.result,
+              urlStructureV1: urlScore
+            };
+            
+            // setState 호출 (자동으로 promoteUrlStructureScore 실행됨)
+            setState({
+              result: updatedResult
+            });
+            
+            // UI 즉시 업데이트
+            render(root, getState());
+          }
+        }
+      } catch (e) {
+        // localStorage 읽기 실패 시 조용히 무시
+        console.warn('[lifecycle] Failed to restore URL score from localStorage:', e);
+      }
+    }
+  });
 
   setInterval(() => {
     // ✅ 클릭 중에는 렌더를 건너뛰어 click이 취소되지 않게 함
