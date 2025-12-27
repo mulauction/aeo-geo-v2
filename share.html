@@ -1110,16 +1110,19 @@
         };
         
         // ✅ [Phase 8-3] 신뢰도 계산 및 UI 렌더링 (모듈화)
-        const reliabilityResult = computeReliabilityV2(reportModel || { analysis: { scores: {} } });
+        const reliabilityResultV2 = computeReliabilityV2(reportModel || { analysis: { scores: {} } });
         
-        // ✅ [Phase 8-2B] 측정 필요 CTA 생성
+        // ✅ [Phase 8-3A-1] Reliability 결과 계산 (완성도 규칙 기반)
+        const lastV2 = window.__lastV2 || null;
+        const reliabilityResult = computeReliability(reportModel || { analysis: { scores: {} } }, lastV2);
+        
+        // ✅ [Phase 8-3A-1] 측정 필요 CTA 생성 (1줄 요약만)
         let measurementCta = '';
-        if (reliabilityResult.missingCount > 0) {
-          const missingItemsText = reliabilityResult.missingItems.join(', ');
+        // reasons.length > 0 이거나 label이 '측정 필요'인 경우에만 표시
+        if ((reliabilityResult.reasons && reliabilityResult.reasons.length > 0) || reliabilityResult.label === '측정 필요') {
           measurementCta = `
             <div class="measurement-cta">
-              <div class="measurement-cta-title">측정 필요: ${esc(missingItemsText)}</div>
-              <div>정확한 분석을 위해 누락된 항목을 측정해주세요. <a href="./analyze.html" class="measurement-cta-link">Analyze 페이지로 이동</a></div>
+              <div class="measurement-cta-title">측정 필요 항목이 있습니다. 신뢰도 배지에서 이유를 확인하세요.</div>
             </div>
           `;
         }
@@ -1293,8 +1296,7 @@
         // ✅ 신뢰도 배지 렌더링 (read-only)
         const reliabilityBadgeSlot = document.getElementById('reliability-badge-slot');
         if (reliabilityBadgeSlot) {
-          const lastV2 = window.__lastV2 || null;
-          const reliabilityResult = computeReliability(reportModel || { analysis: { scores: {} } }, lastV2);
+          // reliabilityResult는 이미 위에서 계산됨
           renderReliabilityBadge(reliabilityBadgeSlot, reliabilityResult);
         }
         
