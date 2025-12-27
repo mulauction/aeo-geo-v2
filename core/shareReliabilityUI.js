@@ -47,3 +47,34 @@ export function renderReliabilityBlock(reportModel, options = {}) {
   return { html, bind };
 }
 
+/**
+ * ✅ 신뢰도 배지 렌더링 함수
+ * el이 null이면 조용히 return
+ * 배지 DOM은 el 내부만 채운다 (기존 KPI/증거 DOM을 건드리지 않음)
+ * @param {HTMLElement|null} el - 배지를 렌더링할 DOM 요소
+ * @param {Object} rel - 신뢰도 계산 결과 { level, label, reasons }
+ */
+export function renderReliabilityBadge(el, rel) {
+  // el이 null이면 조용히 return
+  if (!el) {
+    return;
+  }
+
+  // rel이 없거나 유효하지 않으면 기본값 사용
+  const reliability = rel || {
+    level: 'unknown',
+    label: '측정 필요',
+    reasons: []
+  };
+
+  // 배지 HTML 생성
+  const badgeHtml = `
+    <div class="reliability-badge">
+      신뢰도: ${esc(reliability.label || reliability.level || '측정 필요')}
+    </div>
+  `;
+
+  // el 내부만 채우기 (기존 내용은 유지하지 않고 교체)
+  el.innerHTML = badgeHtml;
+}
+

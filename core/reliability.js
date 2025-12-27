@@ -155,3 +155,54 @@ export function computeReliabilityV2(reportModel, opts = {}) {
   };
 }
 
+/**
+ * ✅ 신뢰도 계산 함수 (순수 함수, DOM/Storage 접근 금지)
+ * 입력이 비어도 안전하게 기본값 반환
+ * @param {Object|null|undefined} reportModel - 리포트 모델 객체
+ * @param {Object|null|undefined} lastV2 - 마지막 리포트 데이터 (현재 사용 안 함)
+ * @returns {Object} 신뢰도 계산 결과 { level, label, reasons }
+ */
+export function computeReliability(reportModel, lastV2) {
+  // 입력이 비어있거나 유효하지 않으면 기본값 반환
+  if (!reportModel || typeof reportModel !== 'object') {
+    return {
+      level: 'unknown',
+      label: '측정 필요',
+      reasons: []
+    };
+  }
+
+  try {
+    // computeReliabilityV2를 사용하여 신뢰도 계산
+    const result = computeReliabilityV2(reportModel);
+    
+    // level을 그대로 사용하고, label은 level에 맞게 매핑
+    let label = '측정 필요';
+    if (result.level === '높음') {
+      label = '높음';
+    } else if (result.level === '보통') {
+      label = '보통';
+    } else if (result.level === '낮음') {
+      label = '낮음';
+    } else {
+      label = '측정 필요';
+    }
+    
+    // reasons는 reasonText를 배열로 변환 (필요시)
+    const reasons = result.reasonText ? [result.reasonText] : [];
+    
+    return {
+      level: result.level || 'unknown',
+      label: label,
+      reasons: reasons
+    };
+  } catch (e) {
+    // 에러 발생 시 기본값 반환 (절대 throw 하지 않음)
+    return {
+      level: 'unknown',
+      label: '측정 필요',
+      reasons: []
+    };
+  }
+}
+

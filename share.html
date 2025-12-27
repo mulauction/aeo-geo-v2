@@ -769,8 +769,8 @@
     import { buildReportPayload } from './core/report.js';
     import { renderKpi } from './core/view.js';
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
-    import { computeReliabilityV2 } from './core/reliability.js';
-    import { renderReliabilityBlock } from './core/shareReliabilityUI.js';
+    import { computeReliabilityV2, computeReliability } from './core/reliability.js';
+    import { renderReliabilityBlock, renderReliabilityBadge } from './core/shareReliabilityUI.js';
     
     /**
      * ✅ [Share 복원 로직] reportModel 복원 함수
@@ -1062,6 +1062,7 @@
             ${kpiBar('Content Structure', contentStructureV2Score)}
             ${kpiBar('URL Structure', urlStructureV1Score)}
           </div>
+          <div id="reliability-badge-slot"></div>
         `;
         
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
@@ -1216,6 +1217,14 @@
         const shareContentEl = document.getElementById('shareContent');
         shareContentEl.innerHTML = measurementCta + kpiBars + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
+        
+        // ✅ 신뢰도 배지 렌더링 (read-only)
+        const reliabilityBadgeSlot = document.getElementById('reliability-badge-slot');
+        if (reliabilityBadgeSlot) {
+          const lastV2 = window.__lastV2 || null;
+          const reliabilityResult = computeReliability(reportModel || { analysis: { scores: {} } }, lastV2);
+          renderReliabilityBadge(reliabilityBadgeSlot, reliabilityResult);
+        }
         
         // ✅ [Phase 8-3] 신뢰도 블록 이벤트 바인딩 (모듈화)
         const kpiBarsEl = shareContentEl.querySelector('.kpi-bars');
