@@ -86,6 +86,70 @@
       font-weight: 600;
       color: #666;
     }
+    /* ✅ [Phase 10-1] 고정 리포트 UI */
+    .report-header-fixed {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .report-header-fixed-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #555;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+    .report-header-fixed-id {
+      font-size: 11px;
+      color: #666;
+      font-family: monospace;
+    }
+    .report-header-fixed-copy-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #0066cc;
+      background: #fff;
+      border: 1px solid #0066cc;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s ease;
+    }
+    .report-header-fixed-copy-btn:hover {
+      background: #f0f7ff;
+    }
+    .report-header-fixed-copy-btn:active {
+      background: #e0efff;
+    }
+    .report-header-fixed-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #fff;
+      background: #28a745;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+    .report-header-fixed-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
     
     /* KPI Bar 그래프 (3종 시각화) */
     .kpi-bars {
@@ -689,6 +753,27 @@
         margin-top: 10px;
         padding-top: 10px;
         border-top: 1px solid #ccc;
+      }
+      /* ✅ [Phase 10-1] 고정 리포트 UI - 인쇄 스타일 */
+      .report-header-fixed {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #ccc;
+        font-size: 8pt;
+      }
+      .report-header-fixed-badge {
+        padding: 3px 6px;
+        font-size: 8pt;
+        border: 1px solid #ccc;
+      }
+      .report-header-fixed-id {
+        font-size: 8pt;
+      }
+      .report-header-fixed-copy-btn {
+        display: none !important;
+      }
+      .report-header-fixed-toast {
+        display: none !important;
       }
       
       /* ✅ [Phase 8-3A-2] KPI Bar 그래프 - 페이지 분할 안정화 */
@@ -1359,6 +1444,23 @@
               <span>Share-only 리포트</span>
             </div>
           </div>
+          ${(() => {
+            const urlParams = new URLSearchParams(location.search);
+            const currentR = urlParams.get('r');
+            if (currentR) {
+              const maskedId = currentR.length > 6 
+                ? '…' + currentR.slice(-6) 
+                : currentR;
+              return `
+                <div class="report-header-fixed">
+                  <span class="report-header-fixed-badge">공유 링크 고정됨</span>
+                  <span class="report-header-fixed-id">Report ID: ${esc(maskedId)}</span>
+                  <button class="report-header-fixed-copy-btn" type="button" data-copy-url="${esc(location.href)}">공유 링크 복사</button>
+                </div>
+              `;
+            }
+            return '';
+          })()}
         `;
         
         // ✅ [Phase 8-0] KPI Bar 그래프 (3종 시각화)
@@ -1664,6 +1766,33 @@
         const shareContentEl = document.getElementById('shareContent');
         shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
+        
+        // ✅ [Phase 10-1] 공유 링크 복사 버튼 이벤트 바인딩
+        const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            const urlToCopy = copyBtn.getAttribute('data-copy-url') || location.href;
+            try {
+              await navigator.clipboard.writeText(urlToCopy);
+              
+              // 토스트 표시
+              let toast = document.querySelector('.report-header-fixed-toast');
+              if (!toast) {
+                toast = document.createElement('div');
+                toast.className = 'report-header-fixed-toast';
+                toast.textContent = '복사됨';
+                document.body.appendChild(toast);
+              }
+              
+              toast.classList.add('show');
+              setTimeout(() => {
+                toast.classList.remove('show');
+              }, 1000);
+            } catch (err) {
+              console.warn('클립보드 복사 실패:', err);
+            }
+          });
+        }
         
         // ✅ 신뢰도 배지 렌더링 (read-only)
         const reliabilityBadgeSlot = document.getElementById('reliability-badge-slot');
