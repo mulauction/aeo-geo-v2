@@ -107,7 +107,48 @@ export function buildWhyReasons(reportModel) {
 
   return {
     level: normalizedLevelValue,
-    reasons: reasons
+    reasons: reasons,
+    allReasons: allReasons // ✅ [Phase 12-3] action line을 위한 전체 이유 목록
   };
+}
+
+/**
+ * ✅ [Phase 12-3] WHY 패널 action line 생성 함수
+ * @param {Object} whyResult - buildWhyReasons 반환값 { level, reasons, allReasons }
+ * @returns {string} action line 문구
+ */
+export function buildWhyActionLine(whyResult) {
+  if (!whyResult || typeof whyResult !== 'object') {
+    return '추천: 리포트를 갱신하세요.';
+  }
+
+  const { level, allReasons } = whyResult;
+
+  // level==='high' => "현재 데이터는 충분합니다. 유지하세요."
+  if (level === 'high') {
+    return '현재 데이터는 충분합니다. 유지하세요.';
+  }
+
+  // 그 외: allReasons 우선순위 brand > content > url 중 첫 번째에 맞는 추천 문구
+  const reasons = Array.isArray(allReasons) ? allReasons : [];
+  
+  if (reasons.length === 0) {
+    // allReasons가 비어있으면 기본 메시지
+    return '추천: 리포트를 갱신하세요.';
+  }
+
+  // allReasons의 첫 번째 항목의 key 확인 (우선순위: brand > content > url)
+  const firstReasonKey = reasons[0]?.key;
+  
+  if (firstReasonKey === 'brand') {
+    return '추천: 공식 구매 링크 + 브랜드 소개 문장 1줄을 추가하세요.';
+  } else if (firstReasonKey === 'content') {
+    return '추천: H3 3개 + 장점 리스트 5개 구조로 요약 블록을 추가하세요.';
+  } else if (firstReasonKey === 'url') {
+    return '추천: URL 측정을 실행한 뒤 리포트를 갱신하세요.';
+  }
+  
+  // 기본값
+  return '추천: 리포트를 갱신하세요.';
 }
 
