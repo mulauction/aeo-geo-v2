@@ -1088,6 +1088,39 @@
     import { computeReliabilityV2, computeReliability } from './core/reliability.js';
     import { renderReliabilityBlock, renderReliabilityBadge } from './core/shareReliabilityUI.js';
     
+    // === [Phase 10-0] Share reportId 고정 로직 ===
+    const params = new URLSearchParams(location.search);
+    let r = params.get('r');
+
+    if (!r) {
+      r = localStorage.getItem('__currentReportId') || '';
+
+      if (!r) {
+        try {
+          const v2 = JSON.parse(localStorage.getItem('__lastV2') || 'null');
+
+          // ⚠️ 새 ID 생성 금지
+          // 이미 저장된 값 중 고유값으로 fallback
+          r = String(
+            v2?.reportId ||
+            v2?.meta?.reportId ||
+            v2?.meta?.id ||
+            v2?.id ||
+            v2?.generatedAt || ''
+          );
+        } catch (_) {}
+      }
+
+      if (r) {
+        localStorage.setItem('__currentReportId', r);
+        history.replaceState(
+          null,
+          '',
+          `${location.pathname}?r=${encodeURIComponent(r)}`
+        );
+      }
+    }
+    
     /**
      * ✅ [Share 복원 로직] reportModel 복원 함수
      * 우선순위: (1) URL 파라미터 r → (2) window.__lastV2 / localStorage '__lastV2' → (3) localStorage 'aeo_state_v2'
