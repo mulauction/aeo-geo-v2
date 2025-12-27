@@ -126,6 +126,60 @@ For all tests (A, B, C), the following must be true:
 
 ---
 
+## WHY Copy Guardrails
+
+### WHY Reasons Must Reference Observable Facts
+
+WHY panel reasons must cite observable facts from the report model, not generic messages:
+
+✅ **Valid Examples:**
+- "브랜드 근거 0개"
+- "브랜드 근거 5개 부족"
+- "브랜드 점수 측정 필요"
+- "콘텐츠 구조 근거 0개"
+- "콘텐츠 구조 점수 측정 필요"
+- "URL 미연결"
+- "URL 구조 점수 측정 필요"
+
+❌ **Invalid Examples (too generic):**
+- "브랜드 근거 부족" (should specify count)
+- "측정 필요" (should specify which KPI)
+- "데이터 부족" (should cite specific observable fact)
+
+**Observable Facts Sources:**
+- Evidence counts: `brandingEvidenceCount`, `contentEvidenceCount`, `totalEvidenceCount`
+- Score null flags: `brandingIsNull`, `contentStructureV2IsNull`, `urlStructureV1IsNull`
+- URL connection status: `urlConnected`
+
+### Action Line Must Be Executable
+
+Action line must be a verb sentence that targets the top missing signal:
+
+✅ **Valid Examples (executable, specific):**
+- "URL 연결을 확인한 뒤 share/analyze 화면을 다시 열어 검증하세요."
+- "브랜드명을 입력하고 analyze를 다시 실행하여 측정하세요."
+- "브랜드명과 핵심 스펙 1~2줄을 추가한 뒤 analyze를 다시 실행하세요."
+- "비교표나 FAQ 스니펫을 추가하여 신뢰도를 높이세요."
+
+❌ **Invalid Examples (not executable or too vague):**
+- "브랜드를 개선하세요" (too vague, no specific action)
+- "데이터를 추가하세요" (which data? how?)
+- "측정하세요" (where? how?)
+
+**Action Line Priority:**
+1. **URL connection** (if `urlConnected === false`)
+2. **Missing inputs** (if any KPI score is null)
+3. **Missing evidence** (if evidence count is 0)
+4. **Next improvement** (comparison/FAQ snippet)
+
+**Format Requirements:**
+- Exactly one line of text
+- Starts with "추천: " prefix
+- Contains executable verb (입력하세요, 실행하세요, 추가하세요, 확인하세요)
+- Targets the top missing signal (highest priority blocking item)
+
+---
+
 ## Quick Test Checklist
 
 - [ ] Test A: Valid report ID loads correctly

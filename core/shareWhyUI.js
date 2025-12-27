@@ -27,8 +27,8 @@ export function renderWhyPanel(targetEl, reportModel) {
   const whyResult = buildWhyReasons(reportModel || {});
   const { level, reasons } = whyResult;
 
-  // buildWhyActionLine으로 action line 생성
-  const actionLine = buildWhyActionLine(whyResult);
+  // buildWhyActionLine으로 action line 생성 (reportModel 전달하여 evidence-driven)
+  const actionLine = buildWhyActionLine(whyResult, reportModel || {});
 
   // WHY 패널 HTML 생성 (기존 Share 카드 스타일 활용)
   let whyPanelHtml = '';
