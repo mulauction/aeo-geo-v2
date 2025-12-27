@@ -194,6 +194,69 @@ Action line must be a verb sentence that targets the top missing signal:
 
 ---
 
+## ✅ [Phase 14-0] Reliability Definition & Copy Standardization Tests
+
+### Test A: 정상 리포트일 때 신뢰도 라벨/한줄 안내/토글 reasons가 일관됨
+
+**Steps:**
+1. Navigate to: `/share.html?r=<valid-report-id>` (정상 리포트 ID 사용)
+
+**Expected Results:**
+- ✅ 신뢰도 배지 라벨이 정확히 표시됨 (높음/보통/낮음/측정 필요 중 하나)
+- ✅ 신뢰도 배지 옆 한 줄 안내 문구가 표시됨 (해당 시)
+- ✅ "자세히" 버튼 클릭 시 reasons가 표시됨
+- ✅ reasons 출력 순서가 고정됨: BRAND → CONTENT → URL 순서
+- ✅ reasons 문구가 표준화됨: "BRAND 측정됨" / "BRAND 미측정" 형식
+- ✅ 한 줄 안내 문구와 WHY 패널/Action line이 충돌하지 않음
+
+**Pass Criteria:**
+- 신뢰도 라벨, 한 줄 안내, 토글 reasons가 모두 일관되게 표시됨
+- reasons 순서가 brand → content → url로 고정됨
+- 문구가 표준화되어 있음
+
+---
+
+### Test B: does-not-exist일 때 "리포트 없음" 이유가 명확하고 측정 필요와 구분됨
+
+**Steps:**
+1. Navigate to: `/share.html?r=does-not-exist`
+
+**Expected Results:**
+- ✅ 신뢰도 배지 라벨이 "측정 필요"로 표시됨
+- ✅ "자세히" 버튼 클릭 시 reasons에 "리포트 없음 · 리포트를 불러올 수 없습니다" 표시됨
+- ✅ 한 줄 안내 문구에 "리포트를 불러올 수 없습니다" 문구 포함됨
+- ✅ "측정 필요" 케이스와 명확히 구분됨 (리포트 없음 vs 모든 항목 미측정)
+
+**Pass Criteria:**
+- 리포트 없음 케이스가 "측정 필요"와 혼동되지 않게 분리 문구로 표시됨
+- reasons에 "리포트 없음" 키워드가 포함됨
+
+---
+
+### Test C: localStorage cleared일 때도 동일
+
+**Steps:**
+1. Open browser console (F12 or Cmd+Option+I)
+2. Execute:
+   ```javascript
+   localStorage.removeItem('__lastV2');
+   localStorage.removeItem('__currentReportId');
+   localStorage.removeItem('aeo_state_v2');
+   ```
+3. Navigate to: `/share.html` (no `r` parameter)
+
+**Expected Results:**
+- ✅ 신뢰도 배지 라벨이 "측정 필요"로 표시됨
+- ✅ "자세히" 버튼 클릭 시 reasons에 "리포트 없음 · 리포트를 불러올 수 없습니다" 표시됨
+- ✅ 한 줄 안내 문구에 "리포트를 불러올 수 없습니다" 문구 포함됨
+- ✅ Test B와 동일한 동작 (리포트 없음 케이스 처리)
+
+**Pass Criteria:**
+- localStorage cleared 상태에서도 Test B와 동일하게 리포트 없음 케이스가 처리됨
+- reasons 출력 순서와 문구가 표준화되어 있음
+
+---
+
 ## Notes
 
 - These tests focus on **UI rendering** and **error handling**, not on data correctness

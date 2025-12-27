@@ -164,12 +164,13 @@ export function computeReliabilityV2(reportModel, opts = {}) {
  * @returns {Object} 신뢰도 계산 결과 { level, label, reasons }
  */
 export function computeReliability(reportModel, lastV2) {
+  // ✅ [Phase 14-0] 리포트 없음 케이스: "측정 필요"와 혼동되지 않게 분리 문구 유지
   // 입력이 비어있거나 유효하지 않으면 기본값 반환
   if (!reportModel || typeof reportModel !== 'object') {
     return {
       level: 'unknown',
       label: '측정 필요',
-      reasons: ['입력 데이터가 없습니다']
+      reasons: ['리포트 없음 · 리포트를 불러올 수 없습니다']
     };
   }
 
@@ -233,15 +234,20 @@ export function computeReliability(reportModel, lastV2) {
       label = '측정 필요';
     }
     
-    // ✅ [Phase 8-2C] reasons 배열 생성 (기존 로직 유지하되 label과 일관되게)
+    // ✅ [Phase 14-0] reasons 배열 생성: 출력 순서 고정 (brand -> content -> url -> no-report)
+    // ✅ [Phase 14-0] reasons 문구 표준화: 짧고 일관된 톤으로 통일 (동일 조사/동일 종결)
     const reasons = [];
     
-    // 측정 상태 정보 추가
-    reasons.push(`BRAND: ${hasBrand ? '측정됨' : '미측정'}`);
-    reasons.push(`CONTENT: ${hasContentEvidence ? '측정됨' : '미측정'}`);
-    reasons.push(`URL: ${hasUrl ? '측정됨' : '미측정'}`);
+    // 1. BRAND 측정 상태 (고정 순서)
+    reasons.push(`BRAND ${hasBrand ? '측정됨' : '미측정'}`);
     
-    // 완성도 정보 추가
+    // 2. CONTENT 측정 상태 (고정 순서)
+    reasons.push(`CONTENT ${hasContentEvidence ? '측정됨' : '미측정'}`);
+    
+    // 3. URL 측정 상태 (고정 순서)
+    reasons.push(`URL ${hasUrl ? '측정됨' : '미측정'}`);
+    
+    // 완성도 정보 추가 (기존 로직 유지)
     if (n === 3) {
       reasons.push('3개 항목 모두 측정 완료');
     } else if (n === 2) {
@@ -258,11 +264,12 @@ export function computeReliability(reportModel, lastV2) {
       reasons: reasons
     };
   } catch (e) {
+    // ✅ [Phase 14-0] 에러 발생 시 리포트 없음 케이스: "측정 필요"와 혼동되지 않게 분리 문구 유지
     // 에러 발생 시 기본값 반환 (절대 throw 하지 않음)
     return {
       level: 'unknown',
       label: '측정 필요',
-      reasons: ['측정 데이터를 불러올 수 없습니다']
+      reasons: ['리포트 없음 · 리포트를 불러올 수 없습니다']
     };
   }
 }

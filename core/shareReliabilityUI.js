@@ -3,7 +3,7 @@
  * HTML 생성 및 이벤트 바인딩 담당
  */
 
-import { computeReliabilityV2 } from './reliability.js';
+import { computeReliabilityV2, computeReliability } from './reliability.js';
 
 /**
  * HTML 이스케이프 함수
@@ -45,6 +45,41 @@ export function renderReliabilityBlock(reportModel, options = {}) {
   };
   
   return { html, bind };
+}
+
+/**
+ * ✅ [Phase 14-0] 신뢰도 배지 옆 한 줄 안내 문구 생성 함수
+ * WHY 패널/Action line과 충돌하지 않게 정합성 유지
+ * @param {Object} reliabilityResult - computeReliability 반환값 { level, label, reasons }
+ * @returns {string} 한 줄 안내 문구 (빈 문자열이면 표시하지 않음)
+ */
+export function buildReliabilityOneLineGuidance(reliabilityResult) {
+  if (!reliabilityResult) {
+    return '';
+  }
+
+  const { label, reasons } = reliabilityResult;
+  
+  // reasons가 없거나 비어있고, label이 '측정 필요'가 아니면 표시하지 않음
+  if ((!reasons || reasons.length === 0) && label !== '측정 필요') {
+    return '';
+  }
+
+  // 리포트 없음 케이스: "측정 필요"와 혼동되지 않게 분리 문구
+  const hasNoReportReason = reasons && reasons.some(r => 
+    typeof r === 'string' && r.includes('리포트 없음')
+  );
+  
+  if (hasNoReportReason) {
+    return '리포트를 불러올 수 없습니다. 신뢰도 배지에서 자세한 이유를 확인하세요.';
+  }
+
+  // 측정 필요 항목이 있는 경우
+  if (label === '측정 필요' || (reasons && reasons.length > 0)) {
+    return '측정 필요 항목이 있습니다. 신뢰도 배지에서 이유를 확인하세요.';
+  }
+
+  return '';
 }
 
 /**

@@ -1329,7 +1329,7 @@
     import { renderKpi } from './core/view.js';
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
     import { computeReliabilityV2, computeReliability } from './core/reliability.js';
-    import { renderReliabilityBlock, renderReliabilityBadge } from './core/shareReliabilityUI.js';
+    import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
     // === [Phase 10-0] Share reportId 고정 로직 ===
@@ -2016,13 +2016,13 @@
         const lastV2 = window.__lastV2 || null;
         const reliabilityResult = computeReliability(reportModel || { analysis: { scores: {} } }, lastV2);
         
-        // ✅ [Phase 8-3A-1] 측정 필요 CTA 생성 (1줄 요약만)
+        // ✅ [Phase 14-0] 측정 필요 CTA 생성 (1줄 요약만) - 표준화된 문구 사용
         let measurementCta = '';
-        // reasons.length > 0 이거나 label이 '측정 필요'인 경우에만 표시
-        if ((reliabilityResult.reasons && reliabilityResult.reasons.length > 0) || reliabilityResult.label === '측정 필요') {
+        const oneLineGuidance = buildReliabilityOneLineGuidance(reliabilityResult);
+        if (oneLineGuidance) {
           measurementCta = `
             <div class="measurement-cta">
-              <div class="measurement-cta-title">측정 필요 항목이 있습니다. 신뢰도 배지에서 이유를 확인하세요.</div>
+              <div class="measurement-cta-title">${oneLineGuidance}</div>
             </div>
           `;
         }
