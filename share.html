@@ -141,6 +141,21 @@
       border-radius: 8px;
       border-left: 4px solid #ffc107;
     }
+    /* ✅ [Phase 13-2A] 리포트 로드 실패 배너 */
+    .report-load-failed-banner {
+      margin: 16px 0 20px 0;
+      padding: 16px 20px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      border-left: 4px solid #ffc107;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .report-load-failed-banner p {
+      margin: 0;
+    }
     .report-warning-box h3 {
       margin: 0 0 12px 0;
       font-size: 16px;
@@ -1814,6 +1829,29 @@
         // 기존 localStorage 복원 우선 (회귀 금지)
         const reportModel = await loadReportModel();
         
+        // ✅ [Phase 13-2A] 리포트 로드 실패 배너 표시 여부 확인 (reportModel이 null이 아닐 때도 체크)
+        const shouldShowLoadFailedBanner = (() => {
+          // 조건 (1): r 파라미터가 있는데 서버 스냅샷을 못 불러온 경우 (예: does-not-exist)
+          if (rParam) {
+            // reportModel이 null이거나 빈 객체인 경우
+            if (!reportModel || (typeof reportModel === 'object' && Object.keys(reportModel).length === 0)) {
+              return true;
+            }
+            // reportModel이 있지만 analysis.scores가 없거나 비어있는 경우
+            if (!reportModel.analysis || !reportModel.analysis.scores || Object.keys(reportModel.analysis.scores).length === 0) {
+              return true;
+            }
+          }
+          // 조건 (2): localStorage에 __lastV2가 없어서 fallback이 뜨는 경우 (클리어 케이스)
+          if (!rParam) {
+            const hasLastV2 = window.__lastV2 != null || localStorage.getItem('__lastV2') != null;
+            if (!hasLastV2) {
+              return true;
+            }
+          }
+          return false;
+        })();
+        
         // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
         if (!reportModel) {
           const params = new URLSearchParams(location.search);
@@ -1874,9 +1912,17 @@
           </div>
         ` : '';
         
+        // ✅ [Phase 13-2A] 리포트 로드 실패 배너 (조건은 위에서 이미 확인됨)
+        const loadFailedBanner = shouldShowLoadFailedBanner ? `
+          <div class="report-load-failed-banner">
+            <p>저장된 리포트를 찾지 못했습니다. 이 링크에서는 근거를 확인할 수 없습니다. Home에서 다시 분석 후 공유 링크를 생성해 주세요.</p>
+          </div>
+        ` : '';
+        
         const reportHeader = `
           <h1>AEO/GEO 분석 리포트</h1>
           <div id="share-status"></div>
+          ${loadFailedBanner}
           ${getOnlyNotice}
           <div class="report-header-summary">
             이 리포트는 AI 검색·추천 환경에서 해당 브랜드/콘텐츠가 얼마나 인식 가능한지, 구조적 기준으로 분석한 결과입니다. 점수는 '현재 상태'를 의미하며, 아래 액션은 개선 우선순위를 안내합니다.
