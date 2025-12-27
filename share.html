@@ -117,6 +117,21 @@
       opacity: 0.72;
       font-size: 12px;
     }
+    /* ✅ [Phase 11-2] Share 상태 표시 영역 */
+    #share-status {
+      margin: 12px 0;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+      display: none;
+    }
+    #share-status.show {
+      display: block;
+    }
+    #share-status.error {
+      color: #dc3545;
+    }
     /* ✅ [Phase 10-2] 리포트 없음 경고 박스 */
     .report-warning-box {
       margin: 24px 0;
@@ -845,6 +860,10 @@
         font-size: 8pt;
         margin-top: 2px;
       }
+      /* ✅ [Phase 11-2] Share 상태 표시 영역 - 인쇄 스타일 */
+      #share-status {
+        display: none !important;
+      }
       /* ✅ [Phase 10-2] 리포트 없음 경고 박스 - 인쇄 스타일 */
       .report-warning-box {
         margin: 20px 0;
@@ -1321,14 +1340,67 @@
     }
     
     /**
+     * ✅ [Phase 11-2] Share 상태 표시 함수
+     * @param {string} text - 표시할 텍스트 (빈 문자열이면 숨김)
+     */
+    function setShareStatus(text) {
+      const statusEl = document.getElementById('share-status');
+      if (!statusEl) return;
+      
+      if (!text || text.trim() === '') {
+        statusEl.style.display = 'none';
+        statusEl.className = '';
+        statusEl.textContent = '';
+      } else {
+        statusEl.style.display = 'block';
+        statusEl.textContent = text;
+        statusEl.className = text.includes('404') || text.includes('찾을 수 없') ? 'error' : '';
+      }
+    }
+
+    /**
+     * ✅ [Phase 11-2] 서버 스냅샷 조회 (fallback)
+     * @param {string} id - Snapshot ID
+     * @returns {Promise<Object|null>} { notFound: true } 또는 { payload: reportModel }
+     */
+    async function fetchSnapshotWithFallback(id) {
+      if (!id) return null;
+
+      const endpoints = [
+        `/api/share-snapshots/${encodeURIComponent(id)}`,
+        `http://localhost:3001/api/share-snapshots/${encodeURIComponent(id)}`
+      ];
+
+      for (const endpoint of endpoints) {
+          try {
+            const response = await fetch(endpoint);
+            if (response.ok) {
+              const data = await response.json();
+              // 서버 응답 스키마에 맞춰 조정: { version, createdAt, reportModel, meta }
+              const v2 = data?.payload ?? data?.reportModel ?? data;
+              return { payload: v2 };
+            }
+            // response.ok === false (404 포함) 이면 다음 엔드포인트 시도
+            continue;
+          } catch (err) {
+            // 네트워크 오류 시 다음 엔드포인트 시도
+            continue;
+          }
+      }
+      // 모든 엔드포인트 실패 시 notFound 반환
+      return { notFound: true };
+    }
+    
+    /**
      * ✅ [Share 복원 로직] reportModel 복원 함수
      * 우선순위: (1) URL 파라미터 r → (2) window.__lastV2 / localStorage '__lastV2' → (3) localStorage 'aeo_state_v2'
-     * @returns {Object|null} reportModel 객체 또는 null
+     * @returns {Promise<Object|null>} reportModel 객체 또는 null
      */
-    function loadReportModel() {
-      // (1) URL 파라미터 r로 공유리포트 로드 시도
+    async function loadReportModel() {
       const urlParams = new URLSearchParams(window.location.search);
       const rParam = urlParams.get('r');
+      
+      // (1) URL 파라미터 r로 공유리포트 로드 시도
       if (rParam) {
         try {
           const decoded = decodeURIComponent(rParam);
@@ -1362,11 +1434,61 @@
       try {
         const stStr = localStorage.getItem('aeo_state_v2');
         if (!stStr) {
+          // ✅ [Phase 11-2] localStorage 복원 실패 시 서버 스냅샷 fallback
+          if (rParam) {
+            try {
+              setShareStatus('서버에서 불러오는 중…');
+              const data = await fetchSnapshotWithFallback(rParam);
+              
+              if (data?.notFound) {
+                setShareStatus('스냅샷을 찾을 수 없습니다. (404)');
+                return null;
+              }
+              
+              if (data?.payload) {
+                const v2 = data.payload;
+                window.__lastV2 = v2;
+                if (!localStorage.getItem('__currentReportId')) {
+                  localStorage.setItem('__currentReportId', rParam);
+                }
+                setShareStatus('');
+                return v2;
+              }
+            } catch (e) {
+              console.warn('[share] snapshot fallback failed:', e);
+              setShareStatus('서버에서 불러오지 못했습니다.');
+            }
+          }
           return null;
         }
         
         const st = JSON.parse(stStr);
         if (!st || typeof st !== 'object') {
+          // ✅ [Phase 11-2] localStorage 복원 실패 시 서버 스냅샷 fallback
+          if (rParam) {
+            try {
+              setShareStatus('서버에서 불러오는 중…');
+              const data = await fetchSnapshotWithFallback(rParam);
+              
+              if (data?.notFound) {
+                setShareStatus('스냅샷을 찾을 수 없습니다. (404)');
+                return null;
+              }
+              
+              if (data?.payload) {
+                const v2 = data.payload;
+                window.__lastV2 = v2;
+                if (!localStorage.getItem('__currentReportId')) {
+                  localStorage.setItem('__currentReportId', rParam);
+                }
+                setShareStatus('');
+                return v2;
+              }
+            } catch (e) {
+              console.warn('[share] snapshot fallback failed:', e);
+              setShareStatus('서버에서 불러오지 못했습니다.');
+            }
+          }
           return null;
         }
         
@@ -1412,7 +1534,31 @@
         
         return reportModel;
       } catch (e) {
-        // localStorage 'aeo_state_v2' 파싱 실패 시 null 반환
+        // localStorage 'aeo_state_v2' 파싱 실패 시 서버 스냅샷 fallback
+        if (rParam) {
+          try {
+            setShareStatus('서버에서 불러오는 중…');
+            const data = await fetchSnapshotWithFallback(rParam);
+            
+            if (data?.notFound) {
+              setShareStatus('스냅샷을 찾을 수 없습니다. (404)');
+              return null;
+            }
+            
+            if (data?.payload) {
+              const v2 = data.payload;
+              window.__lastV2 = v2;
+              if (!localStorage.getItem('__currentReportId')) {
+                localStorage.setItem('__currentReportId', rParam);
+              }
+              setShareStatus('');
+              return v2;
+            }
+          } catch (err) {
+            console.warn('[share] snapshot fallback failed:', err);
+            setShareStatus('서버에서 불러오지 못했습니다.');
+          }
+        }
         return null;
       }
     }
@@ -1499,9 +1645,10 @@
           .replaceAll(">", "&gt;");
       }
       
-      function renderShareContent() {
+      async function renderShareContent() {
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
-        const reportModel = loadReportModel();
+        // 기존 localStorage 복원 우선 (회귀 금지)
+        const reportModel = await loadReportModel();
         
         // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
         if (!reportModel) {
@@ -1558,6 +1705,7 @@
         
         const reportHeader = `
           <h1>AEO/GEO 분석 리포트</h1>
+          <div id="share-status"></div>
           <div class="report-header-summary">
             이 리포트는 AI 검색·추천 환경에서 해당 브랜드/콘텐츠가 얼마나 인식 가능한지, 구조적 기준으로 분석한 결과입니다. 점수는 '현재 상태'를 의미하며, 아래 액션은 개선 우선순위를 안내합니다.
           </div>
@@ -1919,34 +2067,111 @@
         shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
-        // ✅ [Phase 10-2] 공유 링크 복사 버튼 이벤트 바인딩
+        // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩 (서버 스냅샷 생성)
         const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
         if (copyBtn) {
           copyBtn.addEventListener('click', async () => {
-            // 현재 r 파라미터를 사용하여 공유 URL 생성
-            const params = new URLSearchParams(location.search);
-            let r = params.get('r');
-            if (!r) {
-              r = localStorage.getItem('__currentReportId') || '';
-            }
-            const shareUrl = r 
-              ? (location.origin + location.pathname + '?r=' + encodeURIComponent(r))
-              : (copyBtn.getAttribute('data-share-url') || location.href);
-            
             const originalText = copyBtn.textContent;
             
             try {
-              // navigator.clipboard 우선 시도
-              await navigator.clipboard.writeText(shareUrl);
+              // a) v2Summary 확보 (기존 우선순위 함수 재사용)
+              let reportModel = null;
+              if (window.__lastV2) {
+                reportModel = window.__lastV2;
+              } else {
+                const lastV2Str = localStorage.getItem('__lastV2');
+                if (lastV2Str) {
+                  try {
+                    reportModel = JSON.parse(lastV2Str);
+                  } catch (e) {
+                    // 파싱 실패 시 null 유지
+                  }
+                }
+              }
               
-              // 성공 시 버튼 텍스트 변경
-              copyBtn.textContent = '복사됨';
-              setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 1000);
-            } catch (err) {
-              // fallback: 임시 textarea 사용
+              if (!reportModel || typeof reportModel !== 'object') {
+                // 기존 로컬 복사 fallback
+                const params = new URLSearchParams(location.search);
+                let r = params.get('r');
+                if (!r) {
+                  r = localStorage.getItem('__currentReportId') || '';
+                }
+                const shareUrl = r 
+                  ? (location.origin + location.pathname + '?r=' + encodeURIComponent(r))
+                  : (copyBtn.getAttribute('data-share-url') || location.href);
+                
+                try {
+                  await navigator.clipboard.writeText(shareUrl);
+                  copyBtn.textContent = '복사됨';
+                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                } catch (err) {
+                  const textarea = document.createElement('textarea');
+                  textarea.value = shareUrl;
+                  textarea.style.position = 'fixed';
+                  textarea.style.left = '-9999px';
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textarea);
+                  copyBtn.textContent = '복사됨';
+                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                }
+                return;
+              }
+              
+              // b) v2Summary 확보 (__lastV2 우선순위)
+              const v2Summary =
+                window.__lastV2 ||
+                (() => { try { return JSON.parse(localStorage.getItem('__lastV2') || 'null'); } catch { return null; } })();
+              
+              if (!v2Summary) throw new Error('v2Summary 없음: __lastV2가 필요합니다.');
+              
+              // c) 서버 저장 시작
+              setShareStatus('서버에 저장 중…');
+              
+              // d) POST 요청 (개발 단계: 실제 서버 엔드포인트만 사용)
+              const endpoints = [
+                'http://localhost:3001/api/share-snapshots'
+              ];
+              
+              let snapshotId = null;
+              for (const endpoint of endpoints) {
+                try {
+                  const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ reportModel: v2Summary })
+                  });
+                  
+                  if (response.ok) {
+                    const data = await response.json();
+                    snapshotId = data.id;
+                    break;
+                  } else if (response.status !== 404) {
+                    // 404가 아니면 다음 엔드포인트 시도
+                    continue;
+                  }
+                } catch (err) {
+                  // 네트워크 오류 시 다음 엔드포인트 시도
+                  continue;
+                }
+              }
+              
+              if (!snapshotId) {
+                throw new Error('서버 저장 실패');
+              }
+              
+              // e) 성공: id를 사용해 링크 생성 및 복사
+              localStorage.setItem('__currentReportId', snapshotId);
+              const shareUrl = `${location.origin}${location.pathname}?r=${encodeURIComponent(snapshotId)}`;
+              
+              // 클립보드 복사 (기존 로직 재사용)
               try {
+                await navigator.clipboard.writeText(shareUrl);
+              } catch (err) {
+                // fallback: 임시 textarea 사용
                 const textarea = document.createElement('textarea');
                 textarea.value = shareUrl;
                 textarea.style.position = 'fixed';
@@ -1955,14 +2180,46 @@
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                
-                // 성공 시 버튼 텍스트 변경
+              }
+              
+              // 버튼 텍스트 변경
+              copyBtn.textContent = '복사됨';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 1000);
+              
+              setShareStatus('');
+              
+            } catch (e) {
+              // f) 에러 처리
+              console.warn('[share] snapshot save failed', e);
+              setShareStatus('서버 저장 실패');
+              
+              // 기존 로컬 복사 fallback
+              const params = new URLSearchParams(location.search);
+              let r = params.get('r');
+              if (!r) {
+                r = localStorage.getItem('__currentReportId') || '';
+              }
+              const shareUrl = r 
+                ? (location.origin + location.pathname + '?r=' + encodeURIComponent(r))
+                : (copyBtn.getAttribute('data-share-url') || location.href);
+              
+              try {
+                await navigator.clipboard.writeText(shareUrl);
                 copyBtn.textContent = '복사됨';
-                setTimeout(() => {
-                  copyBtn.textContent = originalText;
-                }, 1000);
-              } catch (fallbackErr) {
-                // 복사 실패 시 조용히 실패 (콘솔 에러 추가하지 않음)
+                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+              } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = shareUrl;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyBtn.textContent = '복사됨';
+                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
               }
             }
           });
