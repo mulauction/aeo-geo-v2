@@ -156,7 +156,8 @@ export function computeReliabilityV2(reportModel, opts = {}) {
 }
 
 /**
- * ✅ 신뢰도 계산 함수 (순수 함수, DOM/Storage 접근 금지)
+ * ✅ [Phase 8-2C] 신뢰도 계산 함수 (완성도 규칙 기반)
+ * 순수 함수, DOM/Storage 접근 금지
  * 입력이 비어도 안전하게 기본값 반환
  * @param {Object|null|undefined} reportModel - 리포트 모델 객체
  * @param {Object|null|undefined} lastV2 - 마지막 리포트 데이터 (현재 사용 안 함)
@@ -168,61 +169,91 @@ export function computeReliability(reportModel, lastV2) {
     return {
       level: 'unknown',
       label: '측정 필요',
-      reasons: []
+      reasons: ['입력 데이터가 없습니다']
     };
   }
 
   try {
-    // computeReliabilityV2를 사용하여 신뢰도 계산
-    const result = computeReliabilityV2(reportModel);
+    const scores = reportModel?.analysis?.scores || {};
+    const brandingScore = scores.branding;
+    const contentStructureV2Score = scores.contentStructureV2;
+    const urlStructureV1Score = scores.urlStructureV1;
     
-    // level을 그대로 사용하고, label은 level에 맞게 매핑
-    let label = '측정 필요';
-    if (result.level === '높음') {
+    // ✅ [Phase 8-2C] 점수 유효성 검사 함수 (기존 방식 유지)
+    const isMeasured = (value) => {
+      if (value === null || value === undefined) return false;
+      const score = value.score;
+      return score !== null && score !== undefined && !isNaN(score) && isFinite(score);
+    };
+    
+    // ✅ [Phase 8-2C] 3개 신호를 boolean으로 추출
+    // 1) hasBrand: branding 점수/입력이 유효 (기존 방식 유지)
+    const hasBrand = isMeasured(brandingScore);
+    
+    // 2) hasContentEvidence: contentStructureV2.evidence가 배열이고 length>0
+    const hasContentEvidence = contentStructureV2Score && 
+      contentStructureV2Score.evidence && 
+      Array.isArray(contentStructureV2Score.evidence) && 
+      contentStructureV2Score.evidence.length > 0;
+    
+    // 3) hasUrl: urlStructureV1 점수/결과가 유효 (기존 방식 유지)
+    const hasUrl = isMeasured(urlStructureV1Score);
+    
+    // ✅ [Phase 8-2C] 충족 개수 계산
+    const n = (hasBrand ? 1 : 0) + (hasContentEvidence ? 1 : 0) + (hasUrl ? 1 : 0);
+    
+    // ✅ [Phase 8-2C] 입력 자체가 거의 없는지 확인
+    const hasInput = reportModel.inputs?.product || reportModel.inputs?.brand || reportModel.input;
+    const hasMinimalInput = hasInput && (
+      (typeof hasInput === 'string' && hasInput.trim().length > 0) ||
+      (typeof hasInput === 'object' && Object.keys(hasInput).length > 0)
+    );
+    
+    // ✅ [Phase 8-2C] 레벨/라벨 규칙 적용
+    let level, label;
+    
+    if (n === 3) {
+      level = 'high';
       label = '높음';
-    } else if (result.level === '보통') {
-      label = '보통';
-    } else if (result.level === '낮음') {
-      label = '낮음';
+    } else if (n === 2) {
+      level = 'mid';
+      label = '중간';
+    } else if (n <= 1) {
+      if (n === 0 && !hasMinimalInput) {
+        // n===0이고 입력 자체가 거의 없으면
+        level = 'unknown';
+        label = '측정 필요';
+      } else {
+        level = 'low';
+        label = '낮음';
+      }
     } else {
+      // 예외 상황 (n이 3보다 큰 경우는 없지만 안전장치)
+      level = 'unknown';
       label = '측정 필요';
     }
     
-    // ✅ [Phase 8-2B] 측정 상태 기반으로 reasons 배열 생성
+    // ✅ [Phase 8-2C] reasons 배열 생성 (기존 로직 유지하되 label과 일관되게)
     const reasons = [];
     
     // 측정 상태 정보 추가
-    if (result.brandStatus) {
-      reasons.push(`BRAND: ${result.brandStatus}`);
-    }
-    if (result.contentStatus) {
-      reasons.push(`CONTENT: ${result.contentStatus}`);
-    }
-    if (result.urlStatus) {
-      reasons.push(`URL: ${result.urlStatus}`);
-    }
+    reasons.push(`BRAND: ${hasBrand ? '측정됨' : '미측정'}`);
+    reasons.push(`CONTENT: ${hasContentEvidence ? '측정됨' : '미측정'}`);
+    reasons.push(`URL: ${hasUrl ? '측정됨' : '미측정'}`);
     
-    // 미측정 항목이 있으면 추가 정보 제공
-    if (result.missingItems && result.missingItems.length > 0) {
-      reasons.push(`미측정 항목: ${result.missingItems.join(', ')}`);
-    }
-    
-    // 신뢰도 레벨에 따른 설명 추가
-    if (result.level === '높음') {
-      reasons.push('3개 항목 모두 측정 완료 및 최소 기준 충족');
-    } else if (result.level === '보통') {
-      reasons.push('일부 항목 미측정 또는 최소 기준 미충족');
-    } else if (result.level === '낮음') {
-      reasons.push('대부분의 항목이 미측정 상태');
-    }
-    
-    // reasons가 비어있으면 기본 메시지 추가
-    if (reasons.length === 0) {
-      reasons.push('측정 데이터가 없습니다');
+    // 완성도 정보 추가
+    if (n === 3) {
+      reasons.push('3개 항목 모두 측정 완료');
+    } else if (n === 2) {
+      reasons.push('2개 항목 측정 완료');
+    } else if (n === 1) {
+      reasons.push('1개 항목만 측정 완료');
+    } else {
+      reasons.push('측정된 항목이 없습니다');
     }
     
     return {
-      level: result.level || 'unknown',
+      level: level,
       label: label,
       reasons: reasons
     };
