@@ -1340,6 +1340,40 @@
     }
     
     /**
+     * ✅ [Phase 11-2C] 포트 5502 체크 헬퍼
+     * @returns {boolean} localhost:5502 여부
+     */
+    function isStaticLocal() {
+      return location.hostname === 'localhost' && String(location.port) === '5502';
+    }
+
+    /**
+     * ✅ [Phase 11-2C] API 베이스 URL 배열 반환
+     * @returns {string[]} API 베이스 URL 배열
+     */
+    function apiBases() {
+      if (isStaticLocal()) return ['http://localhost:3001'];
+      return ['', 'http://localhost:3001'];
+    }
+
+    /**
+     * ✅ [Phase 11-2C] Snapshot GET URL 배열 생성
+     * @param {string} id - Snapshot ID
+     * @returns {string[]} GET URL 배열
+     */
+    function makeSnapshotGetUrls(id) {
+      return apiBases().map(base => `${base}/api/share-snapshots/${encodeURIComponent(id)}`);
+    }
+
+    /**
+     * ✅ [Phase 11-2C] Snapshot POST URL 배열 생성
+     * @returns {string[]} POST URL 배열
+     */
+    function makeSnapshotPostUrls() {
+      return apiBases().map(base => `${base}/api/share-snapshots`);
+    }
+
+    /**
      * ✅ [Phase 11-2] Share 상태 표시 함수
      * @param {string} text - 표시할 텍스트 (빈 문자열이면 숨김)
      */
@@ -1366,10 +1400,8 @@
     async function fetchSnapshotWithFallback(id) {
       if (!id) return null;
 
-      const endpoints = [
-        `/api/share-snapshots/${encodeURIComponent(id)}`,
-        `http://localhost:3001/api/share-snapshots/${encodeURIComponent(id)}`
-      ];
+      // ✅ [Phase 11-2C] 포트 5502일 때는 http://localhost:3001만 사용
+      const endpoints = makeSnapshotGetUrls(id);
 
       for (const endpoint of endpoints) {
           try {
@@ -1646,6 +1678,16 @@
       }
       
       async function renderShareContent() {
+        // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
+        const urlParams = new URLSearchParams(window.location.search);
+        const rParam = urlParams.get('r');
+        const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
+        const getOnly = (!forceWrite) && Boolean(rParam);
+        
+        if (getOnly) {
+          console.log('[share] view mode: GET only');
+        }
+        
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
         // 기존 localStorage 복원 우선 (회귀 금지)
         const reportModel = await loadReportModel();
@@ -2071,6 +2113,41 @@
         const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
         if (copyBtn) {
           copyBtn.addEventListener('click', async () => {
+            // ✅ [Phase 11-2C] 공유 링크 진입 시 POST 차단 (forceWrite 제외)
+            const currentUrlParams = new URLSearchParams(location.search);
+            const currentRParam = currentUrlParams.get('r');
+            const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
+            const getOnly = (!forceWrite) && Boolean(currentRParam);
+            
+            // 검증 로그 (개발용)
+            console.log('[share] forceWrite=', forceWrite, 'getOnly=', getOnly);
+            
+            if (getOnly) {
+              // 공유 링크로 진입한 경우 (forceWrite가 아닐 때): POST 차단, 로컬 복사만 허용
+              const shareUrl = location.href;
+              const originalText = copyBtn.textContent;
+              
+              try {
+                await navigator.clipboard.writeText(shareUrl);
+                copyBtn.textContent = '복사됨';
+                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+              } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = shareUrl;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyBtn.textContent = '복사됨';
+                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+              }
+              return;
+            }
+            
+            // 공유 링크가 아니거나 forceWrite인 경우: POST 허용 (저장 액션)
+            console.log('[share] save action: POST');
             const originalText = copyBtn.textContent;
             
             try {
@@ -2129,14 +2206,15 @@
               // c) 서버 저장 시작
               setShareStatus('서버에 저장 중…');
               
-              // d) POST 요청 (개발 단계: 실제 서버 엔드포인트만 사용)
-              const endpoints = [
-                'http://localhost:3001/api/share-snapshots'
-              ];
+              // d) POST 요청 (포트 5502일 때는 http://localhost:3001만 사용)
+              const endpoints = makeSnapshotPostUrls();
               
               let snapshotId = null;
               for (const endpoint of endpoints) {
                 try {
+                  // 검증 로그 (개발용)
+                  console.log('[share] POST snapshot ->', endpoint);
+                  
                   const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
