@@ -165,11 +165,66 @@ function deriveWhyFacts(reportModel) {
 }
 
 /**
+ * ✅ [Phase 13-1A] 리포트 로드 실패/근거 접근 불가 판별 함수
+ * 리포트 없음/로드 실패/근거 접근 불가를 판별하는 최소 조건
+ * @param {Object} reportModel - 리포트 모델 객체
+ * @returns {boolean} 리포트 로드 실패 여부
+ */
+function isReportLoadFailed(reportModel) {
+  // 리포트가 null이거나 undefined인 경우
+  if (reportModel == null) {
+    return true;
+  }
+  
+  // 리포트가 있지만 analysis가 없거나 analysis.scores가 없는 경우
+  if (!reportModel.analysis || !reportModel.analysis.scores) {
+    return true;
+  }
+  
+  // 리포트가 있지만 모든 필수 필드가 비어있는 경우 (빈 객체 fallback 케이스)
+  // share.html에서 reportModel || { analysis: { scores: {} } }로 전달되는 경우 처리
+  const scores = reportModel.analysis.scores;
+  const hasAnyScore = scores?.branding != null || 
+                      scores?.contentStructureV2 != null || 
+                      scores?.urlStructureV1 != null;
+  
+  // createdAt이 없고, 모든 scores가 null이고, input/inputs/result가 모두 비어있는 경우
+  if (!reportModel.createdAt && !hasAnyScore) {
+    const hasInput = (reportModel.inputs && Object.keys(reportModel.inputs).length > 0) ||
+                     (reportModel.input && typeof reportModel.input === 'string' && reportModel.input.trim().length > 0) ||
+                     (reportModel.result != null);
+    
+    if (!hasInput) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * ✅ [Phase 13-0B] WHY 패널 이유 생성 함수 (evidence-driven)
  * @param {Object} reportModel - 리포트 모델 객체
  * @returns {Object} { level: 'high'|'mid'|'low', reasons: Array<{ key, title, detail }> }
  */
 export function buildWhyReasons(reportModel) {
+  // ✅ [Phase 13-1A] 리포트 로드 실패 케이스 분기 처리
+  if (isReportLoadFailed(reportModel)) {
+    return {
+      level: 'low',
+      reasons: [{
+        key: 'report_load_failed',
+        title: '리포트 로드 실패',
+        detail: '리포트를 불러오지 못했어요'
+      }],
+      allReasons: [{
+        key: 'report_load_failed',
+        title: '리포트 로드 실패',
+        detail: '리포트를 불러오지 못했어요'
+      }]
+    };
+  }
+
   // level 결정: reliability 레벨 읽기 (우선순위 순서)
   let level = 'low';
   if (reportModel?.reliability?.level) {
@@ -314,6 +369,11 @@ export function buildWhyActionLine(whyResult, reportModel) {
   // Backward compatibility: if only whyResult provided, use old logic
   if (!whyResult || typeof whyResult !== 'object') {
     return '추천: 리포트를 갱신하세요.';
+  }
+
+  // ✅ [Phase 13-1A] 리포트 로드 실패 케이스 분기 처리
+  if (isReportLoadFailed(reportModel)) {
+    return '공유 링크가 만료되었거나 저장된 리포트가 없습니다. 홈에서 다시 분석 후 공유를 생성해 주세요.';
   }
 
   const { level } = whyResult;
