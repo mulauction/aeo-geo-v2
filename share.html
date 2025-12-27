@@ -1315,6 +1315,7 @@
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
     import { computeReliabilityV2, computeReliability } from './core/reliability.js';
     import { renderReliabilityBlock, renderReliabilityBadge } from './core/shareReliabilityUI.js';
+    import { renderWhyPanel } from './core/shareWhyUI.js';
     
     // === [Phase 10-0] Share reportId 고정 로직 ===
     const params = new URLSearchParams(location.search);
@@ -1923,6 +1924,7 @@
             ${kpiBar('URL Structure', urlStructureV1Score)}
           </div>
           <div id="reliability-badge-slot"></div>
+          <div id="why-panel"></div>
         `;
         
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
@@ -2396,6 +2398,12 @@
         if (reliabilityBadgeSlot) {
           // reliabilityResult는 이미 위에서 계산됨
           renderReliabilityBadge(reliabilityBadgeSlot, reliabilityResult);
+        }
+        
+        // ✅ WHY 패널 렌더링
+        const whyPanelEl = document.getElementById('why-panel');
+        if (whyPanelEl) {
+          renderWhyPanel(whyPanelEl, reportModel || { analysis: { scores: {} } });
         }
         
         // ✅ [Phase 8-3] 신뢰도 블록 이벤트 바인딩 (모듈화)
