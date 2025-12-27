@@ -437,6 +437,15 @@
       border: 1px solid #e0e0e0;
       border-radius: 8px;
       border-top: 3px solid #4a90e2;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .action-card:hover {
+      background: #f0f0f0;
+    }
+    .action-card:focus {
+      outline: 2px solid #4a90e2;
+      outline-offset: 2px;
     }
     .action-card.quick {
       border-top-color: #28a745;
@@ -469,15 +478,21 @@
     /* ✅ [Phase 9-0] Next Actions 섹션 */
     .next-actions-section {
       margin-bottom: 32px;
-      margin-top: 32px;
+      margin-top: 24px;
     }
     .next-actions-section h2 {
       font-size: 20px;
       font-weight: 600;
-      margin: 0 0 16px 0;
+      margin: 0 0 8px 0;
       color: #1a1a1a;
       padding-bottom: 8px;
       border-bottom: 2px solid #e0e0e0;
+    }
+    .next-actions-intro {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+      margin: 0 0 16px 0;
     }
     .next-actions-grid {
       display: grid;
@@ -534,8 +549,11 @@
     .next-action-description {
       font-size: 13px;
       color: #666;
-      line-height: 1.6;
+      line-height: 1.5;
       margin: 0 0 12px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .next-action-cta {
       margin-top: 8px;
@@ -918,6 +936,10 @@
         border-top: 2px solid #333;
         page-break-inside: avoid;
         break-inside: avoid;
+        cursor: default;
+      }
+      .action-card:hover {
+        background: #f8f8f8;
       }
       .action-card-title {
         font-size: 10pt;
@@ -934,27 +956,32 @@
       
       /* ✅ [Phase 9-0] Next Actions 섹션 - 인쇄 스타일 */
       .next-actions-section {
-        margin-bottom: 24px;
-        margin-top: 24px;
+        margin-bottom: 20px;
+        margin-top: 20px;
         page-break-inside: avoid;
         break-inside: avoid;
       }
       .next-actions-section h2 {
         font-size: 16pt;
-        margin: 0 0 12px 0;
+        margin: 0 0 6px 0;
         padding-bottom: 6px;
         border-bottom: 1px solid #000;
         page-break-after: avoid;
       }
+      .next-actions-intro {
+        font-size: 9pt;
+        margin: 0 0 12px 0;
+        page-break-after: avoid;
+      }
       .next-actions-grid {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 12px;
+        gap: 10px;
         margin-top: 12px;
         page-break-inside: avoid;
         break-inside: avoid;
       }
       .next-action-card {
-        padding: 12px;
+        padding: 10px;
         background: #fff;
         border: 1px solid #ddd;
         border-left: 3px solid #333;
@@ -962,24 +989,28 @@
         break-inside: avoid;
       }
       .next-action-badge {
-        padding: 3px 6px;
-        font-size: 8pt;
-        margin-bottom: 6px;
+        padding: 2px 6px;
+        font-size: 7pt;
+        margin-bottom: 4px;
       }
       .next-action-title {
-        font-size: 11pt;
-        margin: 0 0 6px 0;
+        font-size: 10pt;
+        margin: 0 0 4px 0;
       }
       .next-action-description {
-        font-size: 9pt;
-        margin: 0 0 8px 0;
+        font-size: 8pt;
+        margin: 0 0 6px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
       }
       .next-action-cta {
-        margin-top: 6px;
+        margin-top: 4px;
       }
       .next-action-cta a {
-        padding: 4px 8px;
-        font-size: 9pt;
+        padding: 3px 6px;
+        font-size: 8pt;
         border: 1px solid #333;
       }
       
@@ -1370,7 +1401,7 @@
           </div>
         `;
         
-        // ✅ [Phase 9-0] Next Actions 섹션 생성
+        // ✅ [Phase 9-1] Next Actions 섹션 생성 (요약 형태)
         const nextActions = [];
         
         // 1) reliability.reasons가 있으면: "측정 필요/근거 부족" 액션 생성
@@ -1389,8 +1420,8 @@
           if (missingItems.length > 0) {
             nextActions.push({
               priority: 'high',
-              title: '측정 필요 항목 보완',
-              description: `${missingItems.join(', ')} 항목이 측정되지 않았습니다. 신뢰도를 높이기 위해 누락된 항목을 측정해주세요.`,
+              title: '누락된 항목 측정하기',
+              description: `${missingItems.join(', ')} 항목을 측정하여 신뢰도를 높이세요.`,
               cta: null
             });
           }
@@ -1405,8 +1436,8 @@
         if (!hasContentEvidence) {
           nextActions.push({
             priority: 'medium',
-            title: '콘텐츠 구조 근거 수집',
-            description: '콘텐츠 구조 점수의 근거가 없습니다. Analyze 화면에서 콘텐츠를 분석하여 근거를 생성하세요.',
+            title: '콘텐츠 구조 근거 수집하기',
+            description: 'Analyze 화면에서 콘텐츠를 분석하여 근거를 생성하세요.',
             cta: { text: 'Analyze로 이동', href: './analyze.html' }
           });
         }
@@ -1421,21 +1452,22 @@
         if (!isUrlMeasured) {
           nextActions.push({
             priority: 'high',
-            title: 'URL 구조 측정',
-            description: 'URL 구조 점수가 측정되지 않았습니다. Analyze 화면에서 URL 구조를 분석하여 점수를 생성하세요.',
+            title: 'URL 구조 측정하기',
+            description: 'Analyze 화면에서 URL 구조를 분석하여 점수를 생성하세요.',
             cta: { text: 'Analyze로 이동', href: './analyze.html' }
           });
         }
         
-        // Next Actions 섹션 HTML 생성
+        // Next Actions 섹션 HTML 생성 (요약 형태)
         let nextActionsSection = '';
         if (nextActions.length > 0) {
-          // 최대 5개까지만 표시
+          // 기본 3개 + 상황별 최대 2개 (총 5개 초과 금지)
           const actionsToShow = nextActions.slice(0, 5);
           
           nextActionsSection = `
             <div class="next-actions-section">
-              <h2>다음 액션 (Next Actions)</h2>
+              <h2>다음 액션 요약</h2>
+              <div class="next-actions-intro">점수를 높이기 위해 지금 가장 먼저 할 작업입니다.</div>
               <div class="next-actions-grid">
                 ${actionsToShow.map(action => `
                   <div class="next-action-card priority-${action.priority}">
@@ -1470,6 +1502,7 @@
         // ✅ [Phase 5-8 v3] 결과 섹션
         const result = payload.result;
         let resultSection = '';
+        let actionCardsSection = '';
         if (result) {
           // 액션을 3개 카드로 분류 (Quick/Next/Advanced)
           const actions = result.actions || [];
@@ -1479,24 +1512,32 @@
           
           const actionCards = `
             <div class="action-grid">
-              <div class="action-card quick">
+              <div class="action-card quick" role="button" tabindex="0" onclick="location.href='analyze.html#quick'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='analyze.html#quick';}">
                 <div class="action-card-title">Quick Actions</div>
                 <ul class="action-card-list">
                   ${quickActions.length > 0 ? quickActions.map(a => `<li>${esc(a)}</li>`).join("") : '<li>없음</li>'}
                 </ul>
               </div>
-              <div class="action-card next">
+              <div class="action-card next" role="button" tabindex="0" onclick="location.href='analyze.html#next'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='analyze.html#next';}">
                 <div class="action-card-title">Next Steps</div>
                 <ul class="action-card-list">
                   ${nextActions.length > 0 ? nextActions.map(a => `<li>${esc(a)}</li>`).join("") : '<li>없음</li>'}
                 </ul>
               </div>
-              <div class="action-card advanced">
+              <div class="action-card advanced" role="button" tabindex="0" onclick="location.href='analyze.html#advanced'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='analyze.html#advanced';}">
                 <div class="action-card-title">Advanced</div>
                 <ul class="action-card-list">
                   ${advancedActions.length > 0 ? advancedActions.map(a => `<li>${esc(a)}</li>`).join("") : '<li>없음</li>'}
                 </ul>
               </div>
+            </div>
+          `;
+          
+          // ✅ [Phase 9-1 Fix] 액션 카드 섹션을 KPI 바로 아래로 이동
+          actionCardsSection = `
+            <div class="content-section">
+              <h3>액션</h3>
+              ${actionCards}
             </div>
           `;
           
@@ -1509,8 +1550,6 @@
               <ul>
                 ${result.evidence.map(e => `<li>${esc(e)}</li>`).join("")}
               </ul>
-              <h3>액션</h3>
-              ${actionCards}
             </div>
           `;
         }
@@ -1572,7 +1611,7 @@
         
         document.getElementById('reportHeader').innerHTML = reportHeader;
         const shareContentEl = document.getElementById('shareContent');
-        shareContentEl.innerHTML = measurementCta + kpiBars + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
+        shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
         // ✅ 신뢰도 배지 렌더링 (read-only)
