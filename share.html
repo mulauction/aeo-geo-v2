@@ -490,7 +490,7 @@
     @media print {
       @page {
         size: A4;
-        margin: 20mm 20mm 20mm 20mm;
+        margin: 14mm;
       }
       
       body {
@@ -509,6 +509,23 @@
         border-radius: 0;
       }
       
+      /* ✅ [Phase 8-3A-2] 긴 텍스트/URL/evidence 줄바꿈 처리 */
+      * {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      
+      /* 긴 URL이나 텍스트가 있는 요소에 추가 처리 */
+      .report-header-meta-value,
+      .content-section p,
+      .content-section li,
+      .notice-card p,
+      .action-card-list li,
+      .reliability-reasons-list li {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      
       /* 버튼/입력/네비 숨김 */
       .home-link,
       #btnExportPDF,
@@ -524,12 +541,14 @@
         display: block !important;
       }
       
-      /* 리포트 헤더 */
+      /* ✅ [Phase 8-3A-2] 리포트 헤더 - 페이지 분할 안정화 */
       .report-header {
         border-bottom: 2px solid #000;
         padding-bottom: 16px;
         margin-bottom: 24px;
         page-break-after: avoid;
+        break-inside: avoid;
+        page-break-inside: avoid;
       }
       .report-header h1 {
         font-size: 24pt;
@@ -549,10 +568,17 @@
         border-top: 1px solid #ccc;
       }
       
-      /* KPI Bar 그래프 */
+      /* ✅ [Phase 8-3A-2] KPI Bar 그래프 - 페이지 분할 안정화 */
       .kpi-bars {
         margin-bottom: 24px;
         page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      /* ✅ [Phase 8-3A-2] 신뢰도 배지 슬롯 - 페이지 분할 안정화 */
+      #reliability-badge-slot {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       /* 신뢰도 배지 */
       .reliability-container {
@@ -596,6 +622,7 @@
         color: #888;
         white-space: nowrap;
       }
+      /* ✅ [Phase 8-3A-2] 측정 필요 CTA - 페이지 분할 안정화 */
       .measurement-cta {
         margin-bottom: 20px;
         padding: 12px;
@@ -603,6 +630,7 @@
         border: 1px solid #ddd;
         font-size: 10pt;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       .measurement-cta-title {
         font-size: 10pt;
@@ -611,9 +639,11 @@
       .measurement-cta-link {
         font-size: 10pt;
       }
+      /* ✅ [Phase 8-3A-2] KPI Bar 항목 - 페이지 분할 안정화 */
       .kpi-bar-item {
         margin-bottom: 16px;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       .kpi-bar-label {
         font-size: 10pt;
@@ -633,32 +663,40 @@
         margin-top: 6px;
       }
       
-      /* 신뢰 문구 섹션 */
+      /* ✅ [Phase 8-3A-2] 신뢰 문구 섹션 - 페이지 분할 안정화 */
       .trust-statements {
         margin-bottom: 20px;
         padding: 16px;
         background: #f8f8f8;
         border-left: 3px solid #333;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       .trust-statements p {
         font-size: 9pt;
         margin: 0 0 8px 0;
       }
       
-      /* 한국 시장 특화 문구 */
+      /* ✅ [Phase 8-3A-2] 한국 시장 특화 문구 - 페이지 분할 안정화 */
       .market-context {
         margin-bottom: 24px;
         padding: 12px;
         border: 1px solid #ddd;
         font-size: 9pt;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       
-      /* 측정 기준 설명 레이어 */
+      /* ✅ [Phase 8-3A-2] 측정 기준 설명 레이어 - 페이지 분할 안정화 */
       .score-criteria-toggle {
         margin-bottom: 12px;
         page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      .score-criteria-list {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .score-criteria-btn {
         font-size: 9pt;
@@ -680,19 +718,21 @@
         margin: 0 0 6px 0;
       }
       
-      /* Compare 안내 문구 */
+      /* ✅ [Phase 8-3A-2] Compare 안내 문구 - 페이지 분할 안정화 */
       .compare-notice {
         margin-top: 16px;
         padding: 12px;
         border: 1px solid #ddd;
         font-size: 9pt;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       
-      /* 콘텐츠 섹션 */
+      /* ✅ [Phase 8-3A-2] 콘텐츠 섹션 - 페이지 분할 안정화 */
       .content-section {
         margin-bottom: 24px;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       .content-section h2 {
         font-size: 16pt;
@@ -733,7 +773,7 @@
         margin: 12px 0;
       }
       
-      /* Evidence 안내 박스 */
+      /* ✅ [Phase 8-3A-2] Evidence 안내 박스 - 페이지 분할 안정화 */
       .notice-card {
         margin-top: 24px;
         padding: 16px;
@@ -741,6 +781,12 @@
         border: 1px solid #ddd;
         border-left: 3px solid #666;
         page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      .notice-card-grid {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .notice-card h4 {
         font-size: 12pt;
@@ -767,11 +813,13 @@
         margin-bottom: 4px;
       }
       
-      /* Action 카드 그리드 */
+      /* ✅ [Phase 8-3A-2] Action 카드 그리드 - 페이지 분할 안정화 */
       .action-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: 12px;
         margin-top: 12px;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .action-card {
         padding: 12px;
@@ -779,6 +827,7 @@
         border: 1px solid #ddd;
         border-top: 2px solid #333;
         page-break-inside: avoid;
+        break-inside: avoid;
       }
       .action-card-title {
         font-size: 10pt;
@@ -793,13 +842,20 @@
         margin-bottom: 4px;
       }
       
-      /* 리포트 푸터 */
+      /* ✅ [Phase 8-3A-2] 리포트 푸터 - 페이지 분할 안정화 */
       .report-footer {
         margin-top: 32px;
         padding-top: 16px;
         border-top: 1px solid #ccc;
         font-size: 7pt;
         page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      /* ✅ [Phase 8-3A-2] 신뢰도 상세 영역 - 페이지 분할 안정화 */
+      .reliability-details {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       
       /* 페이지 나누기 제어 */
