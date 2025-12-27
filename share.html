@@ -1448,6 +1448,7 @@
 
     /**
      * ✅ [Phase 11-2] 서버 스냅샷 조회 (fallback)
+     * ✅ [Phase 13-1B] 404는 정상 no-report 케이스로 처리 (콘솔 에러 방지)
      * @param {string} id - Snapshot ID
      * @returns {Promise<Object|null>} { notFound: true } 또는 { payload: reportModel }
      */
@@ -1456,6 +1457,8 @@
 
       // ✅ [Phase 11-2C] 포트 5502일 때는 http://localhost:3001만 사용
       const endpoints = makeSnapshotGetUrls(id);
+      
+      let has404 = false; // 404 발생 여부 추적
 
       for (const endpoint of endpoints) {
           try {
@@ -1466,36 +1469,98 @@
               const v2 = data?.payload ?? data?.reportModel ?? data;
               return { payload: v2 };
             }
-            // response.ok === false (404 포함) 이면 다음 엔드포인트 시도
+            // ✅ [Phase 13-1B] 404는 정상 no-report 케이스로 처리
+            if (response.status === 404) {
+              has404 = true;
+              // 404는 조용히 처리 (다음 엔드포인트 시도 또는 notFound 반환)
+              continue;
+            }
+            // 404가 아닌 다른 에러(status >= 500 등)는 기존 처리 유지
+            // response.ok === false 이면 다음 엔드포인트 시도
             continue;
           } catch (err) {
             // 네트워크 오류 시 다음 엔드포인트 시도
             continue;
           }
       }
-      // 모든 엔드포인트 실패 시 notFound 반환
+      // ✅ [Phase 13-1B] 모든 엔드포인트 실패 시, 404가 있었으면 조용히 notFound 반환
+      if (has404) {
+        // 404는 정상 케이스이므로 로그 최소화 (필요시 info만)
+        return { notFound: true };
+      }
+      // 404가 아닌 다른 에러인 경우도 notFound 반환 (기존 동작 유지)
       return { notFound: true };
+    }
+    
+    /**
+     * ✅ [Phase 13-1B] r 파라미터가 localStorage에 존재하는지 확인하는 헬퍼 함수
+     * @param {string} rParam - r 파라미터 값
+     * @returns {boolean} fetch를 시도해도 되는지 여부
+     */
+    function shouldFetchSnapshot(rParam) {
+      if (!rParam) return false;
+      
+      // r이 __currentReportId와 동일한지 확인
+      const currentReportId = localStorage.getItem('__currentReportId');
+      if (currentReportId === rParam) {
+        return true;
+      }
+      
+      // __lastV2 안에 reportId가 있는지 확인 (가능한 범위에서 최소 체크)
+      try {
+        const lastV2 = window.__lastV2 || (() => {
+          try {
+            const str = localStorage.getItem('__lastV2');
+            return str ? JSON.parse(str) : null;
+          } catch {
+            return null;
+          }
+        })();
+        
+        if (lastV2 && typeof lastV2 === 'object') {
+          // __lastV2에 id나 reportId 필드가 있고 r과 일치하는지 확인
+          if (lastV2.id === rParam || lastV2.reportId === rParam) {
+            return true;
+          }
+          // __lastV2가 존재하지만 r과 일치하지 않으면 false 반환 (fetch 방지)
+          return false;
+        }
+      } catch (e) {
+        // 파싱 오류 시 false 반환
+      }
+      
+      // 조건 불만족: fetch 없이 fallback
+      return false;
     }
     
     /**
      * ✅ [Share 복원 로직] reportModel 복원 함수
      * 우선순위: (1) URL 파라미터 r → (2) window.__lastV2 / localStorage '__lastV2' → (3) localStorage 'aeo_state_v2'
+     * ✅ [Phase 13-1B] r이 snapshot ID인 경우 localStorage 확인 후 없으면 fetch 없이 즉시 fallback
      * @returns {Promise<Object|null>} reportModel 객체 또는 null
      */
     async function loadReportModel() {
       const urlParams = new URLSearchParams(window.location.search);
       const rParam = urlParams.get('r');
       
-      // (1) URL 파라미터 r로 공유리포트 로드 시도
+      // ✅ [Phase 13-1B] r 파라미터를 읽은 직후 localStorage 확인
+      // 조건을 만족하지 않으면 fetch 호출 지점에 도달하지 않도록 early return
       if (rParam) {
         try {
           const decoded = decodeURIComponent(rParam);
           const parsed = JSON.parse(decoded);
           if (parsed && typeof parsed === 'object') {
+            // JSON 파싱 성공 시 인라인 리포트 데이터로 처리
             return parsed;
           }
         } catch (e) {
-          // URL 파라미터 파싱 실패 시 다음 우선순위로 진행
+          // ✅ [Phase 13-1B] URL 파라미터 파싱 실패 시 snapshot ID로 간주
+          // localStorage에서 해당 r이 존재하는지 확인
+          if (!shouldFetchSnapshot(rParam)) {
+            // 조건 불만족: fetch 없이 즉시 fallback (404 방지)
+            return null;
+          }
+          // 조건 만족: 기존 로직 계속 진행 (fetch 시도 가능)
         }
       }
       
@@ -1521,7 +1586,8 @@
         const stStr = localStorage.getItem('aeo_state_v2');
         if (!stStr) {
           // ✅ [Phase 11-2] localStorage 복원 실패 시 서버 스냅샷 fallback
-          if (rParam) {
+          // ✅ [Phase 13-1B] r이 localStorage에 있을 때만 fetch 시도
+          if (rParam && shouldFetchSnapshot(rParam)) {
             try {
               setShareStatus('서버에서 불러오는 중…');
               const data = await fetchSnapshotWithFallback(rParam);
@@ -1551,7 +1617,8 @@
         const st = JSON.parse(stStr);
         if (!st || typeof st !== 'object') {
           // ✅ [Phase 11-2] localStorage 복원 실패 시 서버 스냅샷 fallback
-          if (rParam) {
+          // ✅ [Phase 13-1B] r이 localStorage에 있을 때만 fetch 시도
+          if (rParam && shouldFetchSnapshot(rParam)) {
             try {
               setShareStatus('서버에서 불러오는 중…');
               const data = await fetchSnapshotWithFallback(rParam);
@@ -1621,7 +1688,8 @@
         return reportModel;
       } catch (e) {
         // localStorage 'aeo_state_v2' 파싱 실패 시 서버 스냅샷 fallback
-        if (rParam) {
+        // ✅ [Phase 13-1B] r이 localStorage에 있을 때만 fetch 시도
+        if (rParam && shouldFetchSnapshot(rParam)) {
           try {
             setShareStatus('서버에서 불러오는 중…');
             const data = await fetchSnapshotWithFallback(rParam);
