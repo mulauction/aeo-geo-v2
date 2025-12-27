@@ -33,10 +33,17 @@
       margin-bottom: 32px;
     }
     .report-header h1 {
-      margin: 0 0 16px 0;
+      margin: 0 0 12px 0;
       font-size: 28px;
       font-weight: 700;
       color: #1a1a1a;
+    }
+    .report-header-summary {
+      margin: 0 0 16px 0;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #555;
+      max-width: 800px;
     }
     .report-header-meta {
       display: grid;
@@ -660,7 +667,15 @@
       }
       .report-header h1 {
         font-size: 24pt;
+        margin: 0 0 10px 0;
+      }
+      .report-header-summary {
+        font-size: 10pt;
+        line-height: 1.6;
         margin: 0 0 12px 0;
+        color: #333;
+        max-width: 100%;
+        page-break-after: avoid;
       }
       .report-header-meta {
         font-size: 10pt;
@@ -1285,6 +1300,9 @@
         
         const reportHeader = `
           <h1>AEO/GEO 분석 리포트</h1>
+          <div class="report-header-summary">
+            이 리포트는 AI 검색·추천 환경에서 해당 브랜드/콘텐츠가 얼마나 인식 가능한지, 구조적 기준으로 분석한 결과입니다. 점수는 '현재 상태'를 의미하며, 아래 액션은 개선 우선순위를 안내합니다.
+          </div>
           <div class="report-header-meta">
             <div class="report-header-meta-item">
               <span class="report-header-meta-label">분석 대상</span>
