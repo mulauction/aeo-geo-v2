@@ -213,25 +213,35 @@
     .report-header-fixed-copy-btn:active {
       background: #e0efff;
     }
-    .report-header-fixed-toast {
+    /* ✅ [Phase 11-2D] Toast 컨테이너 및 메시지 스타일 */
+    #__toast_root__ {
       position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 8px 16px;
-      font-size: 12px;
-      color: #fff;
-      background: #28a745;
-      border-radius: 4px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      z-index: 1000;
-      opacity: 0;
-      transform: translateY(-10px);
-      transition: opacity 0.3s ease, transform 0.3s ease;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
       pointer-events: none;
     }
-    .report-header-fixed-toast.show {
+    .toast-message {
+      padding: 12px 20px;
+      font-size: 14px;
+      color: #fff;
+      background: #28a745;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      white-space: nowrap;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .toast-message.show {
       opacity: 1;
       transform: translateY(0);
+    }
+    .toast-message.error {
+      background: #dc3545;
     }
     
     /* KPI Bar 그래프 (3종 시각화) */
@@ -1393,6 +1403,49 @@
     }
 
     /**
+     * ✅ [Phase 11-2D] Toast 메시지 표시 함수
+     * @param {string} message - 표시할 메시지
+     * @param {number} duration - 표시 시간 (밀리초, 기본 2000)
+     * @param {boolean} isError - 에러 메시지 여부 (기본 false)
+     */
+    function showToast(message, duration = 2000, isError = false) {
+      // Toast 루트 컨테이너 생성 또는 가져오기
+      let toastRoot = document.getElementById('__toast_root__');
+      if (!toastRoot) {
+        toastRoot = document.createElement('div');
+        toastRoot.id = '__toast_root__';
+        toastRoot.setAttribute('role', 'status');
+        toastRoot.setAttribute('aria-live', 'polite');
+        document.body.appendChild(toastRoot);
+      }
+      
+      // 기존 toast 메시지 제거
+      const existingToast = toastRoot.querySelector('.toast-message');
+      if (existingToast) {
+        existingToast.remove();
+      }
+      
+      // 새 toast 메시지 생성
+      const toast = document.createElement('div');
+      toast.className = 'toast-message' + (isError ? ' error' : '');
+      toast.textContent = message;
+      toastRoot.appendChild(toast);
+      
+      // 표시 애니메이션
+      setTimeout(() => {
+        toast.classList.add('show');
+      }, 10);
+      
+      // 자동 제거
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }, duration);
+    }
+
+    /**
      * ✅ [Phase 11-2] 서버 스냅샷 조회 (fallback)
      * @param {string} id - Snapshot ID
      * @returns {Promise<Object|null>} { notFound: true } 또는 { payload: reportModel }
@@ -1745,9 +1798,17 @@
           minute: '2-digit'
         }) : new Date().toLocaleString('ko-KR');
         
+        // ✅ [Phase 11-2D] GET-only 모드 안내 문구
+        const getOnlyNotice = getOnly ? `
+          <div class="share-readonly-notice" style="margin: 0 0 16px 0; padding: 12px 16px; background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 8px; font-size: 13px; color: #0066cc;">
+            이 리포트는 읽기 전용 공유 리포트입니다
+          </div>
+        ` : '';
+        
         const reportHeader = `
           <h1>AEO/GEO 분석 리포트</h1>
           <div id="share-status"></div>
+          ${getOnlyNotice}
           <div class="report-header-summary">
             이 리포트는 AI 검색·추천 환경에서 해당 브랜드/콘텐츠가 얼마나 인식 가능한지, 구조적 기준으로 분석한 결과입니다. 점수는 '현재 상태'를 의미하며, 아래 액션은 개선 우선순위를 안내합니다.
           </div>
@@ -2131,17 +2192,24 @@
                 await navigator.clipboard.writeText(shareUrl);
                 copyBtn.textContent = '복사됨';
                 setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                showToast('공유 링크가 복사되었습니다');
               } catch (err) {
-                const textarea = document.createElement('textarea');
-                textarea.value = shareUrl;
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                copyBtn.textContent = '복사됨';
-                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                try {
+                  // fallback: 임시 textarea 사용
+                  const textarea = document.createElement('textarea');
+                  textarea.value = shareUrl;
+                  textarea.style.position = 'fixed';
+                  textarea.style.left = '-9999px';
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textarea);
+                  copyBtn.textContent = '복사됨';
+                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                  showToast('공유 링크가 복사되었습니다');
+                } catch (fallbackErr) {
+                  showToast('복사 실패: 브라우저 권한을 확인해주세요', 2000, true);
+                }
               }
               return;
             }
@@ -2181,17 +2249,24 @@
                   await navigator.clipboard.writeText(shareUrl);
                   copyBtn.textContent = '복사됨';
                   setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                  showToast('공유 링크가 복사되었습니다');
                 } catch (err) {
-                  const textarea = document.createElement('textarea');
-                  textarea.value = shareUrl;
-                  textarea.style.position = 'fixed';
-                  textarea.style.left = '-9999px';
-                  document.body.appendChild(textarea);
-                  textarea.select();
-                  document.execCommand('copy');
-                  document.body.removeChild(textarea);
-                  copyBtn.textContent = '복사됨';
-                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                  try {
+                    // fallback: 임시 textarea 사용
+                    const textarea = document.createElement('textarea');
+                    textarea.value = shareUrl;
+                    textarea.style.position = 'fixed';
+                    textarea.style.left = '-9999px';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    copyBtn.textContent = '복사됨';
+                    setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                    showToast('공유 링크가 복사되었습니다');
+                  } catch (fallbackErr) {
+                    showToast('복사 실패: 브라우저 권한을 확인해주세요', 2000, true);
+                  }
                 }
                 return;
               }
@@ -2248,16 +2323,22 @@
               // 클립보드 복사 (기존 로직 재사용)
               try {
                 await navigator.clipboard.writeText(shareUrl);
+                showToast('공유 링크가 복사되었습니다');
               } catch (err) {
-                // fallback: 임시 textarea 사용
-                const textarea = document.createElement('textarea');
-                textarea.value = shareUrl;
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
+                try {
+                  // fallback: 임시 textarea 사용
+                  const textarea = document.createElement('textarea');
+                  textarea.value = shareUrl;
+                  textarea.style.position = 'fixed';
+                  textarea.style.left = '-9999px';
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textarea);
+                  showToast('공유 링크가 복사되었습니다');
+                } catch (fallbackErr) {
+                  showToast('복사 실패: 브라우저 권한을 확인해주세요', 2000, true);
+                }
               }
               
               // 버튼 텍스트 변경
@@ -2287,17 +2368,24 @@
                 await navigator.clipboard.writeText(shareUrl);
                 copyBtn.textContent = '복사됨';
                 setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                showToast('공유 링크가 복사되었습니다');
               } catch (err) {
-                const textarea = document.createElement('textarea');
-                textarea.value = shareUrl;
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                copyBtn.textContent = '복사됨';
-                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                try {
+                  // fallback: 임시 textarea 사용
+                  const textarea = document.createElement('textarea');
+                  textarea.value = shareUrl;
+                  textarea.style.position = 'fixed';
+                  textarea.style.left = '-9999px';
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textarea);
+                  copyBtn.textContent = '복사됨';
+                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                  showToast('공유 링크가 복사되었습니다');
+                } catch (fallbackErr) {
+                  showToast('복사 실패: 브라우저 권한을 확인해주세요', 2000, true);
+                }
               }
             }
           });
