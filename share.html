@@ -86,6 +86,43 @@
       font-weight: 600;
       color: #666;
     }
+    /* ✅ [Phase 10-2] 리포트 없음 경고 박스 */
+    .report-warning-box {
+      margin: 24px 0;
+      padding: 20px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      border-left: 4px solid #ffc107;
+    }
+    .report-warning-box h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    .report-warning-box p {
+      margin: 0 0 16px 0;
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+    }
+    .report-warning-box .btn-home {
+      display: inline-block;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      background: #0066cc;
+      border: none;
+      border-radius: 4px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .report-warning-box .btn-home:hover {
+      background: #0052a3;
+    }
     /* ✅ [Phase 10-1] 고정 리포트 UI */
     .report-header-fixed {
       margin-top: 12px;
@@ -754,6 +791,29 @@
         padding-top: 10px;
         border-top: 1px solid #ccc;
       }
+      /* ✅ [Phase 10-2] 리포트 없음 경고 박스 - 인쇄 스타일 */
+      .report-warning-box {
+        margin: 20px 0;
+        padding: 16px;
+        background: #fffbf0;
+        border: 1px solid #ddd;
+        border-left: 3px solid #333;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-warning-box h3 {
+        font-size: 12pt;
+        margin: 0 0 10px 0;
+      }
+      .report-warning-box p {
+        font-size: 10pt;
+        margin: 0 0 12px 0;
+      }
+      .report-warning-box .btn-home {
+        padding: 6px 12px;
+        font-size: 10pt;
+        display: none;
+      }
       /* ✅ [Phase 10-1] 고정 리포트 UI - 인쇄 스타일 */
       .report-header-fixed {
         margin-top: 10px;
@@ -1388,6 +1448,32 @@
       function renderShareContent() {
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
         const reportModel = loadReportModel();
+        
+        // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
+        if (!reportModel) {
+          const params = new URLSearchParams(location.search);
+          const r = params.get('r') || localStorage.getItem('__currentReportId');
+          
+          if (!r && !localStorage.getItem('__lastV2')) {
+            const warningBox = `
+              <div class="report-warning-box">
+                <h3>리포트를 불러올 수 없습니다</h3>
+                <p>공유 링크가 만료되었거나, 다른 브라우저/시크릿 모드에서 접근하셨습니다.<br>새로운 리포트를 생성하려면 Analyze 화면으로 이동해주세요.</p>
+                <a href="./home.html" class="btn-home">Home으로</a>
+              </div>
+            `;
+            document.getElementById('shareContent').innerHTML = warningBox;
+            
+            // ✅ [Phase 10-2] 리포트 없음 시 PDF 버튼 숨김/비활성화
+            const btnExportPDF = document.getElementById('btnExportPDF');
+            if (btnExportPDF) {
+              btnExportPDF.style.display = 'none';
+            }
+            
+            return;
+          }
+        }
+        
         const payload = buildReportPayloadFromModel(reportModel);
         const scores = payload.analysis?.scores || {};
         const brandingScore = scores.branding;
@@ -1446,16 +1532,20 @@
           </div>
           ${(() => {
             const urlParams = new URLSearchParams(location.search);
-            const currentR = urlParams.get('r');
+            let currentR = urlParams.get('r');
+            if (!currentR) {
+              currentR = localStorage.getItem('__currentReportId') || '';
+            }
             if (currentR) {
               const maskedId = currentR.length > 6 
                 ? '…' + currentR.slice(-6) 
                 : currentR;
+              const shareUrl = location.origin + location.pathname + '?r=' + encodeURIComponent(currentR);
               return `
                 <div class="report-header-fixed">
                   <span class="report-header-fixed-badge">공유 링크 고정됨</span>
                   <span class="report-header-fixed-id">Report ID: ${esc(maskedId)}</span>
-                  <button class="report-header-fixed-copy-btn" type="button" data-copy-url="${esc(location.href)}">공유 링크 복사</button>
+                  <button class="report-header-fixed-copy-btn" type="button" data-share-url="${esc(shareUrl)}">공유 링크 복사</button>
                 </div>
               `;
             }
@@ -1767,29 +1857,51 @@
         shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
-        // ✅ [Phase 10-1] 공유 링크 복사 버튼 이벤트 바인딩
+        // ✅ [Phase 10-2] 공유 링크 복사 버튼 이벤트 바인딩
         const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
         if (copyBtn) {
           copyBtn.addEventListener('click', async () => {
-            const urlToCopy = copyBtn.getAttribute('data-copy-url') || location.href;
+            // 현재 r 파라미터를 사용하여 공유 URL 생성
+            const params = new URLSearchParams(location.search);
+            let r = params.get('r');
+            if (!r) {
+              r = localStorage.getItem('__currentReportId') || '';
+            }
+            const shareUrl = r 
+              ? (location.origin + location.pathname + '?r=' + encodeURIComponent(r))
+              : (copyBtn.getAttribute('data-share-url') || location.href);
+            
+            const originalText = copyBtn.textContent;
+            
             try {
-              await navigator.clipboard.writeText(urlToCopy);
+              // navigator.clipboard 우선 시도
+              await navigator.clipboard.writeText(shareUrl);
               
-              // 토스트 표시
-              let toast = document.querySelector('.report-header-fixed-toast');
-              if (!toast) {
-                toast = document.createElement('div');
-                toast.className = 'report-header-fixed-toast';
-                toast.textContent = '복사됨';
-                document.body.appendChild(toast);
-              }
-              
-              toast.classList.add('show');
+              // 성공 시 버튼 텍스트 변경
+              copyBtn.textContent = '복사됨';
               setTimeout(() => {
-                toast.classList.remove('show');
+                copyBtn.textContent = originalText;
               }, 1000);
             } catch (err) {
-              console.warn('클립보드 복사 실패:', err);
+              // fallback: 임시 textarea 사용
+              try {
+                const textarea = document.createElement('textarea');
+                textarea.value = shareUrl;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                // 성공 시 버튼 텍스트 변경
+                copyBtn.textContent = '복사됨';
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                }, 1000);
+              } catch (fallbackErr) {
+                // 복사 실패 시 조용히 실패 (콘솔 에러 추가하지 않음)
+              }
             }
           });
         }
@@ -1821,6 +1933,14 @@
               btnScoreCriteria.classList.add('open');
             }
           });
+        }
+        
+        // ✅ [Phase 10-2] 리포트 렌더링 성공 시 PDF 버튼 활성화/노출
+        const btnExportPDF = document.getElementById('btnExportPDF');
+        if (btnExportPDF) {
+          btnExportPDF.style.display = '';
+          btnExportPDF.disabled = false;
+          btnExportPDF.removeAttribute('aria-disabled');
         }
       }
       
