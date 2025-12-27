@@ -466,6 +466,96 @@
       line-height: 1.6;
     }
     
+    /* ✅ [Phase 9-0] Next Actions 섹션 */
+    .next-actions-section {
+      margin-bottom: 32px;
+      margin-top: 32px;
+    }
+    .next-actions-section h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 16px 0;
+      color: #1a1a1a;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .next-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .next-action-card {
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      border-left: 4px solid #4a90e2;
+      position: relative;
+    }
+    .next-action-card.priority-high {
+      border-left-color: #dc3545;
+    }
+    .next-action-card.priority-medium {
+      border-left-color: #ffc107;
+    }
+    .next-action-card.priority-low {
+      border-left-color: #28a745;
+    }
+    .next-action-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      background: #666;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .next-action-card.priority-high .next-action-badge {
+      background: #dc3545;
+    }
+    .next-action-card.priority-medium .next-action-badge {
+      background: #ffc107;
+      color: #333;
+    }
+    .next-action-card.priority-low .next-action-badge {
+      background: #28a745;
+    }
+    .next-action-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 8px 0;
+      line-height: 1.4;
+    }
+    .next-action-description {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+      margin: 0 0 12px 0;
+    }
+    .next-action-cta {
+      margin-top: 8px;
+    }
+    .next-action-cta a {
+      display: inline-block;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #0066cc;
+      text-decoration: none;
+      border: 1px solid #0066cc;
+      border-radius: 4px;
+      transition: background 0.2s ease;
+    }
+    .next-action-cta a:hover {
+      background: #f0f7ff;
+      text-decoration: none;
+    }
+    
     /* 리포트 푸터 */
     .report-footer {
       margin-top: 48px;
@@ -842,6 +932,57 @@
         margin-bottom: 4px;
       }
       
+      /* ✅ [Phase 9-0] Next Actions 섹션 - 인쇄 스타일 */
+      .next-actions-section {
+        margin-bottom: 24px;
+        margin-top: 24px;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .next-actions-section h2 {
+        font-size: 16pt;
+        margin: 0 0 12px 0;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #000;
+        page-break-after: avoid;
+      }
+      .next-actions-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .next-action-card {
+        padding: 12px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-left: 3px solid #333;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .next-action-badge {
+        padding: 3px 6px;
+        font-size: 8pt;
+        margin-bottom: 6px;
+      }
+      .next-action-title {
+        font-size: 11pt;
+        margin: 0 0 6px 0;
+      }
+      .next-action-description {
+        font-size: 9pt;
+        margin: 0 0 8px 0;
+      }
+      .next-action-cta {
+        margin-top: 6px;
+      }
+      .next-action-cta a {
+        padding: 4px 8px;
+        font-size: 9pt;
+        border: 1px solid #333;
+      }
+      
       /* ✅ [Phase 8-3A-2] 리포트 푸터 - 페이지 분할 안정화 */
       .report-footer {
         margin-top: 32px;
@@ -861,6 +1002,7 @@
       /* 페이지 나누기 제어 */
       .report-header,
       .kpi-bars,
+      .next-actions-section,
       .score-criteria-toggle,
       .trust-statements,
       .market-context,
@@ -1228,6 +1370,90 @@
           </div>
         `;
         
+        // ✅ [Phase 9-0] Next Actions 섹션 생성
+        const nextActions = [];
+        
+        // 1) reliability.reasons가 있으면: "측정 필요/근거 부족" 액션 생성
+        if (reliabilityResult.reasons && Array.isArray(reliabilityResult.reasons) && reliabilityResult.reasons.length > 0) {
+          const missingItems = [];
+          if (reliabilityResult.reasons.some(r => r.includes('BRAND') && r.includes('미측정'))) {
+            missingItems.push('BRAND');
+          }
+          if (reliabilityResult.reasons.some(r => r.includes('CONTENT') && r.includes('미측정'))) {
+            missingItems.push('CONTENT');
+          }
+          if (reliabilityResult.reasons.some(r => r.includes('URL') && r.includes('미측정'))) {
+            missingItems.push('URL');
+          }
+          
+          if (missingItems.length > 0) {
+            nextActions.push({
+              priority: 'high',
+              title: '측정 필요 항목 보완',
+              description: `${missingItems.join(', ')} 항목이 측정되지 않았습니다. 신뢰도를 높이기 위해 누락된 항목을 측정해주세요.`,
+              cta: null
+            });
+          }
+        }
+        
+        // 2) contentStructureV2.evidence가 비면: 콘텐츠 구조 개선 액션 생성
+        const hasContentEvidence = contentStructureV2Score && 
+          contentStructureV2Score.evidence && 
+          Array.isArray(contentStructureV2Score.evidence) && 
+          contentStructureV2Score.evidence.length > 0;
+        
+        if (!hasContentEvidence) {
+          nextActions.push({
+            priority: 'medium',
+            title: '콘텐츠 구조 근거 수집',
+            description: '콘텐츠 구조 점수의 근거가 없습니다. Analyze 화면에서 콘텐츠를 분석하여 근거를 생성하세요.',
+            cta: { text: 'Analyze로 이동', href: './analyze.html' }
+          });
+        }
+        
+        // 3) urlStructureV1이 없으면: URL 측정 액션 생성 (+ Analyze로 이동)
+        const isUrlMeasured = urlStructureV1Score && 
+          urlStructureV1Score.score !== null && 
+          urlStructureV1Score.score !== undefined &&
+          !isNaN(urlStructureV1Score.score) &&
+          isFinite(urlStructureV1Score.score);
+        
+        if (!isUrlMeasured) {
+          nextActions.push({
+            priority: 'high',
+            title: 'URL 구조 측정',
+            description: 'URL 구조 점수가 측정되지 않았습니다. Analyze 화면에서 URL 구조를 분석하여 점수를 생성하세요.',
+            cta: { text: 'Analyze로 이동', href: './analyze.html' }
+          });
+        }
+        
+        // Next Actions 섹션 HTML 생성
+        let nextActionsSection = '';
+        if (nextActions.length > 0) {
+          // 최대 5개까지만 표시
+          const actionsToShow = nextActions.slice(0, 5);
+          
+          nextActionsSection = `
+            <div class="next-actions-section">
+              <h2>다음 액션 (Next Actions)</h2>
+              <div class="next-actions-grid">
+                ${actionsToShow.map(action => `
+                  <div class="next-action-card priority-${action.priority}">
+                    <span class="next-action-badge">${action.priority === 'high' ? '높음' : action.priority === 'medium' ? '중간' : '낮음'}</span>
+                    <div class="next-action-title">${esc(action.title)}</div>
+                    <div class="next-action-description">${esc(action.description)}</div>
+                    ${action.cta ? `
+                      <div class="next-action-cta">
+                        <a href="${esc(action.cta.href)}">${esc(action.cta.text)}</a>
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+        
         // ✅ [Phase 5-8] 콘텐츠 구조 점수 근거 섹션
         let contentStructureEvidenceSection = '';
         if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
@@ -1346,7 +1572,7 @@
         
         document.getElementById('reportHeader').innerHTML = reportHeader;
         const shareContentEl = document.getElementById('shareContent');
-        shareContentEl.innerHTML = measurementCta + kpiBars + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
+        shareContentEl.innerHTML = measurementCta + kpiBars + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
         // ✅ 신뢰도 배지 렌더링 (read-only)
