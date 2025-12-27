@@ -188,8 +188,38 @@ export function computeReliability(reportModel, lastV2) {
       label = '측정 필요';
     }
     
-    // reasons는 reasonText를 배열로 변환 (필요시)
-    const reasons = result.reasonText ? [result.reasonText] : [];
+    // ✅ [Phase 8-2B] 측정 상태 기반으로 reasons 배열 생성
+    const reasons = [];
+    
+    // 측정 상태 정보 추가
+    if (result.brandStatus) {
+      reasons.push(`BRAND: ${result.brandStatus}`);
+    }
+    if (result.contentStatus) {
+      reasons.push(`CONTENT: ${result.contentStatus}`);
+    }
+    if (result.urlStatus) {
+      reasons.push(`URL: ${result.urlStatus}`);
+    }
+    
+    // 미측정 항목이 있으면 추가 정보 제공
+    if (result.missingItems && result.missingItems.length > 0) {
+      reasons.push(`미측정 항목: ${result.missingItems.join(', ')}`);
+    }
+    
+    // 신뢰도 레벨에 따른 설명 추가
+    if (result.level === '높음') {
+      reasons.push('3개 항목 모두 측정 완료 및 최소 기준 충족');
+    } else if (result.level === '보통') {
+      reasons.push('일부 항목 미측정 또는 최소 기준 미충족');
+    } else if (result.level === '낮음') {
+      reasons.push('대부분의 항목이 미측정 상태');
+    }
+    
+    // reasons가 비어있으면 기본 메시지 추가
+    if (reasons.length === 0) {
+      reasons.push('측정 데이터가 없습니다');
+    }
     
     return {
       level: result.level || 'unknown',
@@ -201,7 +231,7 @@ export function computeReliability(reportModel, lastV2) {
     return {
       level: 'unknown',
       label: '측정 필요',
-      reasons: []
+      reasons: ['측정 데이터를 불러올 수 없습니다']
     };
   }
 }

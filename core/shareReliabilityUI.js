@@ -67,14 +67,51 @@ export function renderReliabilityBadge(el, rel) {
     reasons: []
   };
 
-  // 배지 HTML 생성
+  // reasons 배열이 비어있으면 기본값 설정
+  const reasons = Array.isArray(reliability.reasons) && reliability.reasons.length > 0 
+    ? reliability.reasons 
+    : ['측정 데이터가 없습니다'];
+
+  // 배지 HTML 생성 (배지 + 자세히 버튼)
   const badgeHtml = `
-    <div class="reliability-badge">
-      신뢰도: ${esc(reliability.label || reliability.level || '측정 필요')}
+    <div class="reliability-badge-container">
+      <div class="reliability-badge">
+        신뢰도: ${esc(reliability.label || reliability.level || '측정 필요')}
+      </div>
+      <button class="reliability-details-btn" type="button" aria-expanded="false">
+        자세히
+      </button>
+    </div>
+    <div class="reliability-details" style="display: none;">
+      <ul class="reliability-reasons-list">
+        ${reasons.map(reason => `<li>${esc(reason)}</li>`).join('')}
+      </ul>
     </div>
   `;
 
   // el 내부만 채우기 (기존 내용은 유지하지 않고 교체)
   el.innerHTML = badgeHtml;
+
+  // ✅ [Phase 8-2B] "자세히" 버튼 클릭 이벤트 바인딩
+  const detailsBtn = el.querySelector('.reliability-details-btn');
+  const detailsContainer = el.querySelector('.reliability-details');
+  
+  if (detailsBtn && detailsContainer) {
+    detailsBtn.addEventListener('click', () => {
+      const isExpanded = detailsBtn.getAttribute('aria-expanded') === 'true';
+      
+      if (isExpanded) {
+        // 접기
+        detailsContainer.style.display = 'none';
+        detailsBtn.setAttribute('aria-expanded', 'false');
+        detailsBtn.textContent = '자세히';
+      } else {
+        // 펼치기
+        detailsContainer.style.display = 'block';
+        detailsBtn.setAttribute('aria-expanded', 'true');
+        detailsBtn.textContent = '접기';
+      }
+    });
+  }
 }
 

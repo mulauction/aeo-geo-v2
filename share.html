@@ -103,6 +103,51 @@
       white-space: nowrap;
       display: inline-block;
     }
+    /* ✅ [Phase 8-2B] 신뢰도 배지 컨테이너 (배지 + 자세히 버튼) */
+    .reliability-badge-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    /* ✅ [Phase 8-2B] 자세히 버튼 */
+    .reliability-details-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #666;
+      background: transparent;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .reliability-details-btn:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    /* ✅ [Phase 8-2B] 신뢰도 사유 상세 영역 */
+    .reliability-details {
+      margin-top: 8px;
+      padding: 12px;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+    /* ✅ [Phase 8-2B] 신뢰도 사유 리스트 */
+    .reliability-reasons-list {
+      margin: 0;
+      padding-left: 20px;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.6;
+    }
+    .reliability-reasons-list li {
+      margin-bottom: 6px;
+    }
+    .reliability-reasons-list li:last-child {
+      margin-bottom: 0;
+    }
     /* ✅ [Phase 8-2B] 신뢰도 Reason line */
     .reliability-reason {
       margin-top: 4px;
@@ -470,8 +515,13 @@
       button,
       input,
       select,
-      .btn {
+      .btn,
+      .reliability-details-btn {
         display: none !important;
+      }
+      /* 인쇄 시 신뢰도 사유는 항상 표시 */
+      .reliability-details {
+        display: block !important;
       }
       
       /* 리포트 헤더 */
@@ -517,6 +567,28 @@
         background: #f8f8f8;
         border: 1px solid #ddd;
         display: inline-block;
+      }
+      .reliability-badge-container {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .reliability-details {
+        margin-top: 6px;
+        padding: 10px;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        font-size: 9pt;
+      }
+      .reliability-reasons-list {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 9pt;
+        color: #555;
+        line-height: 1.5;
+      }
+      .reliability-reasons-list li {
+        margin-bottom: 4px;
       }
       .reliability-reason {
         margin-top: 3px;
