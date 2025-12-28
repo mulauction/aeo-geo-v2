@@ -274,3 +274,36 @@ export function computeReliability(reportModel, lastV2) {
   }
 }
 
+/**
+ * Share 화면 뷰 상태 결정 함수
+ * @param {Object} param0 - { hasParamR, requestedLoaded, hasLastV2 }
+ * @param {boolean} param0.hasParamR - URL에 r 파라미터가 있는지 여부
+ * @param {boolean} param0.requestedLoaded - 요청한 리포트가 로드되었는지 여부
+ * @param {boolean} param0.hasLastV2 - localStorage에 __lastV2가 있는지 여부
+ * @returns {'OK' | 'NO_REPORT' | 'EXPIRED' | 'OTHER_DEVICE'} Share 뷰 상태
+ */
+export function getShareViewState({ hasParamR, requestedLoaded, hasLastV2 }) {
+  // if requestedLoaded === true -> 'OK'
+  if (requestedLoaded === true) {
+    return 'OK';
+  }
+  
+  // else if !hasParamR && !hasLastV2 -> 'NO_REPORT'
+  if (!hasParamR && !hasLastV2) {
+    return 'NO_REPORT';
+  }
+  
+  // else if hasParamR && !requestedLoaded && !hasLastV2 -> 'EXPIRED'
+  if (hasParamR && !requestedLoaded && !hasLastV2) {
+    return 'EXPIRED';
+  }
+  
+  // else if hasParamR && !requestedLoaded && hasLastV2 -> 'OTHER_DEVICE'
+  if (hasParamR && !requestedLoaded && hasLastV2) {
+    return 'OTHER_DEVICE';
+  }
+  
+  // else (no r, has last) -> return 'OK'
+  return 'OK';
+}
+
