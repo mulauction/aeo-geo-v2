@@ -35,3 +35,5 @@ export function generateHTML(product, brand, usecase) {
 </div>`;
 }
 
+
+

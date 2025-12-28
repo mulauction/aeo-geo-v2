@@ -84,10 +84,43 @@
       top: 12px;
       right: 12px;
     }
+    #modalOverlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 24px;
+      z-index: 1001;
+      max-width: 400px;
+      width: 90%;
+    }
+    .modal h3 {
+      margin: 0 0 16px 0;
+    }
+    .modal p {
+      margin: 0 0 16px 0;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
   </style>
 </head>
 <body>
   <div class="app">
+    <div id="header"></div>
+    
     <h1>AEO / GEO v2</h1>
     <p class="subtitle">AI 노출을 분석하고, 생성하고, 실제 등록까지 이어주는 실행형 SaaS</p>
     
@@ -130,7 +163,44 @@
     </div>
   </div>
 
+  <div id="modalOverlay"></div>
+  
+  <div id="loginModal" class="modal">
+    <h3>로그인 필요</h3>
+    <p id="modalReason" style="display: none;"></p>
+    <div class="modal-buttons">
+      <button id="btnModalClose" class="btn-secondary">취소</button>
+      <button id="btnModalLogin" class="btn-primary">로그인</button>
+    </div>
+  </div>
+
+  <div id="creditModal" class="modal">
+    <h3>크레딧 부족</h3>
+    <p>필요 크레딧: <strong id="creditModalCost"></strong></p>
+    <p id="creditModalReason" style="display: none;"></p>
+    <div class="modal-buttons">
+      <button id="btnCreditModalClose" class="btn-secondary">확인</button>
+    </div>
+  </div>
+
   <script type="module">
+    import { renderHeader } from './core/header.js';
+    import { createLoginModal, createCreditModal } from './core/modal.js';
+    import { setModals } from './core/gate.js';
+    
+    // Header 초기화
+    const headerEl = document.getElementById("header");
+    if (headerEl) {
+      renderHeader(headerEl);
+    }
+    
+    // 모달 초기화
+    const loginModal = createLoginModal();
+    const creditModal = createCreditModal();
+    setModals(loginModal, creditModal);
+    window.loginModalInstance = loginModal;
+    
+    // 기존 Quick Analyze 로직
     const quickProduct = document.getElementById("quickProduct");
     const quickBrand = document.getElementById("quickBrand");
     const btnQuickAnalyze = document.getElementById("btnQuickAnalyze");

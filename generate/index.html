@@ -101,6 +101,39 @@
     
     <h1>Generate - AI 노출 최적화 HTML</h1>
     
+    <section class="input-group" data-section="url-structure" style="margin-bottom: 24px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+      <h3 style="margin: 0 0 10px 0; font-size: 18px;">URL 구조 점수 (미리보기: 로컬 규칙)</h3>
+      <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--muted);">실제 접속 기반 측정은 Analyze에서 진행</p>
+
+      <label style="display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted);">분석할 URL</label>
+      <input
+        type="url"
+        placeholder="https://example.com/page"
+        data-input="target-url"
+        class="input"
+        style="width: 100%;"
+      />
+
+      <div style="height: 10px;"></div>
+
+      <button
+        type="button"
+        class="btn btn-primary"
+        data-action="run-url-structure"
+      >
+        URL 구조 점수 측정
+      </button>
+
+      <div style="height: 10px;"></div>
+
+      <div
+        data-output="url-structure-result"
+        style="font-size: 13px; color: var(--muted);"
+      >
+        아직 점수 계산/저장 로직은 연결되지 않았습니다. (UI만 복구된 상태)
+      </div>
+    </section>
+    
     <div class="input-group">
       <label for="product">제품명</label>
       <input type="text" id="product" class="input" />
@@ -146,6 +179,10 @@
     import { renderHeader } from '../core/header.js';
     import { createLoginModal, createCreditModal } from '../core/modal.js';
     import { setModals } from '../core/gate.js';
+    import { getState, setState } from '../core/state.js';
+    import { calculateUrlPreviewScore } from './core/urlPreview.js';
+
+    const LS_KEY_URL = '__urlStructureV1';
 
     const root = {
       product: document.getElementById("product"),
@@ -166,6 +203,108 @@
     window.loginModalInstance = loginModal;
 
     bindActions(root);
+
+    // URL 구조 점수 측정 UI
+    (() => {
+      const btn = document.querySelector('[data-action="run-url-structure"]');
+      const input = document.querySelector('[data-input="target-url"]');
+      const out = document.querySelector('[data-output="url-structure-result"]');
+      if (!btn || !input || !out) return;
+
+      // 페이지 로드 시 localStorage에서 복원
+      try {
+        const stored = localStorage.getItem(LS_KEY_URL);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.meta && parsed.meta.targetUrl) {
+            input.value = parsed.meta.targetUrl;
+            if (parsed.score !== undefined && parsed.grade) {
+              const reasons = parsed.reasons || [];
+              const reasonsText = reasons.length > 0 ? `\n${reasons.join('\n')}` : '';
+              out.textContent = `점수: ${parsed.score}점 (${parsed.grade}) - 복원됨${reasonsText}`;
+            }
+          }
+        }
+      } catch (e) {
+        // 조용히 무시
+      }
+
+      btn.addEventListener('click', () => {
+        const url = (input.value || '').trim();
+        if (!url) {
+          out.textContent = 'URL을 입력해주세요.';
+          return;
+        }
+
+        // ✅ [Generate] URL 구조 점수 계산 (로컬 규칙 미리보기)
+        const previewResult = calculateUrlPreviewScore(url);
+        
+        if (!previewResult) {
+          out.textContent = '올바른 URL 형식이 아닙니다.';
+          return;
+        }
+
+        // 디버그 로그 1줄만
+        console.info(`[URL Preview] ${url} → ${previewResult.score}점`);
+
+        // 현재 state 가져오기
+        const currentState = getState();
+        
+        // 결과 생성
+        const urlStructureResult = {
+          score: previewResult.score,
+          grade: previewResult.grade,
+          checks: {
+            pathDepth: previewResult.score >= 80 ? "shallow" : previewResult.score >= 60 ? "moderate" : "deep",
+            queryUsage: previewResult.score >= 60 ? "minimal" : "mixed",
+            slugClarity: previewResult.score >= 60 ? "clear" : "weak"
+          },
+          reasons: previewResult.reasons,
+          meta: {
+            targetUrl: url,
+            analyzedAt: Date.now(),
+            version: "v1",
+            preview: true // 미리보기 표시
+          }
+        };
+
+        // localStorage에 저장
+        try {
+          localStorage.setItem(LS_KEY_URL, JSON.stringify(urlStructureResult));
+        } catch (e) {
+          // 저장 실패 시 조용히 무시
+        }
+
+        // 기존 result가 있으면 병합, 없으면 새로 생성 (기존 score는 유지)
+        const existingResult = currentState.result || {};
+        const updatedResult = {
+          ...existingResult,
+          urlStructureV1: urlStructureResult
+        };
+
+        // state 업데이트
+        setState({
+          result: updatedResult
+        });
+
+        // UI 업데이트
+        const reasonsText = previewResult.reasons.length > 0 ? `\n${previewResult.reasons.join('\n')}` : '';
+        out.textContent = `점수: ${previewResult.score}점 (${previewResult.grade}) - 측정 완료${reasonsText}`;
+      });
+    })();
+
+    // 개발용 디버그 훅 (localhost에서만)
+    if (location.hostname === 'localhost') {
+      window.__debug = window.__debug || {};
+      window.__debug.urlStructure = { LS_KEY_URL };
+      window.__debug.dumpUrlScore = () => {
+        try {
+          return JSON.parse(localStorage.getItem(LS_KEY_URL) || 'null');
+        } catch (e) {
+          return null;
+        }
+      };
+    }
   </script>
 </body>
 </html>
