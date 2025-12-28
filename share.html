@@ -1830,28 +1830,8 @@
         // 기존 localStorage 복원 우선 (회귀 금지)
         const reportModel = await loadReportModel();
         
-        // ✅ [Phase 13-2A] 리포트 로드 실패 배너 표시 여부 확인 (reportModel이 null이 아닐 때도 체크)
-        const shouldShowLoadFailedBanner = (() => {
-          // 조건 (1): r 파라미터가 있는데 서버 스냅샷을 못 불러온 경우 (예: does-not-exist)
-          if (rParam) {
-            // reportModel이 null이거나 빈 객체인 경우
-            if (!reportModel || (typeof reportModel === 'object' && Object.keys(reportModel).length === 0)) {
-              return true;
-            }
-            // reportModel이 있지만 analysis.scores가 없거나 비어있는 경우
-            if (!reportModel.analysis || !reportModel.analysis.scores || Object.keys(reportModel.analysis.scores).length === 0) {
-              return true;
-            }
-          }
-          // 조건 (2): localStorage에 __lastV2가 없어서 fallback이 뜨는 경우 (클리어 케이스)
-          if (!rParam) {
-            const hasLastV2 = window.__lastV2 != null || localStorage.getItem('__lastV2') != null;
-            if (!hasLastV2) {
-              return true;
-            }
-          }
-          return false;
-        })();
+        // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
+        const shouldShowLoadFailedBanner = false;
         
         // ✅ [Phase 14-1] ShareViewState 계산
         const hasParamR = Boolean(rParam);
@@ -1934,17 +1914,55 @@
           </div>
         ` : '';
         
-        // ✅ [Phase 13-2A] 리포트 로드 실패 배너 (조건은 위에서 이미 확인됨)
-        const loadFailedBanner = shouldShowLoadFailedBanner ? `
-          <div class="report-load-failed-banner">
-            <p>저장된 리포트를 찾지 못했습니다. 이 링크에서는 근거를 확인할 수 없습니다. Home에서 다시 분석 후 공유 링크를 생성해 주세요.</p>
-          </div>
-        ` : '';
+        // ✅ [Phase 14-1] 상태 패널 생성 (viewState !== 'OK'일 때만 표시)
+        let statusPanel = '';
+        if (viewState !== 'OK') {
+          let title = '';
+          let message = '';
+          let buttons = '';
+          
+          if (viewState === 'NO_REPORT') {
+            title = '리포트를 불러올 수 없습니다';
+            message = '저장된 리포트가 없습니다. 홈에서 분석을 실행한 후 공유 링크를 생성해 주세요.';
+            buttons = `
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로</a>
+            `;
+          } else if (viewState === 'EXPIRED') {
+            title = '공유 링크가 만료되었습니다';
+            message = '이 링크는 더 이상 유효하지 않습니다. 홈에서 다시 분석 후 새로운 공유 링크를 생성해 주세요.';
+            buttons = `
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈에서 다시 분석</a>
+            `;
+          } else if (viewState === 'OTHER_DEVICE') {
+            title = '다른 기기에서 생성된 링크입니다';
+            message = '이 링크는 다른 브라우저나 기기에서 생성되었습니다. 현재 브라우저에서 생성된 최신 리포트를 보거나 홈으로 이동할 수 있습니다.';
+            buttons = `
+              <a href="./share.html" class="btn-latest" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">최신 리포트 보기</a>
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로</a>
+            `;
+          }
+          
+          statusPanel = `
+            <div class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
+              <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">${esc(title)}</h3>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${esc(message)}</p>
+              <div style="margin-bottom: 16px;">
+                ${buttons}
+              </div>
+              <details style="margin-top: 12px; font-size: 12px; color: #666;">
+                <summary style="cursor: pointer; font-weight: 500;">왜 이 링크가 안 열리나요?</summary>
+                <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
+                  <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 로컬 브라우저에만 리포트를 저장합니다. 다른 기기나 브라우저에서는 리포트를 불러올 수 없습니다. 서버 저장 기능은 향후 제공될 예정입니다.</p>
+                </div>
+              </details>
+            </div>
+          `;
+        }
         
         const reportHeader = `
           <h1>AEO/GEO 분석 리포트</h1>
           <div id="share-status"></div>
-          ${loadFailedBanner}
+          ${statusPanel}
           ${getOnlyNotice}
           <div class="report-header-summary">
             이 리포트는 AI 검색·추천 환경에서 해당 브랜드/콘텐츠가 얼마나 인식 가능한지, 구조적 기준으로 분석한 결과입니다. 점수는 '현재 상태'를 의미하며, 아래 액션은 개선 우선순위를 안내합니다.
@@ -2002,6 +2020,38 @@
             return '';
           })()}
         `;
+        
+        // ✅ [Phase 14-1] viewState !== 'OK'일 때는 헤더만 렌더링하고 KPI/WHY/NextActions 건너뛰기
+        if (viewState !== 'OK') {
+          document.getElementById('reportHeader').innerHTML = reportHeader;
+          const shareContentEl = document.getElementById('shareContent');
+          shareContentEl.innerHTML = '';
+          
+          // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩
+          const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
+          if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+              const shareUrl = copyBtn.getAttribute('data-share-url');
+              if (shareUrl) {
+                try {
+                  await navigator.clipboard.writeText(shareUrl);
+                  const statusEl = document.getElementById('share-status');
+                  if (statusEl) {
+                    statusEl.textContent = '링크가 클립보드에 복사되었습니다.';
+                    statusEl.className = 'show';
+                    setTimeout(() => {
+                      statusEl.className = '';
+                    }, 3000);
+                  }
+                } catch (e) {
+                  console.error('Failed to copy link:', e);
+                }
+              }
+            });
+          }
+          
+          return;
+        }
         
         // ✅ [Phase 8-0] KPI Bar 그래프 (3종 시각화)
         const kpiBar = (label, value) => {
