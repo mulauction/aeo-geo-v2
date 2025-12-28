@@ -1328,9 +1328,9 @@
     import { buildReportPayload } from './core/report.js';
     import { renderKpi } from './core/view.js';
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
-    import { computeReliabilityV2, computeReliability } from './core/reliability.js';
+    import { computeReliabilityV2, computeReliability, getShareViewState } from './core/reliability.js';
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
-    import { extractReasonKeys, buildNextActionsFromReasonKeys } from './core/actionMap.js';
+
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
     // === [Phase 10-0] Share reportId 고정 로직 ===
@@ -1853,6 +1853,27 @@
           return false;
         })();
         
+        // ✅ [Phase 14-1] ShareViewState 계산
+        const hasParamR = Boolean(rParam);
+        const requestedLoaded = reportModel != null && 
+          typeof reportModel === 'object' && 
+          Object.keys(reportModel).length > 0 &&
+          reportModel.analysis &&
+          reportModel.analysis.scores &&
+          Object.keys(reportModel.analysis.scores).length > 0;
+        let hasLastV2 = false;
+        try {
+          const lastV2Str = localStorage.getItem('__lastV2');
+          if (lastV2Str) {
+            JSON.parse(lastV2Str);
+            hasLastV2 = true;
+          }
+        } catch (e) {
+          hasLastV2 = false;
+        }
+        const viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
+        console.info('[ShareViewState]', viewState);
+        
         // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
         if (!reportModel) {
           const params = new URLSearchParams(location.search);
@@ -2028,22 +2049,30 @@
           `;
         }
         
-        // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
-        const { html: reliabilityHtml, bind: bindReliability } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
+        // ✅ [Phase 14-1] KPI/WHY/Next Actions 렌더링 (viewState === 'OK'일 때만)
+        let kpiBars = '';
+        let nextActionsSection = '';
+        let scoreCriteriaToggle = '';
+        let trustStatements = '';
+        let marketContext = '';
         
-        const kpiBars = `
-          <div class="kpi-bars">
-            ${reliabilityHtml}
-            ${kpiBar('Brand', brandingScore)}
-            ${kpiBar('Content Structure', contentStructureV2Score)}
-            ${kpiBar('URL Structure', urlStructureV1Score)}
-          </div>
-          <div id="reliability-badge-slot"></div>
-          <div id="why-panel"></div>
-        `;
+        if (viewState === 'OK') {
+          // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
+          const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
+          
+          kpiBars = `
+            <div class="kpi-bars">
+              ${reliabilityHtml}
+              ${kpiBar('Brand', brandingScore)}
+              ${kpiBar('Content Structure', contentStructureV2Score)}
+              ${kpiBar('URL Structure', urlStructureV1Score)}
+            </div>
+            <div id="reliability-badge-slot"></div>
+            <div id="why-panel"></div>
+          `;
         
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
-        const scoreCriteriaToggle = `
+        scoreCriteriaToggle = `
           <div class="score-criteria-toggle">
             <button class="score-criteria-btn" id="btnScoreCriteria" type="button">
               <span class="caret"></span>
@@ -2060,7 +2089,7 @@
         `;
         
         // ✅ [Phase 8-0] 신뢰 문구 2줄
-        const trustStatements = `
+        trustStatements = `
           <div class="trust-statements">
             <p>이 리포트는 AI 검색·추천 환경에서의 인식 가능성을 구조 중심으로 분석합니다.</p>
             <p>각 항목은 독립적으로 측정되며, '측정 필요' 항목은 점수에 반영되지 않습니다.</p>
@@ -2068,40 +2097,11 @@
         `;
         
         // ✅ [Phase 8-0] 한국 시장 특화 문구 1줄
-        const marketContext = `
+        marketContext = `
           <div class="market-context">
             국내 쇼핑몰은 이미지 중심 구조로 인해 AI가 정보를 해석하기 어려운 경우가 많습니다.
           </div>
         `;
-        
-        // ✅ [Phase 14-1A] Next Actions 섹션 생성 (Reliability reasons 기반 1:1 매핑)
-        const hasReport = reportModel != null && !shouldShowLoadFailedBanner;
-        const reasonKeys = extractReasonKeys(reliabilityResult.reasons || []);
-        const nextActionsRaw = buildNextActionsFromReasonKeys(reasonKeys, hasReport);
-        
-        // Next Actions 섹션 HTML 생성 (요약 형태)
-        let nextActionsSection = '';
-        if (nextActionsRaw.length > 0) {
-          nextActionsSection = `
-            <div class="next-actions-section">
-              <h2>다음 액션 요약</h2>
-              <div class="next-actions-intro">점수를 높이기 위해 지금 가장 먼저 할 작업입니다.</div>
-              <div class="next-actions-grid">
-                ${nextActionsRaw.map(action => `
-                  <div class="next-action-card priority-${action.priority}">
-                    <span class="next-action-badge">${action.priority === 'high' ? '높음' : action.priority === 'medium' ? '중간' : '낮음'}</span>
-                    <div class="next-action-title">${esc(action.title)}</div>
-                    <div class="next-action-description">${esc(action.description)}</div>
-                    ${action.ctaHref ? `
-                      <div class="next-action-cta">
-                        <a href="${esc(action.ctaHref)}">${esc(action.ctaLabel)}</a>
-                      </div>
-                    ` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
         }
         
         // ✅ [Phase 5-8] 콘텐츠 구조 점수 근거 섹션
@@ -2460,16 +2460,13 @@
           renderReliabilityBadge(reliabilityBadgeSlot, reliabilityResult);
         }
         
-        // ✅ WHY 패널 렌더링
-        const whyPanelEl = document.getElementById('why-panel');
-        if (whyPanelEl) {
-          renderWhyPanel(whyPanelEl, reportModel || { analysis: { scores: {} } });
-        }
-        
-        // ✅ [Phase 8-3] 신뢰도 블록 이벤트 바인딩 (모듈화)
-        const kpiBarsEl = shareContentEl.querySelector('.kpi-bars');
-        if (kpiBarsEl) {
-          bindReliability(kpiBarsEl);
+        // ✅ [Phase 14-1] WHY 패널 렌더링 (viewState === 'OK'일 때만)
+        if (viewState === 'OK') {
+          const whyPanelEl = document.getElementById('why-panel');
+          if (whyPanelEl) {
+            renderWhyPanel(whyPanelEl, reportModel || { analysis: { scores: {} } });
+          }
+          
         }
         
         // ✅ [Phase 8-1] 측정 기준 토글 기능
