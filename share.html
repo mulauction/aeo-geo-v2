@@ -1330,6 +1330,7 @@
     import { isLoggedIn, gateOrWarn } from './core/gate.js';
     import { computeReliabilityV2, computeReliability } from './core/reliability.js';
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
+    import { extractReasonKeys, buildNextActionsFromReasonKeys } from './core/actionMap.js';
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
     // === [Phase 10-0] Share reportId 고정 로직 ===
@@ -2073,82 +2074,27 @@
           </div>
         `;
         
-        // ✅ [Phase 9-1] Next Actions 섹션 생성 (요약 형태)
-        const nextActions = [];
-        
-        // 1) reliability.reasons가 있으면: "측정 필요/근거 부족" 액션 생성
-        if (reliabilityResult.reasons && Array.isArray(reliabilityResult.reasons) && reliabilityResult.reasons.length > 0) {
-          const missingItems = [];
-          if (reliabilityResult.reasons.some(r => r.includes('BRAND') && r.includes('미측정'))) {
-            missingItems.push('BRAND');
-          }
-          if (reliabilityResult.reasons.some(r => r.includes('CONTENT') && r.includes('미측정'))) {
-            missingItems.push('CONTENT');
-          }
-          if (reliabilityResult.reasons.some(r => r.includes('URL') && r.includes('미측정'))) {
-            missingItems.push('URL');
-          }
-          
-          if (missingItems.length > 0) {
-            nextActions.push({
-              priority: 'high',
-              title: '누락된 항목 측정하기',
-              description: `${missingItems.join(', ')} 항목을 측정하여 신뢰도를 높이세요.`,
-              cta: null
-            });
-          }
-        }
-        
-        // 2) contentStructureV2.evidence가 비면: 콘텐츠 구조 개선 액션 생성
-        const hasContentEvidence = contentStructureV2Score && 
-          contentStructureV2Score.evidence && 
-          Array.isArray(contentStructureV2Score.evidence) && 
-          contentStructureV2Score.evidence.length > 0;
-        
-        if (!hasContentEvidence) {
-          nextActions.push({
-            priority: 'medium',
-            title: '콘텐츠 구조 근거 수집하기',
-            description: 'Analyze 화면에서 콘텐츠를 분석하여 근거를 생성하세요.',
-            cta: { text: 'Analyze로 이동', href: './analyze.html' }
-          });
-        }
-        
-        // 3) urlStructureV1이 없으면: URL 측정 액션 생성 (+ Analyze로 이동)
-        const isUrlMeasured = urlStructureV1Score && 
-          urlStructureV1Score.score !== null && 
-          urlStructureV1Score.score !== undefined &&
-          !isNaN(urlStructureV1Score.score) &&
-          isFinite(urlStructureV1Score.score);
-        
-        if (!isUrlMeasured) {
-          nextActions.push({
-            priority: 'high',
-            title: 'URL 구조 측정하기',
-            description: 'Analyze 화면에서 URL 구조를 분석하여 점수를 생성하세요.',
-            cta: { text: 'Analyze로 이동', href: './analyze.html' }
-          });
-        }
+        // ✅ [Phase 14-1A] Next Actions 섹션 생성 (Reliability reasons 기반 1:1 매핑)
+        const hasReport = reportModel != null && !shouldShowLoadFailedBanner;
+        const reasonKeys = extractReasonKeys(reliabilityResult.reasons || []);
+        const nextActionsRaw = buildNextActionsFromReasonKeys(reasonKeys, hasReport);
         
         // Next Actions 섹션 HTML 생성 (요약 형태)
         let nextActionsSection = '';
-        if (nextActions.length > 0) {
-          // 기본 3개 + 상황별 최대 2개 (총 5개 초과 금지)
-          const actionsToShow = nextActions.slice(0, 5);
-          
+        if (nextActionsRaw.length > 0) {
           nextActionsSection = `
             <div class="next-actions-section">
               <h2>다음 액션 요약</h2>
               <div class="next-actions-intro">점수를 높이기 위해 지금 가장 먼저 할 작업입니다.</div>
               <div class="next-actions-grid">
-                ${actionsToShow.map(action => `
+                ${nextActionsRaw.map(action => `
                   <div class="next-action-card priority-${action.priority}">
                     <span class="next-action-badge">${action.priority === 'high' ? '높음' : action.priority === 'medium' ? '중간' : '낮음'}</span>
                     <div class="next-action-title">${esc(action.title)}</div>
                     <div class="next-action-description">${esc(action.description)}</div>
-                    ${action.cta ? `
+                    ${action.ctaHref ? `
                       <div class="next-action-cta">
-                        <a href="${esc(action.cta.href)}">${esc(action.cta.text)}</a>
+                        <a href="${esc(action.ctaHref)}">${esc(action.ctaLabel)}</a>
                       </div>
                     ` : ''}
                   </div>
