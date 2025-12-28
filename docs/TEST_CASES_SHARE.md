@@ -257,6 +257,43 @@ Action line must be a verb sentence that targets the top missing signal:
 
 ---
 
+---
+
+## ✅ [Phase 14-1] Share Empty UX Baseline Checkpoint
+
+**기준 문서**: `docs/PHASE14_1_SHARE_EMPTY_UX_BASELINE.md`
+
+### 통과 조건 (5개)
+
+1. **NO_REPORT → 노란 상태 배너 정상 노출 (로그인 화면 X)**
+   - viewState가 'NO_REPORT'일 때 노란색 상태 패널이 정상적으로 표시됨
+   - 로그인 화면으로 리다이렉트되지 않음
+
+2. **OTHER_DEVICE → 노란 상태 배너 + 최신 리포트/홈 버튼 정상**
+   - viewState가 'OTHER_DEVICE'일 때 노란색 상태 패널이 표시됨
+   - "최신 리포트 보기" 및 "홈으로" 버튼이 정상적으로 동작함
+
+3. **정상 r 값 → OK 상태로 리포트 렌더링**
+   - 유효한 r 파라미터가 있을 때 viewState가 'OK'로 설정됨
+   - 리포트가 정상적으로 렌더링됨
+
+4. **next-actions 블록 완전 제거됨**
+   - share.html에서 next-actions 관련 코드가 완전히 제거됨
+   - extractReasonKeys, buildNextActionsFromReasonKeys 등 actionMap 관련 의존성 없음
+
+5. **콘솔 에러 없음**
+   - 브라우저 콘솔에 JavaScript 에러가 없음
+   - 모든 참조가 정상적으로 해결됨
+
+### 절대 금지 규칙
+
+- share.html의 viewState 분기(NO_REPORT/OTHER_DEVICE/OK) 흐름 변경 금지
+- next-actions 블록 재도입 금지
+- localStorage 스키마/복원 파이프라인(__lastV2, reportModel 등) 변경 금지
+- UI-only 변경만 허용, 로직/저장/스키마 변경 금지
+
+---
+
 ## Notes
 
 - These tests focus on **UI rendering** and **error handling**, not on data correctness
