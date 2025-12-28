@@ -1922,13 +1922,8 @@
           let buttons = '';
           
           if (viewState === 'NO_REPORT') {
-<<<<<<< HEAD
             title = '공유할 리포트가 없습니다';
             message = '현재 기기에는 공유할 리포트가 없습니다. 홈에서 분석을 실행해 주세요.';
-=======
-            title = '리포트가 아직 생성되지 않았습니다';
-            message = '분석 결과가 아직 저장되지 않았습니다. 홈에서 분석을 실행하시면 리포트를 확인할 수 있습니다.';
->>>>>>> fc209e6 (chore(share): polish empty-state copy (UI-only))
             buttons = `
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로</a>
             `;
@@ -1939,13 +1934,8 @@
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈에서 다시 분석</a>
             `;
           } else if (viewState === 'OTHER_DEVICE') {
-<<<<<<< HEAD
             title = '다른 기기에서 생성된 최신 리포트가 있습니다';
             message = '현재 브라우저에서 생성된 최신 리포트를 보거나 홈으로 이동할 수 있습니다.';
-=======
-            title = '다른 기기에서 생성된 링크입니다';
-            message = '이 링크는 다른 브라우저나 기기에서 생성되었습니다. 현재 브라우저에서 생성된 최신 리포트를 확인하거나 홈으로 이동할 수 있습니다.';
->>>>>>> fc209e6 (chore(share): polish empty-state copy (UI-only))
             buttons = `
               <a href="./share.html" class="btn-latest" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">최신 리포트 보기</a>
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로</a>
