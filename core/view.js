@@ -1,3 +1,21 @@
+/**
+ * ⚠️ [PRODUCT_PRINCIPLES] core/view.js - Score Mutation 금지
+ * 
+ * 이 모듈은 렌더링(display)만 담당합니다.
+ * 
+ * 절대 금지 사항:
+ * - ❌ analysis.scores를 계산하거나 변경할 수 없습니다
+ * - ❌ computeContentStructureV2, computeBrandingScore 등을 호출할 수 없습니다
+ * - ❌ 점수를 재계산하거나 업데이트할 수 없습니다
+ * 
+ * 허용되는 것:
+ * - ✅ state.analysis.scores 또는 evidence.v2Summary.analysis.scores를 읽어서 표시합니다
+ * - ✅ display-only 계산 (렌더링을 위한 임시 계산, 실제 scores에는 영향 없음)
+ * - ✅ simulatedScoreDeltas를 사용하여 표시용 점수만 계산합니다
+ * 
+ * 참고: WHY 시뮬레이터와 AB Compare는 display-only로 동작하며,
+ * 실제 analysis.scores를 변경하지 않고 표시만 변경합니다.
+ */
 import { isLoggedIn } from "./gate.js";
 import { loadEvidence, getCurrentEvidence, appendEvidence } from "./evidenceStore.js";
 import { buildEvidenceFromViewContext } from "./evidenceBuilder.js";
@@ -1075,8 +1093,11 @@ function getEvidenceBullets(entry, scores) {
 
 /**
  * ✅ [Phase 7-3B] 더미 개선안 생성 함수
+ * ⚠️ [PRODUCT_PRINCIPLES] Score Mutation 금지
+ * 이 함수는 analysis.scores를 변경하지 않습니다. display-only로 simulatedScoreDeltas만 생성합니다.
+ * 
  * @param {Object} baseEvidence - 현재 evidence (currentEvidence)
- * @returns {Array} 더미 개선안 배열 [{id, label, evidenceLike}]
+ * @returns {Array} 더미 개선안 배열 [{id, label, evidenceLike, simulatedScoreDeltas}]
  */
 function buildDummyImprovementDrafts(baseEvidence) {
   try {
@@ -1087,7 +1108,7 @@ function buildDummyImprovementDrafts(baseEvidence) {
     // 깊은 복사
     const baseCopy = JSON.parse(JSON.stringify(baseEvidence));
     
-    // v1: 점수 약간 증가
+    // v1: 점수 변경 없이 원본 유지, simulatedScoreDeltas만 생성
     const v1Copy = JSON.parse(JSON.stringify(baseCopy));
     if (!v1Copy.v2Summary) {
       v1Copy.v2Summary = {};
@@ -1095,38 +1116,32 @@ function buildDummyImprovementDrafts(baseEvidence) {
     if (!v1Copy.v2Summary.analysis) {
       v1Copy.v2Summary.analysis = {};
     }
-    if (!v1Copy.v2Summary.analysis.scores) {
-      v1Copy.v2Summary.analysis.scores = {};
-    }
+    // ⚠️ [PRODUCT_PRINCIPLES] analysis.scores는 변경하지 않음 (원본 유지)
+    // 렌더링 시 simulatedScoreDeltas를 사용하여 표시만 변경
     
-    // 점수 조정 (기존 점수에서 소폭 증가, clamp 0~100)
-    const adjustScore = (scoreObj, delta) => {
-      const baseScore = scoreObj && scoreObj.score !== null && scoreObj.score !== undefined ? scoreObj.score : 50;
-      return { ...(scoreObj || {}), score: Math.max(0, Math.min(100, baseScore + delta)) };
-    };
-    
-    v1Copy.v2Summary.analysis.scores = {
-      ...v1Copy.v2Summary.analysis.scores,
-      branding: adjustScore(v1Copy.v2Summary.analysis.scores.branding, 6),
-      contentStructureV2: adjustScore(v1Copy.v2Summary.analysis.scores.contentStructureV2, 10),
-      urlStructureV1: adjustScore(v1Copy.v2Summary.analysis.scores.urlStructureV1, 4)
-    };
-    
-    // v1: insight 수정
+    // v1: insight 수정 (metadata만 변경, scores는 변경 안 함)
     v1Copy.v2Summary.insight = "개선안 v1: 콘텐츠 구조와 브랜딩 요소가 개선되었습니다.";
     
-    // v1: evidence 배열 조작 (추가됨 1~2개)
+    // v1: evidence 배열 조작 (추가됨 1~2개) - display-only
+    // ⚠️ [PRODUCT_PRINCIPLES] evidence는 display-only로만 사용되며, 실제 scores에는 영향 없음
     const v1EvidencePath = v1Copy.v2Summary?.analysis?.scores?.contentStructureV2;
     if (v1EvidencePath) {
       if (!v1EvidencePath.evidence || !Array.isArray(v1EvidencePath.evidence)) {
         v1EvidencePath.evidence = [];
       }
-      // 추가: 1~2개 (기존 compare가 읽는 경로 그대로 사용)
+      // 추가: 1~2개 (기존 compare가 읽는 경로 그대로 사용, display-only)
       v1EvidencePath.evidence.push("H3 제목 부재: 서브섹션 구조 개선 필요");
       v1EvidencePath.evidence.push("UL 리스트 구조 부족: 항목 명확화 필요");
     }
     
-    // v2: 점수 더 많이 증가
+    // v1: simulatedScoreDeltas 생성 (display-only)
+    const v1SimulatedDeltas = {
+      branding: 6,
+      contentStructureV2: 10,
+      urlStructureV1: 4
+    };
+    
+    // v2: 점수 변경 없이 원본 유지, simulatedScoreDeltas만 생성
     const v2Copy = JSON.parse(JSON.stringify(baseCopy));
     if (!v2Copy.v2Summary) {
       v2Copy.v2Summary = {};
@@ -1134,39 +1149,37 @@ function buildDummyImprovementDrafts(baseEvidence) {
     if (!v2Copy.v2Summary.analysis) {
       v2Copy.v2Summary.analysis = {};
     }
-    if (!v2Copy.v2Summary.analysis.scores) {
-      v2Copy.v2Summary.analysis.scores = {};
-    }
+    // ⚠️ [PRODUCT_PRINCIPLES] analysis.scores는 변경하지 않음 (원본 유지)
     
-    v2Copy.v2Summary.analysis.scores = {
-      ...v2Copy.v2Summary.analysis.scores,
-      branding: adjustScore(v2Copy.v2Summary.analysis.scores.branding, 12),
-      contentStructureV2: adjustScore(v2Copy.v2Summary.analysis.scores.contentStructureV2, 18),
-      urlStructureV1: adjustScore(v2Copy.v2Summary.analysis.scores.urlStructureV1, 8)
-    };
-    
-    // v2: insight 수정
+    // v2: insight 수정 (metadata만 변경, scores는 변경 안 함)
     v2Copy.v2Summary.insight = "개선안 v2: 대폭적인 구조 개선과 브랜딩 강화가 이루어졌습니다.";
     
-    // v2: evidence 배열 조작 (추가됨 2~3개, 제거됨 1개)
+    // v2: evidence 배열 조작 (추가됨 2~3개, 제거됨 1개) - display-only
     const v2EvidencePath = v2Copy.v2Summary?.analysis?.scores?.contentStructureV2;
     if (v2EvidencePath) {
       if (!v2EvidencePath.evidence || !Array.isArray(v2EvidencePath.evidence)) {
         v2EvidencePath.evidence = [];
       }
-      // 추가: 2~3개
+      // 추가: 2~3개 (display-only)
       v2EvidencePath.evidence.push("H2 제목 부재: 섹션 구조 명확화 필요");
       v2EvidencePath.evidence.push("H3 제목 부재: 서브섹션 구조 개선 필요");
       v2EvidencePath.evidence.push("핵심 문장 부족: 중요 정보 부각 필요");
-      // 제거: 1개 (첫 번째 항목이 있으면 제거)
+      // 제거: 1개 (첫 번째 항목이 있으면 제거, display-only)
       if (v2EvidencePath.evidence.length > 3) {
         v2EvidencePath.evidence.splice(0, 1);
       }
     }
     
+    // v2: simulatedScoreDeltas 생성 (display-only)
+    const v2SimulatedDeltas = {
+      branding: 12,
+      contentStructureV2: 18,
+      urlStructureV1: 8
+    };
+    
     return [
-      { id: "ab_v1", label: "개선안 v1", evidenceLike: v1Copy },
-      { id: "ab_v2", label: "개선안 v2", evidenceLike: v2Copy }
+      { id: "ab_v1", label: "개선안 v1", evidenceLike: v1Copy, simulatedScoreDeltas: v1SimulatedDeltas },
+      { id: "ab_v2", label: "개선안 v2", evidenceLike: v2Copy, simulatedScoreDeltas: v2SimulatedDeltas }
     ];
   } catch (error) {
     if (globalThis.DEBUG) {
@@ -1227,6 +1240,8 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
   }
   
   // ✅ [Phase 7-3B] AB Compare: 선택된 draft로 currentEvidence 교체 (함수 스코프에서 실행)
+  // ⚠️ [PRODUCT_PRINCIPLES] selectedDraft는 display-only로만 사용되며, analysis.scores를 변경하지 않음
+  let selectedDraftForRender = null;
   try {
     currentEvidenceForRender = currentEvidence; // 기본값: currentEvidence
     if (__abDrafts.length > 0 && currentEvidence) {
@@ -1237,6 +1252,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
       const selectedDraft = __abDrafts.find(d => d.id === __abSelectedId);
       if (selectedDraft && selectedDraft.evidenceLike) {
         currentEvidenceForRender = selectedDraft.evidenceLike;
+        selectedDraftForRender = selectedDraft; // simulatedScoreDeltas를 위해 저장
       }
     }
   } catch (error) {
@@ -1627,16 +1643,23 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
             `;
             
             // ✅ [Phase 7-2B] WHY 패널: KPI 점수 변화 설명 (실제 evidence 비교 기반)
+            // ⚠️ [PRODUCT_PRINCIPLES] 이 섹션은 display-only로 점수를 계산합니다. 실제 analysis.scores는 변경하지 않습니다.
             let whyPanelHtml = '';
             try {
               // selectedScores와 prevScores 추출
               // ✅ [Phase 7-3B] AB Compare: currentEvidenceForRender 사용
-              let selectedScores = currentEvidenceForRender?.v2Summary?.analysis?.scores || scores || {};
-              let prevScores = prevEvidence?.v2Summary?.analysis?.scores || {};
+              // ⚠️ [PRODUCT_PRINCIPLES] 원본 scores를 읽기만 하고, 변경하지 않음
+              const originalSelectedScores = currentEvidenceForRender?.v2Summary?.analysis?.scores || scores || {};
+              const originalPrevScores = prevEvidence?.v2Summary?.analysis?.scores || {};
               
-              // ✅ [Phase 7-2B] 시뮬레이터 모드일 때 가짜 점수 주입
+              // ⚠️ [PRODUCT_PRINCIPLES] display-only 계산: simulatedScoreDeltas를 사용하여 표시용 점수만 계산
+              // 실제 analysis.scores는 변경하지 않음
+              let selectedScores = originalSelectedScores;
+              let prevScores = originalPrevScores;
+              
+              // ✅ [Phase 7-2B] WHY 시뮬레이터 모드일 때 가짜 점수 주입 (display-only)
               if (simulatedScoreDeltas !== null) {
-                // 가짜 점수 생성: prevScores를 기준으로 delta를 더해서 selectedScores 생성
+                // 가짜 점수 생성: prevScores를 기준으로 delta를 더해서 selectedScores 생성 (display-only)
                 // prevScores가 없으면 기본값(score: 0) 사용
                 const getBaseScore = (scoreObj) => {
                   if (scoreObj && scoreObj.score !== null && scoreObj.score !== undefined) {
@@ -1652,6 +1675,7 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
                   urlStructureV1: prevScores.urlStructureV1 ? { ...prevScores.urlStructureV1 } : { score: 0 }
                 };
                 
+                // display-only 계산된 점수 (실제 scores는 변경하지 않음)
                 selectedScores = {
                   branding: {
                     ...prevScoresCopy.branding,
@@ -1667,7 +1691,41 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
                   }
                 };
                 
-                // prevScores를 복사본으로 교체 (WHY 패널에서 사용)
+                // prevScores를 복사본으로 교체 (WHY 패널에서 사용, display-only)
+                prevScores = prevScoresCopy;
+              } else if (selectedDraftForRender && selectedDraftForRender.simulatedScoreDeltas) {
+                // ⚠️ [PRODUCT_PRINCIPLES] AB Compare draft의 simulatedScoreDeltas 사용 (display-only)
+                // 실제 analysis.scores는 변경하지 않고, 표시용으로만 계산
+                const draftDeltas = selectedDraftForRender.simulatedScoreDeltas;
+                const getBaseScore = (scoreObj) => {
+                  if (scoreObj && scoreObj.score !== null && scoreObj.score !== undefined) {
+                    return scoreObj.score;
+                  }
+                  return 0;
+                };
+                
+                // 원본 prevScores를 기준으로 delta를 적용하여 display-only 점수 계산
+                const prevScoresCopy = {
+                  branding: originalPrevScores.branding ? { ...originalPrevScores.branding } : { score: 0 },
+                  contentStructureV2: originalPrevScores.contentStructureV2 ? { ...originalPrevScores.contentStructureV2 } : { score: 0 },
+                  urlStructureV1: originalPrevScores.urlStructureV1 ? { ...originalPrevScores.urlStructureV1 } : { score: 0 }
+                };
+                
+                selectedScores = {
+                  branding: {
+                    ...prevScoresCopy.branding,
+                    score: getBaseScore(prevScoresCopy.branding) + (draftDeltas.branding || 0)
+                  },
+                  contentStructureV2: {
+                    ...prevScoresCopy.contentStructureV2,
+                    score: getBaseScore(prevScoresCopy.contentStructureV2) + (draftDeltas.contentStructureV2 || 0)
+                  },
+                  urlStructureV1: {
+                    ...prevScoresCopy.urlStructureV1,
+                    score: getBaseScore(prevScoresCopy.urlStructureV1) + (draftDeltas.urlStructureV1 || 0)
+                  }
+                };
+                
                 prevScores = prevScoresCopy;
               }
               

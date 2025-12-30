@@ -144,7 +144,9 @@ export function promoteUrlStructureScore(state) {
       ts: Date.now()
     };
   } else {
-    // 없으면 null로 세팅
+    // ⚠️ [PRODUCT_PRINCIPLES] 없으면 null로 세팅
+    // 이것은 점수 변경이 아니라 "관측 데이터 없음"을 명시하는 것입니다.
+    // URL 구조 점수가 측정되지 않았거나 연결되지 않았음을 나타냅니다.
     newState.analysis.scores.urlStructureV1 = null;
   }
 

@@ -30,6 +30,11 @@ export function bindActions(root) {
 
       spendCredit(1);
 
+      // ⚠️ [PRODUCT_PRINCIPLES] SCORE MUTATION 허용 영역 시작
+      // Analyze 단계는 유일하게 점수를 생성/변경할 수 있는 경로입니다.
+      // 이 영역에서만 computeContentStructureV2, computeBrandingScore 등을 호출하여 점수를 계산합니다.
+      // 다른 단계(Generate, Amplify)에서는 절대 점수를 변경할 수 없습니다.
+
       // ✅ [Phase 3-2B] Content Structure V2 계산
       const contentStructureV2Result = computeContentStructureV2(input);
 
@@ -51,7 +56,9 @@ export function bindActions(root) {
         }
       }
 
-      // ✅ [brand/product 변경 감지] 이전 __lastV2와 비교하여 URL 데이터 초기화 여부 결정
+      // ✅ [brand/product 변경 감지] 이전 __lastV2와 비교하여 URL 관측 데이터 초기화 여부 결정
+      // ⚠️ [PRODUCT_PRINCIPLES] 이것은 점수 변경이 아니라 관측 데이터 삭제입니다.
+      // brand/product가 변경되면 이전 URL 관측 데이터는 더 이상 유효하지 않으므로 null로 설정합니다.
       let shouldResetUrlData = false;
       let prevLastV2 = null;
       try {
@@ -64,7 +71,7 @@ export function bindActions(root) {
             const currentBrand = brandFromUrl || '';
             const currentProduct = productFromUrl || '';
             
-            // brand 또는 product가 변경되었으면 URL 데이터 초기화
+            // brand 또는 product가 변경되었으면 URL 관측 데이터 초기화 (관측 데이터 삭제)
             if (prevBrand !== currentBrand || prevProduct !== currentProduct) {
               shouldResetUrlData = true;
             }
@@ -74,13 +81,17 @@ export function bindActions(root) {
         // 이전 __lastV2 읽기 실패 시 조용히 무시 (새 분석으로 간주)
       }
 
-      // ✅ analysis.scores 명시적으로 재구성 (merge하지 않음, brand/product 변경 시 URL 초기화)
+      // ✅ analysis.scores 명시적으로 재구성 (merge하지 않음, brand/product 변경 시 URL 관측 데이터 초기화)
+      // ⚠️ [PRODUCT_PRINCIPLES] 이 부분에서 analysisScores 객체를 생성합니다.
+      // 이는 Analyze 단계에서만 허용되는 점수 생성/변경 작업입니다.
+      // urlStructureV1 = null은 점수 변경이 아니라 관측 데이터 삭제입니다.
       const currentState = getState();
       const analysisScores = {
         branding: brandingResult,
         contentStructureV2: contentStructureV2Result,
         urlStructureV1: shouldResetUrlData ? null : (currentState.analysis?.scores?.urlStructureV1 || null)
       };
+      // ⚠️ [PRODUCT_PRINCIPLES] SCORE MUTATION 허용 영역 종료
 
       // ✅ [Phase 5-0 Commit C] Evidence 계산 (옵션 슬롯)
       let evidenceData = null;

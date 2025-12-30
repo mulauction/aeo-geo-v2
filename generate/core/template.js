@@ -1,3 +1,16 @@
+/**
+ * ⚠️ [PRODUCT_PRINCIPLES] Generate 템플릿 - Score Mutation 금지
+ * 
+ * 이 모듈은 Generate 단계에서 사용하는 템플릿 함수입니다.
+ * 
+ * 절대 금지 사항:
+ * - ❌ 점수를 계산하거나 변경할 수 없습니다
+ * - ❌ Analyze 단계의 점수를 읽거나 수정할 수 없습니다
+ * 
+ * 역할:
+ * - ✅ HTML 콘텐츠 생성만 수행합니다
+ * - ✅ 생성된 콘텐츠는 점수에 영향을 주지 않습니다
+ */
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -34,6 +47,7 @@ export function generateHTML(product, brand, usecase) {
   </section>
 </div>`;
 }
+
 
 
 

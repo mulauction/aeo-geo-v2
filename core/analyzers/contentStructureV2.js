@@ -1,6 +1,13 @@
 /**
  * ✅ [Phase 3-2B] Content Structure V2 분석기
  * 순수 함수로 구현되어 상태 저장/로컬스토리지 직접 접근 금지
+ * 
+ * ⚠️ [PRODUCT_PRINCIPLES] Score Mutation 허용 함수
+ * 
+ * 이 모듈은 Analyze 단계에서만 호출되어야 합니다.
+ * - ✅ Analyze 단계에서 점수를 계산합니다
+ * - ❌ Generate나 Amplify 단계에서 호출되어서는 안 됩니다
+ * - ❌ 점수를 변경하거나 재계산하는 용도로 사용되어서는 안 됩니다
  */
 
 /**
