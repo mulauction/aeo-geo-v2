@@ -159,31 +159,87 @@
     <!-- ✅ [Phase 15-2] 4종 고정 출력 섹션 -->
     <div style="margin-top: 32px; padding-top: 32px; border-top: 2px solid var(--border);">
       <h2 style="margin: 0 0 16px 0; font-size: 20px;">4종 생성 출력</h2>
+      
+      <!-- ✅ [Phase 15-2] "4종 출력이란?" 안내 카드 -->
+      <div style="margin-bottom: 24px; padding: 16px; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: var(--radius);">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #0066cc;">4종 출력이란?</h3>
+        <div style="display: grid; gap: 8px; font-size: 14px; line-height: 1.6; color: #333;">
+          <div><strong>AI 설명:</strong> 제품/브랜드/사용상황을 AI가 이해하기 쉽게 요약 (모델이 답변에 인용하기 좋게)</div>
+          <div><strong>FAQ:</strong> 구매 전 질문을 구조화 (대화형 검색/AI 쇼핑 질의 대응)</div>
+          <div><strong>비교:</strong> 경쟁상품 대비 강점 포인트를 정리 (추천/비교질의 대응)</div>
+          <div><strong>요약:</strong> 페이지 최상단 3~5문장 요약 (인용/스니펫 대응)</div>
+        </div>
+      </div>
+      
       <button id="btnGen4" class="btn btn-primary" style="margin-bottom: 24px;">4종 생성</button>
       
       <div style="display: grid; gap: 20px;">
         <!-- AI 설명 -->
         <div class="gen-output-section" data-section="ai-description">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">AI 설명</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600;">AI 설명</h3>
+            <button class="btn-copy-output" data-copy-target="output-ai-description" style="padding: 4px 12px; font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">복사</button>
+          </div>
           <div id="output-ai-description" style="min-height: 100px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap;">생성된 내용이 여기에 표시됩니다.</div>
         </div>
         
         <!-- FAQ -->
         <div class="gen-output-section" data-section="faq">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">FAQ</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600;">FAQ</h3>
+            <button class="btn-copy-output" data-copy-target="output-faq" style="padding: 4px 12px; font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">복사</button>
+          </div>
           <div id="output-faq" style="min-height: 100px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap;">생성된 내용이 여기에 표시됩니다.</div>
         </div>
         
         <!-- 비교 -->
         <div class="gen-output-section" data-section="compare">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">비교</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600;">비교</h3>
+            <button class="btn-copy-output" data-copy-target="output-compare" style="padding: 4px 12px; font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">복사</button>
+          </div>
           <div id="output-compare" style="min-height: 100px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap;">생성된 내용이 여기에 표시됩니다.</div>
         </div>
         
         <!-- 요약 -->
         <div class="gen-output-section" data-section="summary">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">요약</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600;">요약</h3>
+            <button class="btn-copy-output" data-copy-target="output-summary" style="padding: 4px 12px; font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">복사</button>
+          </div>
           <div id="output-summary" style="min-height: 100px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap;">생성된 내용이 여기에 표시됩니다.</div>
+        </div>
+      </div>
+      
+      <!-- ✅ [Phase 15-2] "어디에 붙이나요?" 섹션 -->
+      <div style="margin-top: 32px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">어디에 붙이나요?</h3>
+        <div style="font-size: 14px; line-height: 1.7; color: var(--text);">
+          <div style="margin-bottom: 12px;">
+            <strong>스마트스토어/쿠팡:</strong> 상세페이지 하단 '텍스트/HTML 영역' 또는 '상세 설명'에 삽입 권장
+          </div>
+          <div style="margin-bottom: 12px;">
+            <strong>Webflow/자사몰:</strong> 제품 상세 하단에 HTML 블록으로 삽입
+          </div>
+          <div style="margin-bottom: 12px;">
+            <strong>블로그:</strong> 본문 상단 요약 + 중간 FAQ
+          </div>
+          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);">
+            주의: 과장/없는 기능 금지, 실제 정보로 수정 후 사용
+          </div>
+        </div>
+      </div>
+      
+      <!-- ✅ [Phase 15-2] "결과값이 매번 바뀌나요?" 섹션 -->
+      <div style="margin-top: 16px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">결과값이 매번 바뀌나요?</h3>
+        <div style="font-size: 14px; line-height: 1.7; color: var(--text);">
+          <p style="margin: 0 0 8px 0;">
+            현재는 <strong>(테스트용/템플릿 기반)</strong>이라 입력이 같으면 거의 동일하게 나옵니다.
+          </p>
+          <p style="margin: 0; font-size: 12px; color: var(--muted);">
+            향후 API 연결/리라이팅 모드에서 변동 가능합니다.
+          </p>
         </div>
       </div>
     </div>
@@ -346,6 +402,140 @@
     if (savedOutputs) {
       renderGenOutputs(savedOutputs);
     }
+    
+    /**
+     * ✅ [Phase 15-2] 클립보드 복사 함수 (fallback 포함)
+     * @param {string} text - 복사할 텍스트
+     * @returns {Promise<boolean>} 성공 여부
+     */
+    async function copyToClipboard(text) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (e) {
+        // clipboard API 실패 시 fallback 시도
+      }
+      
+      // Fallback: textarea 생성 → select → execCommand
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-999999px';
+        textarea.style.top = '-999999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return success;
+      } catch (e) {
+        return false;
+      }
+    }
+    
+    /**
+     * ✅ [Phase 15-2] 토스트 메시지 표시 함수
+     * @param {string} message - 표시할 메시지
+     */
+    function showToast(message) {
+      // 기존 토스트 제거
+      const existingToast = document.getElementById('gen-toast');
+      if (existingToast) {
+        existingToast.remove();
+      }
+      
+      const toast = document.createElement('div');
+      toast.id = 'gen-toast';
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 16px;
+        background: #4caf50;
+        color: white;
+        border-radius: 4px;
+        font-size: 13px;
+        z-index: 10000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        animation: toastSlideIn 0.3s ease-out;
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'toastSlideOut 0.3s ease-out';
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 300);
+      }, 1000);
+    }
+    
+    // ✅ [Phase 15-2] 토스트 애니메이션 CSS 추가 (1회만)
+    if (!document.getElementById('gen-toast-styles')) {
+      const style = document.createElement('style');
+      style.id = 'gen-toast-styles';
+      style.textContent = `
+        @keyframes toastSlideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes toastSlideOut {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    // ✅ [Phase 15-2] 복사 버튼 이벤트 바인딩
+    document.querySelectorAll('.btn-copy-output').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetId = btn.getAttribute('data-copy-target');
+        if (!targetId) return;
+        
+        const targetEl = document.getElementById(targetId);
+        if (!targetEl) return;
+        
+        const textToCopy = targetEl.textContent || '';
+        if (!textToCopy || textToCopy.trim() === '' || textToCopy === '생성된 내용이 여기에 표시됩니다.') {
+          showToast('복사할 내용이 없습니다');
+          return;
+        }
+        
+        const success = await copyToClipboard(textToCopy);
+        if (success) {
+          const originalText = btn.textContent;
+          btn.textContent = '복사됨';
+          btn.style.background = '#4caf50';
+          btn.style.color = 'white';
+          showToast('클립보드에 복사되었습니다');
+          
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '';
+            btn.style.color = '';
+          }, 1000);
+        } else {
+          showToast('복사 실패: 브라우저 권한을 확인해주세요');
+        }
+      });
+    });
 
     // URL 구조 점수 측정 UI
     (() => {
