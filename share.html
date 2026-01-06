@@ -1333,6 +1333,107 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
+    // ✅ [Phase 16-1] 참고 관측(Observation Lite) 섹션 렌더링 함수
+    // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 읽어서 표시합니다.
+    function renderObservationLiteSection() {
+      const LS_KEY_OBS_LITE = '__obsLiteV1';
+      const MAX_DISPLAY_ITEMS = 3;
+      
+      // reportId 가져오기
+      const urlParams = new URLSearchParams(location.search);
+      let currentReportId = urlParams.get('r');
+      if (!currentReportId) {
+        currentReportId = localStorage.getItem('__currentReportId') || '';
+      }
+      
+      if (!currentReportId) {
+        return null; // reportId가 없으면 표시하지 않음
+      }
+      
+      // Observation Lite 데이터 로드
+      let items = [];
+      try {
+        const stored = localStorage.getItem(LS_KEY_OBS_LITE);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object' && parsed[currentReportId]) {
+            items = parsed[currentReportId] || [];
+          }
+        }
+      } catch (e) {
+        console.warn('[Observation Lite] 로드 실패:', e);
+        return null;
+      }
+      
+      // 최신 3개까지만 표시
+      const displayItems = items.slice(0, MAX_DISPLAY_ITEMS);
+      
+      // HTML 이스케이프 함수
+      function esc(v) {
+        if (v === null || v === undefined) return '';
+        return String(v)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+      
+      // 텍스트 줄임 처리 (최대 2-3줄)
+      function truncateText(text, maxLength = 150) {
+        if (!text) return '';
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+      }
+      
+      let itemsHtml = '';
+      if (displayItems.length === 0) {
+        itemsHtml = '<p style="font-size: 12px; color: var(--muted); text-align: center; padding: 12px; margin: 0;">저장된 관측 데이터가 없습니다.</p>';
+      } else {
+        itemsHtml = displayItems.map((item) => {
+          const dateText = item.createdAt 
+            ? new Date(item.createdAt).toLocaleString('ko-KR', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              }) 
+            : '';
+          
+          const question = esc(item.question || '질문 없음');
+          const prompt = esc(truncateText(item.prompt || '', 120));
+          const response = esc(truncateText(item.response || '', 150));
+          
+          return `
+            <div style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                <div style="font-size: 11px; font-weight: 600; color: var(--text); flex: 1;">${question}</div>
+                <div style="font-size: 10px; color: var(--muted); margin-left: 8px; white-space: nowrap;">${esc(dateText)}</div>
+              </div>
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 10px; color: var(--muted); margin-bottom: 2px;">Prompt:</div>
+                <div style="font-size: 11px; color: var(--text); padding: 4px 6px; background: var(--background); border-radius: 3px; line-height: 1.4;">${prompt}</div>
+              </div>
+              <div>
+                <div style="font-size: 10px; color: var(--muted); margin-bottom: 2px;">Response:</div>
+                <div style="font-size: 11px; color: var(--text); padding: 4px 6px; background: var(--background); border-radius: 3px; line-height: 1.4; white-space: pre-wrap;">${response}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      return `
+        <div class="observation-lite-section" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+          <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">참고 관측(Observation Lite)</div>
+          <div style="font-size: 11px; color: #666; line-height: 1.5; margin-bottom: 12px;">AI와의 Q&A를 기록한 참고 로그입니다. 점수에 영향을 주지 않습니다.</div>
+          <div style="display: grid; gap: 8px;">
+            ${itemsHtml}
+          </div>
+        </div>
+      `;
+    }
+    
     // === [Phase 10-0] Share reportId 고정 로직 ===
     const params = new URLSearchParams(location.search);
     let r = params.get('r');
@@ -2579,6 +2680,13 @@
           const whyPanelEl = document.getElementById('why-panel');
           if (whyPanelEl) {
             renderWhyPanel(whyPanelEl, reportModel || { analysis: { scores: {} } });
+            
+            // ✅ [Phase 16-1] 참고 관측(Observation Lite) 섹션 렌더링
+            // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 읽어서 표시합니다.
+            const obsLiteSection = renderObservationLiteSection();
+            if (obsLiteSection) {
+              whyPanelEl.insertAdjacentHTML('afterend', obsLiteSection);
+            }
           }
           
         }
