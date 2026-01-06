@@ -2266,13 +2266,14 @@
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
           kpiBars = `
-            <div class="kpi-bars">
+            <div class="kpi-bars" id="anchor-reliability">
               ${reliabilityHtml}
-              ${kpiBar('Brand', brandingScore)}
-              ${kpiBar('Content Structure', contentStructureV2Score)}
-              ${kpiBar('URL Structure', urlStructureV1Score)}
+              <div id="anchor-brand">${kpiBar('Brand', brandingScore)}</div>
+              <div id="anchor-content-kpi">${kpiBar('Content Structure', contentStructureV2Score)}</div>
+              <div id="anchor-url">${kpiBar('URL Structure', urlStructureV1Score)}</div>
             </div>
             <div id="reliability-badge-slot"></div>
+            <div id="anchor-why"></div>
             <div id="why-panel"></div>
           `;
         
@@ -2313,7 +2314,7 @@
         let contentStructureEvidenceSection = '';
         if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
           contentStructureEvidenceSection = `
-            <div class="content-section">
+            <div class="content-section" id="anchor-content">
               <h3>콘텐츠 구조 점수 근거</h3>
               <ul>
                 ${contentStructureV2Score.evidence.map(e => `<li>${esc(e)}</li>`).join("")}
@@ -2414,7 +2415,7 @@
         ];
         
         const evidenceSection = `
-          <div class="notice-card">
+          <div class="notice-card" id="anchor-evidence">
             <h4>Evidence</h4>
             ${loggedIn ? `
               <div class="notice-card-grid">
