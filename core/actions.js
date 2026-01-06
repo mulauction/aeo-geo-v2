@@ -250,7 +250,26 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
       }
       
-      window.location.href = "./share.html";
+      // ✅ [Hotfix] __currentReportId 생성 및 저장 (reportId 기반)
+      // reportId는 lastV2의 reportId 또는 generatedAt 기반으로 생성
+      const reportId = lastV2.reportId || 
+        lastV2.meta?.reportId || 
+        lastV2.meta?.id || 
+        lastV2.id || 
+        String(lastV2.generatedAt || Date.now());
+      
+      try {
+        localStorage.setItem('__currentReportId', reportId);
+        console.log('[actions] __currentReportId set:', reportId);
+      } catch (e) {
+        console.warn('[actions] Failed to save __currentReportId to localStorage:', e);
+      }
+      
+      // ✅ [Hotfix] microtask를 사용하여 localStorage 저장 완료 후 이동
+      Promise.resolve().then(() => {
+        // localStorage 저장이 완료된 후 이동
+        window.location.href = `./share.html?r=${encodeURIComponent(reportId)}`;
+      });
     }
     
     // ✅ [Phase 4-1A] 개선안 생성 버튼 바인딩
