@@ -2065,9 +2065,29 @@
           } else if (viewState === 'EXPIRED') {
             title = '이 링크로는 리포트를 열 수 없습니다';
             message = '이 링크에 연결된 리포트 데이터가 현재 브라우저에 없습니다. 홈에서 다시 분석하시면 최신 리포트를 확인할 수 있습니다.';
-            buttons = `
-              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈에서 다시 분석</a>
-            `;
+            
+            // ✅ [Phase 16-3] EXPIRED 상태 복구 UX
+            const hasLastV2 = (() => {
+              try {
+                const lastV2Str = localStorage.getItem('__lastV2');
+                return lastV2Str && lastV2Str.length > 10;
+              } catch (e) {
+                return false;
+              }
+            })();
+            
+            if (hasLastV2) {
+              // __lastV2가 있으면 "이 브라우저에 저장된 최신 리포트 열기" 버튼 추가
+              buttons = `
+                <button id="btnRestoreLastReport" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+                <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">다시 분석하러 가기</a>
+              `;
+            } else {
+              // __lastV2가 없으면 "다시 분석하러 가기" 버튼만 표시
+              buttons = `
+                <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">다시 분석하러 가기</a>
+              `;
+            }
           } else if (viewState === 'OTHER_DEVICE') {
             title = '다른 기기에서 생성된 최신 리포트가 있습니다';
             message = '현재 브라우저에서 생성된 최신 리포트를 보거나 홈으로 이동할 수 있습니다.';
@@ -2480,6 +2500,36 @@
         const shareContentEl = document.getElementById('shareContent');
         shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
+        
+        // ✅ [Phase 16-3] EXPIRED 상태 복구 버튼 이벤트 바인딩
+        const btnRestoreLastReport = document.getElementById('btnRestoreLastReport');
+        if (btnRestoreLastReport) {
+          btnRestoreLastReport.addEventListener('click', () => {
+            try {
+              // __lastV2에서 reportId 추출
+              const lastV2Str = localStorage.getItem('__lastV2');
+              if (!lastV2Str || lastV2Str.length <= 10) {
+                console.warn('[ShareViewState:restore] __lastV2 not found or invalid');
+                return;
+              }
+              
+              const lastV2 = JSON.parse(lastV2Str);
+              const reportId = lastV2.reportId || 
+                lastV2.meta?.reportId || 
+                lastV2.meta?.id || 
+                lastV2.id || 
+                String(lastV2.generatedAt || Date.now());
+              
+              // __currentReportId를 reportId로 설정
+              localStorage.setItem('__currentReportId', reportId);
+              
+              // share.html?r=reportId로 이동하여 재렌더링 트리거
+              window.location.href = `./share.html?r=${encodeURIComponent(reportId)}`;
+            } catch (e) {
+              console.error('[ShareViewState:restore] Failed to restore last report:', e);
+            }
+          });
+        }
         
         // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩 (서버 스냅샷 생성)
         const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
