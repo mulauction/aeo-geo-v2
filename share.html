@@ -2274,7 +2274,11 @@
             </div>
             <div id="reliability-badge-slot"></div>
             <div id="anchor-why"></div>
-            <div id="why-panel"></div>
+            <div id="why-panel" class="why-panel" data-why="fallback"></div>
+            <div class="why-panel" data-why="ok" style="display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+              <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">WHY</div>
+              <div style="font-size: 12px; color: #555; line-height: 1.6;">이 리포트는 구조 기준으로 분석한 결과입니다. '신뢰도' 사유를 클릭하면 측정이 필요한 항목 위치로 이동합니다.</div>
+            </div>
           `;
         
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
@@ -2774,6 +2778,36 @@
             }
           }
           
+        }
+        
+        // ✅ [Phase 17-0C-2] OK 상태에서 WHY 블록 표시/숨김 처리
+        try {
+          const isOK = document.querySelector('.kpi-bars') || 
+                       document.querySelector('.content-section') || 
+                       document.querySelector('[data-report-id]');
+          
+          const fallbackWhy = document.querySelector('[data-why="fallback"]');
+          const okWhy = document.querySelector('[data-why="ok"]');
+          
+          if (isOK) {
+            // OK 상태: fallback 숨김 + ok 표시
+            if (fallbackWhy) {
+              fallbackWhy.style.display = 'none';
+            }
+            if (okWhy) {
+              okWhy.style.display = 'block';
+            }
+          } else {
+            // OK가 아닌 상태: ok 숨김 + fallback 표시
+            if (okWhy) {
+              okWhy.style.display = 'none';
+            }
+            if (fallbackWhy) {
+              fallbackWhy.style.display = '';
+            }
+          }
+        } catch (e) {
+          // 예외 발생 시 조용히 무시 (콘솔 에러 방지)
         }
         
         // ✅ [Phase 8-1] 측정 기준 토글 기능
