@@ -2066,28 +2066,43 @@
             title = '이 링크로는 리포트를 열 수 없습니다';
             message = '이 링크에 연결된 리포트 데이터가 현재 브라우저에 없습니다. 홈에서 다시 분석하시면 최신 리포트를 확인할 수 있습니다.';
             
-            // ✅ [Phase 16-3] EXPIRED 상태 복구 UX
-            const hasLastV2 = (() => {
-              try {
-                const lastV2Str = localStorage.getItem('__lastV2');
-                return lastV2Str && lastV2Str.length > 10;
-              } catch (e) {
-                return false;
-              }
-            })();
+            // ✅ [Phase 17-1] EXPIRED 상태 복구 UX 보강
+            let canRestore = false;
+            let restoreButtonHtml = '';
+            let restoreNoticeHtml = '';
             
-            if (hasLastV2) {
-              // __lastV2가 있으면 "이 브라우저에 저장된 최신 리포트 열기" 버튼 추가
-              buttons = `
+            try {
+              const lastV2Str = localStorage.getItem('__lastV2');
+              if (lastV2Str && lastV2Str.length > 10) {
+                const parsed = JSON.parse(lastV2Str);
+                if (parsed?.analysis) {
+                  canRestore = true;
+                }
+              }
+            } catch (e) {
+              // 파싱 실패 시 canRestore는 false로 유지
+            }
+            
+            if (canRestore) {
+              // 가능하면 버튼 활성화
+              restoreButtonHtml = `
                 <button id="btnRestoreLastReport" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
-                <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">다시 분석하러 가기</a>
               `;
             } else {
-              // __lastV2가 없으면 "다시 분석하러 가기" 버튼만 표시
-              buttons = `
-                <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">다시 분석하러 가기</a>
+              // 불가능하면 버튼 disabled + 안내 문구
+              restoreButtonHtml = `
+                <button id="btnRestoreLastReport" class="btn-restore" disabled style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #999; background: #e0e0e0; border: none; border-radius: 4px; text-decoration: none; cursor: not-allowed; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+              `;
+              restoreNoticeHtml = `
+                <p style="margin: 8px 0 0 0; font-size: 12px; color: #666; font-style: italic;">이 브라우저에 저장된 리포트가 없습니다.</p>
               `;
             }
+            
+            buttons = `
+              ${restoreButtonHtml}
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">다시 분석하러 가기</a>
+              ${restoreNoticeHtml}
+            `;
           } else if (viewState === 'OTHER_DEVICE') {
             title = '다른 기기에서 생성된 최신 리포트가 있습니다';
             message = '현재 브라우저에서 생성된 최신 리포트를 보거나 홈으로 이동할 수 있습니다.';
@@ -2506,10 +2521,15 @@
         shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
-        // ✅ [Phase 16-3] EXPIRED 상태 복구 버튼 이벤트 바인딩
+        // ✅ [Phase 17-1] EXPIRED 상태 복구 버튼 이벤트 바인딩
         const btnRestoreLastReport = document.getElementById('btnRestoreLastReport');
         if (btnRestoreLastReport) {
           btnRestoreLastReport.addEventListener('click', () => {
+            // disabled 상태면 클릭 무시
+            if (btnRestoreLastReport.disabled) {
+              return;
+            }
+            
             try {
               // __lastV2에서 reportId 추출
               const lastV2Str = localStorage.getItem('__lastV2');
@@ -2519,6 +2539,13 @@
               }
               
               const lastV2 = JSON.parse(lastV2Str);
+              
+              // parsed?.analysis 존재 여부 재확인
+              if (!lastV2?.analysis) {
+                console.warn('[ShareViewState:restore] __lastV2.analysis not found');
+                return;
+              }
+              
               const reportId = lastV2.reportId || 
                 lastV2.meta?.reportId || 
                 lastV2.meta?.id || 
