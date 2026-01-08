@@ -1333,6 +1333,71 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
+    // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
+    (function() {
+      if (window.__shareCtaCaptureBound) return;
+      
+      // scrollToTarget: 타겟 요소로 스크롤
+      function scrollToTarget(selector) {
+        if (!selector || !selector.startsWith('#')) return false;
+        try {
+          const el = document.querySelector(selector);
+          if (!el) return false;
+          const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+      
+      // document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
+      document.addEventListener('click', function(e) {
+        try {
+          const el = e.target.closest('[data-target]');
+          if (!el) return;
+          
+          const selector = el.dataset.target;
+          if (!selector || !selector.startsWith('#')) return;
+          
+          // state 확인
+          const state = window.__ShareViewState?.state || window.__shareViewState;
+          
+          // 스크롤 정책 확인
+          let shouldScroll = false;
+          if (state === 'OK' && selector === '#obs-lite') {
+            shouldScroll = true;
+          } else if (state === 'EXPIRED' && selector === '#expired-banner') {
+            shouldScroll = true;
+          } else if (state === 'OTHER_DEVICE') {
+            // OTHER_DEVICE는 스크롤하지 않음
+            shouldScroll = false;
+          }
+          
+          // 디버그 로그
+          if (window.__DEBUG_CTA_SCROLL) {
+            console.info('[cta-scroll:capture]', selector, 'text=', el.textContent?.trim() || '', 'state=', (state || 'unknown'), 'handled=', shouldScroll);
+          }
+          
+          // 스크롤하지 않으면 조용히 리턴
+          if (!shouldScroll) return;
+          
+          // 이벤트 차단 (유효한 [data-target] 클릭만)
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          // 스크롤 실행
+          scrollToTarget(selector);
+        } catch (err) {
+          // 조용히 무시
+        }
+      }, { capture: true });
+      
+      // 가드 설정 (리스너가 실제로 바인딩된 후에만)
+      window.__shareCtaCaptureBound = true;
+    })();
+    
     // ✅ [Phase 19-1A] 단일 스크롤 엔진 (scroll intent latch)
     window.__sharePendingScrollTarget = null;
     
@@ -2596,42 +2661,6 @@
         
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
-        // ✅ [Phase 19-1A] 단일 CTA 클릭 핸들러 (위임된 핸들러, capture phase, 한 번만 바인딩)
-        if (!window.__shareCtaScrollBound) {
-          window.__shareCtaScrollBound = true;
-          document.addEventListener('click', (e) => {
-            try {
-              const ctaEl = e.target.closest('[data-target]');
-              if (!ctaEl) return;
-              
-              const sel = ctaEl.dataset.target;
-              if (!sel || !sel.startsWith('#')) return;
-              
-              // data-cta="noop"인 경우 스크롤하지 않음
-              if (ctaEl.dataset.cta === 'noop') return;
-              
-              // ShareViewState가 OTHER_DEVICE인 경우 스크롤하지 않음
-              if (window.__shareViewState === 'OTHER_DEVICE') return;
-              
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              
-              // scroll intent 저장 및 reinforce
-              setPending(sel);
-              
-              // Dev-only debug
-              if (window.__DEBUG_CTA_SCROLL) {
-                const ctaText = ctaEl.textContent?.trim() || '';
-                const found = !!document.querySelector(sel);
-                console.info('[CTA Scroll]', { cta: ctaText, target: sel, found });
-              }
-            } catch (_) {
-              // 실패 시 조용히 무시
-            }
-          }, { capture: true });
-        }
-        
         // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용 (pageshow/visibilitychange 리스너, 한 번만 바인딩)
         if (!window.__sharePendingScrollBound) {
           window.__sharePendingScrollBound = true;
@@ -3212,59 +3241,6 @@
         }
       });
     }
-    
-    // ✅ [Phase 19-1A emergency fix] 독립적인 capture-phase CTA 클릭 핸들러 (IIFE)
-    (function() {
-      if (window.__shareCtaCaptureBound) return;
-      window.__shareCtaCaptureBound = true;
-      
-      document.addEventListener('click', function(e) {
-        try {
-          const el = e.target.closest('[data-target]');
-          if (!el) return;
-          
-          const sel = el.dataset.target;
-          if (!sel || !sel.startsWith('#')) return;
-          
-          // ✅ [Phase 19-1A] state 확인 및 OTHER_DEVICE 차단
-          const state = window.__ShareViewState?.state || window.__shareViewState?.state;
-          
-          // OTHER_DEVICE 상태면 즉시 차단
-          if (state === 'OTHER_DEVICE') return;
-          
-          // EXPIRED/OK 상태에서만 허용된 타겟으로 스크롤 허용
-          const isAllowed = 
-            (state === 'EXPIRED' && sel === '#expired-banner') ||
-            (state === 'OK' && sel === '#obs-lite');
-          
-          // state가 null/unknown이거나 허용되지 않은 조합이면 차단
-          if (!isAllowed) return;
-          
-          if (window.__DEBUG_CTA_SCROLL) {
-            console.info('[cta-scroll:capture]', sel, 'text=', el.textContent?.trim() || '', 'state=', (state || 'unknown'));
-          }
-          
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          
-          const t = document.querySelector(sel);
-          if (!t) return;
-          
-          const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          const go = function() {
-            t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-          };
-          
-          go();
-          requestAnimationFrame(go);
-          setTimeout(go, 80);
-          setTimeout(go, 220);
-        } catch (err) {
-          // 조용히 무시
-        }
-      }, { capture: true });
-    })();
   </script>
 </body>
 </html>
