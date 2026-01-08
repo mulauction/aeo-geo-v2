@@ -3226,8 +3226,22 @@
           const sel = el.dataset.target;
           if (!sel || !sel.startsWith('#')) return;
           
+          // ✅ [Phase 19-1A] state 확인 및 OTHER_DEVICE 차단
+          const state = window.__ShareViewState?.state || window.__shareViewState?.state;
+          
+          // OTHER_DEVICE 상태면 즉시 차단
+          if (state === 'OTHER_DEVICE') return;
+          
+          // EXPIRED/OK 상태에서만 허용된 타겟으로 스크롤 허용
+          const isAllowed = 
+            (state === 'EXPIRED' && sel === '#expired-banner') ||
+            (state === 'OK' && sel === '#obs-lite');
+          
+          // state가 null/unknown이거나 허용되지 않은 조합이면 차단
+          if (!isAllowed) return;
+          
           if (window.__DEBUG_CTA_SCROLL) {
-            console.info('[cta-scroll:capture]', sel, 'text=', el.textContent?.trim() || '', 'state=', (window.__ShareViewState?.state || window.__shareViewState?.state || 'unknown'));
+            console.info('[cta-scroll:capture]', sel, 'text=', el.textContent?.trim() || '', 'state=', (state || 'unknown'));
           }
           
           e.preventDefault();
