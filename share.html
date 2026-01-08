@@ -1333,6 +1333,21 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
+    // ✅ [Phase 19-0 definitive fix] 전역 스크롤 헬퍼 함수
+    window.__shareScrollTo = function(sel) {
+      try {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+        requestAnimationFrame(() => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }));
+        setTimeout(() => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }), 80);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+    
     // ✅ [Phase 16-1] 참고 관측(Observation Lite) 섹션 렌더링 함수
     // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 읽어서 표시합니다.
     // ✅ [Phase 16-2] r 파라미터가 있을 때만 해당 reportId 사용 (fallback 금지)
@@ -1423,7 +1438,7 @@
       }
       
       return `
-        <div class="observation-lite-section" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+        <div id="obs-lite" class="observation-lite-section" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
           <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">참고 관측(Observation Lite)</div>
           <div style="font-size: 11px; color: #666; line-height: 1.5; margin-bottom: 12px;">
             AI와의 Q&A를 기록한 참고 로그입니다. 점수에 영향을 주지 않습니다.
@@ -1910,6 +1925,19 @@
         
         // renderShareContent 호출
         await renderShareContent();
+        
+        // ✅ [Phase 19-0 hotfix B-2] 재초기화 후 pending scroll 재적용
+        if (window.__sharePendingScrollTarget) {
+          const target = window.__sharePendingScrollTarget;
+          const el = document.querySelector(target);
+          if (el) {
+            const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+            setTimeout(() => {
+              window.__sharePendingScrollTarget = null;
+            }, 300);
+          }
+        }
       }
       
       async function renderShareContent() {
@@ -2022,8 +2050,10 @@
         
         // ✅ [Phase 18-B] AI 추천 준비도 리포트 신뢰 카피 블록 (모든 상태에서 표시)
         const ctaLink = viewState === 'OK' 
-          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-scroll-target="anchor-reliability" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
-          : '<a href="javascript:void(0)" id="score-explainer-cta" data-scroll-target="anchor-share-recovery" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>';
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
+          : viewState === 'EXPIRED'
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" onclick="event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.(); window.__shareScrollTo(\'#expired-banner\'); return false;" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
+          : '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="noop" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>';
         
         const scoreExplainerBlock = `
           <div id="anchor-score-explainer" class="notice-card" style="margin-top: 0; margin-bottom: 24px;">
@@ -2128,7 +2158,7 @@
           }
           
           statusPanel = `
-            <div id="anchor-share-recovery" class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
+            <div id="expired-banner" class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
               <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">${esc(title)}</h3>
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${esc(message)}</p>
               <div style="margin-bottom: 16px;">
@@ -2213,26 +2243,6 @@
           // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
           shareContentEl.innerHTML = scoreExplainerBlock;
           
-          // ✅ [Phase 18-B] scoreExplainerBlock CTA 링크 스크롤 이벤트 바인딩 (EXPIRED 상태)
-          const scoreExplainerCta = document.getElementById('score-explainer-cta');
-          if (scoreExplainerCta) {
-            scoreExplainerCta.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              try {
-                const targetId = scoreExplainerCta.dataset.scrollTarget;
-                if (!targetId) return;
-
-                const targetEl = document.getElementById(targetId);
-                if (targetEl) {
-                  const y = targetEl.getBoundingClientRect().top + window.scrollY - 8;
-                  window.scrollTo({ top: y, behavior: 'smooth' });
-                }
-              } catch (_) {
-                // 실패 시 조용히 무시
-              }
-            });
-          }
           
           // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩
           const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
@@ -2566,28 +2576,77 @@
         const shareContentEl = document.getElementById('shareContent');
         shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         
-        // ✅ [Phase 18-B] scoreExplainerBlock CTA 링크 스크롤 이벤트 바인딩 (OK 상태)
-        const scoreExplainerCta = document.getElementById('score-explainer-cta');
-        if (scoreExplainerCta) {
-          scoreExplainerCta.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        document.getElementById('reportFooter').innerHTML = reportFooter;
+        
+        // ✅ [Phase 19-0 hotfix B-2] Share CTA → anchor 스크롤 표준화 (scroll intent latch)
+        // 헬퍼 함수: 스크롤 실행
+        function scrollToSel(sel) {
+          if (!sel || !sel.startsWith('#')) return;
+          const el = document.querySelector(sel);
+          if (!el) return;
+          const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+        }
+        
+        // CTA 클릭 핸들러 (위임된 핸들러, capture phase, 한 번만 바인딩)
+        if (!window.__shareCtaScrollBound) {
+          window.__shareCtaScrollBound = true;
+          document.addEventListener('click', (e) => {
             try {
-              const targetId = scoreExplainerCta.dataset.scrollTarget;
-              if (!targetId) return;
-
-              const targetEl = document.getElementById(targetId);
-              if (targetEl) {
-                const y = targetEl.getBoundingClientRect().top + window.scrollY - 8;
-                window.scrollTo({ top: y, behavior: 'smooth' });
+              const ctaEl = e.target.closest('[data-target]');
+              if (!ctaEl) return;
+              
+              const sel = ctaEl.dataset.target;
+              if (!sel || !sel.startsWith('#')) return;
+              
+              // data-cta="noop"인 경우 스크롤하지 않음
+              if (ctaEl.dataset.cta === 'noop') return;
+              
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              
+              // scroll intent 저장
+              window.__sharePendingScrollTarget = sel;
+              
+              // 즉시 스크롤 + reinforce
+              scrollToSel(sel);
+              requestAnimationFrame(() => scrollToSel(sel));
+              setTimeout(() => scrollToSel(sel), 60);
+              setTimeout(() => scrollToSel(sel), 220);
+              
+              // Dev-only debug
+              if (window.__DEBUG_CTA_SCROLL) {
+                const ctaText = ctaEl.textContent?.trim() || '';
+                const found = !!document.querySelector(sel);
+                console.info('[CTA Scroll]', { cta: ctaText, target: sel, found });
               }
             } catch (_) {
               // 실패 시 조용히 무시
             }
-          });
+          }, { capture: true });
         }
         
-        document.getElementById('reportFooter').innerHTML = reportFooter;
+        // 재초기화 후 pending scroll 재적용 (pageshow/visibilitychange 리스너, 한 번만 바인딩)
+        if (!window.__sharePendingScrollBound) {
+          window.__sharePendingScrollBound = true;
+          const applyPendingScroll = () => {
+            if (window.__sharePendingScrollTarget) {
+              const target = window.__sharePendingScrollTarget;
+              scrollToSel(target);
+              setTimeout(() => {
+                window.__sharePendingScrollTarget = null;
+              }, 300);
+            }
+          };
+          
+          window.addEventListener('pageshow', applyPendingScroll);
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              applyPendingScroll();
+            }
+          });
+        }
         
         // ✅ [Phase 18-B] KPI micro hint 클릭 시 score explainer로 스크롤 (event delegation)
         // 변경하지 않은 것: 점수 계산/저장(localStorage __lastV2)/ShareViewState init 로직, KPI 렌더링 함수 시그니처
