@@ -1333,20 +1333,37 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     
-    // ✅ [Phase 19-0 definitive fix] 전역 스크롤 헬퍼 함수
-    window.__shareScrollTo = function(sel) {
+    // ✅ [Phase 19-1A] 단일 스크롤 엔진 (scroll intent latch)
+    window.__sharePendingScrollTarget = null;
+    
+    // scrollToSel: 기본 스크롤 실행
+    function scrollToSel(sel) {
+      if (!sel || !sel.startsWith('#')) return false;
       try {
         const el = document.querySelector(sel);
         if (!el) return false;
         const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-        requestAnimationFrame(() => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }));
-        setTimeout(() => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }), 80);
         return true;
       } catch (e) {
         return false;
       }
-    };
+    }
+    
+    // reinforceScroll: 즉시 스크롤 + reinforce
+    function reinforceScroll(sel) {
+      if (!sel) return;
+      scrollToSel(sel);
+      requestAnimationFrame(() => scrollToSel(sel));
+      setTimeout(() => scrollToSel(sel), 80);
+      setTimeout(() => scrollToSel(sel), 220);
+    }
+    
+    // setPending: scroll intent 저장 및 즉시 reinforce
+    function setPending(sel) {
+      window.__sharePendingScrollTarget = sel;
+      reinforceScroll(sel);
+    }
     
     // ✅ [Phase 16-1] 참고 관측(Observation Lite) 섹션 렌더링 함수
     // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 읽어서 표시합니다.
@@ -1926,17 +1943,13 @@
         // renderShareContent 호출
         await renderShareContent();
         
-        // ✅ [Phase 19-0 hotfix B-2] 재초기화 후 pending scroll 재적용
+        // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용
         if (window.__sharePendingScrollTarget) {
           const target = window.__sharePendingScrollTarget;
-          const el = document.querySelector(target);
-          if (el) {
-            const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
-            setTimeout(() => {
-              window.__sharePendingScrollTarget = null;
-            }, 300);
-          }
+          reinforceScroll(target);
+          setTimeout(() => {
+            window.__sharePendingScrollTarget = null;
+          }, 300);
         }
       }
       
@@ -1989,6 +2002,8 @@
         
         // ✅ [Hotfix] r === __currentReportId && __lastV2 존재 시 무조건 OK 판정
         let viewState;
+        // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
+        window.__shareViewState = null;
         if (rParam && rParam.length > 0) {
           const currentReportId = localStorage.getItem('__currentReportId');
           if (currentReportId && rParam === currentReportId && lastV2Str && lastV2Str.length > 10) {
@@ -2015,6 +2030,9 @@
           viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
           console.log('[ShareViewState:debug]', { r: null, current: localStorage.getItem('__currentReportId') || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
         }
+        
+        // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
+        window.__shareViewState = viewState;
         console.info('[ShareViewState]', viewState);
         
         // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
@@ -2052,7 +2070,7 @@
         const ctaLink = viewState === 'OK' 
           ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
           : viewState === 'EXPIRED'
-          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" onclick="event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.(); window.__shareScrollTo(\'#expired-banner\'); return false;" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
           : '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="noop" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>';
         
         const scoreExplainerBlock = `
@@ -2578,17 +2596,7 @@
         
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
-        // ✅ [Phase 19-0 hotfix B-2] Share CTA → anchor 스크롤 표준화 (scroll intent latch)
-        // 헬퍼 함수: 스크롤 실행
-        function scrollToSel(sel) {
-          if (!sel || !sel.startsWith('#')) return;
-          const el = document.querySelector(sel);
-          if (!el) return;
-          const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
-        }
-        
-        // CTA 클릭 핸들러 (위임된 핸들러, capture phase, 한 번만 바인딩)
+        // ✅ [Phase 19-1A] 단일 CTA 클릭 핸들러 (위임된 핸들러, capture phase, 한 번만 바인딩)
         if (!window.__shareCtaScrollBound) {
           window.__shareCtaScrollBound = true;
           document.addEventListener('click', (e) => {
@@ -2602,18 +2610,15 @@
               // data-cta="noop"인 경우 스크롤하지 않음
               if (ctaEl.dataset.cta === 'noop') return;
               
+              // ShareViewState가 OTHER_DEVICE인 경우 스크롤하지 않음
+              if (window.__shareViewState === 'OTHER_DEVICE') return;
+              
               e.preventDefault();
               e.stopPropagation();
               e.stopImmediatePropagation();
               
-              // scroll intent 저장
-              window.__sharePendingScrollTarget = sel;
-              
-              // 즉시 스크롤 + reinforce
-              scrollToSel(sel);
-              requestAnimationFrame(() => scrollToSel(sel));
-              setTimeout(() => scrollToSel(sel), 60);
-              setTimeout(() => scrollToSel(sel), 220);
+              // scroll intent 저장 및 reinforce
+              setPending(sel);
               
               // Dev-only debug
               if (window.__DEBUG_CTA_SCROLL) {
@@ -2627,13 +2632,13 @@
           }, { capture: true });
         }
         
-        // 재초기화 후 pending scroll 재적용 (pageshow/visibilitychange 리스너, 한 번만 바인딩)
+        // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용 (pageshow/visibilitychange 리스너, 한 번만 바인딩)
         if (!window.__sharePendingScrollBound) {
           window.__sharePendingScrollBound = true;
           const applyPendingScroll = () => {
             if (window.__sharePendingScrollTarget) {
               const target = window.__sharePendingScrollTarget;
-              scrollToSel(target);
+              reinforceScroll(target);
               setTimeout(() => {
                 window.__sharePendingScrollTarget = null;
               }, 300);
@@ -3207,6 +3212,45 @@
         }
       });
     }
+    
+    // ✅ [Phase 19-1A emergency fix] 독립적인 capture-phase CTA 클릭 핸들러 (IIFE)
+    (function() {
+      if (window.__shareCtaCaptureBound) return;
+      window.__shareCtaCaptureBound = true;
+      
+      document.addEventListener('click', function(e) {
+        try {
+          const el = e.target.closest('[data-target]');
+          if (!el) return;
+          
+          const sel = el.dataset.target;
+          if (!sel || !sel.startsWith('#')) return;
+          
+          if (window.__DEBUG_CTA_SCROLL) {
+            console.info('[cta-scroll:capture]', sel, 'text=', el.textContent?.trim() || '', 'state=', (window.__ShareViewState?.state || window.__shareViewState?.state || 'unknown'));
+          }
+          
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          const t = document.querySelector(sel);
+          if (!t) return;
+          
+          const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const go = function() {
+            t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+          };
+          
+          go();
+          requestAnimationFrame(go);
+          setTimeout(go, 80);
+          setTimeout(go, 220);
+        } catch (err) {
+          // 조용히 무시
+        }
+      }, { capture: true });
+    })();
   </script>
 </body>
 </html>
