@@ -6,6 +6,7 @@ import { computeBrandingScore } from "./analyzers/branding.js";
 import { buildReportPayload } from "./report.js";
 import { buildImprovementsFromReport } from "./improvements.js";
 import { buildImproveRequestV1, requestImproveV1 } from "./api/improveClient.js";
+import { buildWhyFromReportModel } from "./why.js";
 
 
 export function bindActions(root) {
@@ -173,11 +174,55 @@ export function bindActions(root) {
         input: finalState.input || null,
         result: reportPayload.result || null,
         analysis: {
-          scores: v2SummaryAnalysisScores
+          scores: v2SummaryAnalysisScores,
+          inputText: input || null
         },
         generatedAt: reportPayload.generatedAt || Date.now(),
         createdAt: new Date().toISOString()
       };
+      
+      // ✅ [Phase 20-B-2] WHY 생성 및 저장 (읽기 전용 계산)
+      try {
+        // reportModel 구성 (v2Summary 기반)
+        const reportModel = {
+          inputs: v2Summary.inputs || {},
+          input: v2Summary.input || null,
+          result: v2Summary.result || null,
+          analysis: {
+            inputText: v2Summary.analysis?.inputText || null,
+            scores: v2Summary.analysis?.scores || {},
+            evidence: v2Summary.analysis?.evidence || null
+          },
+          generatedAt: v2Summary.generatedAt || null,
+          createdAt: v2Summary.createdAt || null
+        };
+        
+        // WHY 생성 (항상 실행, inputText가 없어도 기본값 반환)
+        const whyData = buildWhyFromReportModel(reportModel);
+        
+        // v2Summary.why에 직접 주입 (최상위 레벨)
+        v2Summary.why = whyData;
+        
+        // analysis에도 why 저장 (기존 구조 호환)
+        if (!v2Summary.analysis) {
+          v2Summary.analysis = {};
+        }
+        v2Summary.analysis.why = whyData;
+        
+        // evidenceFlags도 analysis에 저장 (기존 구조 호환)
+        if (whyData.evidenceFlags) {
+          v2Summary.analysis.evidenceFlags = whyData.evidenceFlags;
+        }
+      } catch (e) {
+        // why 계산 실패 시 조용히 무시 (Analyze 전체 실패 방지)
+        console.warn('[actions] Failed to compute why:', e);
+        // 실패 시에도 기본 구조 유지 (reasons는 배열)
+        v2Summary.why = {
+          reasons: [],
+          actionLine: '추천: 리포트를 갱신하세요.',
+          evidenceFlags: {}
+        };
+      }
       
       // window.__lastV2에 저장
       window.__lastV2 = v2Summary;
@@ -185,6 +230,8 @@ export function bindActions(root) {
       // localStorage '__lastV2'에 저장
       try {
         localStorage.setItem('__lastV2', JSON.stringify(v2Summary));
+        // ✅ [Phase 20-B-2] 저장 직후 콘솔 로그
+        console.log('[actions] why saved:', !!v2Summary.why, 'keys:', v2Summary.why ? Object.keys(v2Summary.why) : null);
       } catch (e) {
         console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
       }
@@ -240,12 +287,57 @@ export function bindActions(root) {
         createdAt: new Date().toISOString()
       };
       
+      // ✅ [Phase 20-B-2] WHY 생성 및 저장 (누락 방지)
+      // 이미 why가 있으면 유지, 없으면 생성
+      if (!lastV2.why || typeof lastV2.why !== 'object') {
+        try {
+          // reportModel 구성
+          const reportModel = {
+            inputs: lastV2.inputs || {},
+            input: lastV2.input || null,
+            result: lastV2.result || null,
+            analysis: {
+              inputText: lastV2.analysis?.inputText || lastV2.input || null,
+              scores: lastV2.analysis?.scores || {},
+              evidence: lastV2.analysis?.evidence || null
+            },
+            generatedAt: lastV2.generatedAt || null,
+            createdAt: lastV2.createdAt || null
+          };
+          
+          // WHY 생성
+          const whyData = buildWhyFromReportModel(reportModel);
+          lastV2.why = whyData;
+          
+          // analysis에도 why 저장 (기존 구조 호환)
+          if (!lastV2.analysis) {
+            lastV2.analysis = {};
+          }
+          lastV2.analysis.why = whyData;
+          
+          // evidenceFlags도 analysis에 저장 (기존 구조 호환)
+          if (whyData.evidenceFlags) {
+            lastV2.analysis.evidenceFlags = whyData.evidenceFlags;
+          }
+        } catch (e) {
+          // why 계산 실패 시 기본 구조 설정 (reasons는 배열)
+          console.warn('[actions] Failed to compute why for Share:', e);
+          lastV2.why = {
+            reasons: [],
+            actionLine: '추천: 리포트를 갱신하세요.',
+            evidenceFlags: {}
+          };
+        }
+      }
+      
       // window.__lastV2에 저장
       window.__lastV2 = lastV2;
       
       // localStorage '__lastV2'에 저장
       try {
         localStorage.setItem('__lastV2', JSON.stringify(lastV2));
+        // ✅ [Phase 20-B-2] 저장 직후 콘솔 로그
+        console.log('[actions] why saved:', !!lastV2.why, 'keys:', lastV2.why ? Object.keys(lastV2.why) : null);
       } catch (e) {
         console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
       }

@@ -135,6 +135,65 @@ function deriveWhyFacts(reportModel) {
     missingSignals.push('url');
   }
   
+  // ✅ [Phase 20-B-1] Evidence 플래그 계산 (읽기 전용, HTML/텍스트 기반)
+  let evidenceFlags = {
+    hasFAQ: false,
+    hasBrandName: false,
+    hasProductName: false,
+    hasStructure: false,
+    hasShoppingHints: false
+  };
+  
+  try {
+    // HTML/텍스트 소스 확인 (우선순위 순서)
+    const htmlText = safeModel?.analysis?.inputText ||
+                     safeModel?.input || 
+                     safeModel?.result?.summary || 
+                     safeModel?.analysis?.summary || 
+                     '';
+    
+    if (htmlText && typeof htmlText === 'string' && htmlText.trim().length > 0) {
+      // hasFAQ: FAQ 관련 키워드 존재 여부
+      evidenceFlags.hasFAQ = /faq|자주\s*묻는|질문|q\s*:|question/i.test(htmlText);
+      
+      // hasBrandName: 브랜드명 존재 여부 (inputs.brand가 htmlText에 포함되어 있는지 확인)
+      const brandName = inputs?.brand || '';
+      if (brandName && brandName.trim().length > 0) {
+        // 브랜드명을 정규화하여 htmlText에서 검색 (공백 정규화, 대소문자 무시)
+        const normalizedBrand = brandName.trim().replace(/\s+/g, '\\s*');
+        const brandPattern = new RegExp(normalizedBrand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        evidenceFlags.hasBrandName = brandPattern.test(htmlText);
+      } else {
+        // HTML 내 브랜드 관련 패턴 검색
+        evidenceFlags.hasBrandName = /브랜드|brand/i.test(htmlText);
+      }
+      
+      // hasProductName: 제품명 존재 여부 (inputs.product가 htmlText에 포함되어 있는지 확인)
+      const productName = inputs?.product || '';
+      if (productName && productName.trim().length > 0) {
+        // 제품명을 정규화하여 htmlText에서 검색 (공백 정규화, 대소문자 무시)
+        const normalizedProduct = productName.trim().replace(/\s+/g, '\\s*');
+        const productPattern = new RegExp(normalizedProduct.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        evidenceFlags.hasProductName = productPattern.test(htmlText);
+      } else {
+        // HTML 내 제품 관련 패턴 검색
+        evidenceFlags.hasProductName = /제품|product|상품/i.test(htmlText);
+      }
+      
+      // hasStructure: h3, ul, p 존재 여부
+      evidenceFlags.hasStructure = (
+        /<h3[^>]*>/i.test(htmlText) ||
+        /<ul[^>]*>/i.test(htmlText) ||
+        /<p[^>]*>/i.test(htmlText)
+      );
+      
+      // hasShoppingHints: 쇼핑 관련 키워드 언급 여부
+      evidenceFlags.hasShoppingHints = /(가격|배송|as|a\/s|교환|반품|옵션|사이즈|소재|구성품)/i.test(htmlText);
+    }
+  } catch (e) {
+    // 에러 시 기본값 유지 (모두 false)
+  }
+  
   return {
     // Score values
     brandingScore,
@@ -160,7 +219,10 @@ function deriveWhyFacts(reportModel) {
     urlConnected,
     
     // Derived missing signals
-    missingSignals
+    missingSignals,
+    
+    // ✅ [Phase 20-B-1] Evidence 플래그 (읽기 전용 계산 결과)
+    evidenceFlags
   };
 }
 
@@ -200,6 +262,36 @@ function isReportLoadFailed(reportModel) {
   }
   
   return false;
+}
+
+/**
+ * ✅ [Phase 20-B-2] Evidence 플래그 스냅샷 포맷팅 헬퍼
+ * @param {Object} evidenceFlags - evidenceFlags 객체
+ * @returns {string} 포맷된 스냅샷 문자열
+ */
+function formatEvidenceSnapshot(evidenceFlags) {
+  if (!evidenceFlags || typeof evidenceFlags !== 'object') {
+    return '현재 상태: 측정 필요';
+  }
+  
+  const parts = [];
+  
+  // FAQ
+  parts.push(`FAQ(${evidenceFlags.hasFAQ ? '있음' : '없음'})`);
+  
+  // 브랜드
+  parts.push(`브랜드(${evidenceFlags.hasBrandName ? '있음' : '없음'})`);
+  
+  // 상품명
+  parts.push(`상품명(${evidenceFlags.hasProductName ? '있음' : '없음'})`);
+  
+  // 구조
+  parts.push(`구조(${evidenceFlags.hasStructure ? '적정' : '부족'})`);
+  
+  // 구매힌트
+  parts.push(`구매힌트(${evidenceFlags.hasShoppingHints ? '있음' : '부족'})`);
+  
+  return `현재 상태: ${parts.join(' · ')}`;
 }
 
 /**
@@ -248,9 +340,19 @@ export function buildWhyReasons(reportModel) {
 
   // ✅ [Phase 13-0B] observable facts 추출
   const facts = deriveWhyFacts(reportModel);
+  
+  // ✅ [Phase 20-B-2] Evidence 플래그 스냅샷 생성 (읽기 전용 관찰)
+  const evidenceSnapshot = formatEvidenceSnapshot(facts.evidenceFlags);
 
   // 이유 생성 (evidence-driven, observable facts 기반)
   const allReasons = [];
+  
+  // ✅ [Phase 20-B-2] Evidence 플래그 스냅샷을 첫 번째 이유로 추가 (읽기 전용 관찰)
+  allReasons.push({
+    key: 'evidence_snapshot',
+    title: '현재 상태',
+    detail: evidenceSnapshot
+  });
 
   // ✅ [Phase 13-0E] (브랜드) 브랜드 근거 부족 또는 점수 미측정
   if (facts.missingSignals.includes('brand')) {
@@ -345,11 +447,19 @@ export function buildWhyReasons(reportModel) {
   } else if (normalizedLevelValue === 'mid') {
     // mid면 reasons를 최대 2개로 제한(brand, content 우선)
     reasons = allReasons
-      .filter(r => r.key === 'brand' || r.key === 'content')
+      .filter(r => r.key !== 'evidence_snapshot' && (r.key === 'brand' || r.key === 'content'))
       .slice(0, 2);
   } else {
-    // low면 reasons 최대 3개(brand/content/url, 우선순위 순서)
-    reasons = allReasons.slice(0, 3);
+    // low면 reasons 최대 3개(brand/content/url, 우선순위 순서, 스냅샷 제외)
+    reasons = allReasons
+      .filter(r => r.key !== 'evidence_snapshot')
+      .slice(0, 3);
+  }
+  
+  // ✅ [Phase 20-B-2] Evidence 스냅샷을 항상 첫 번째에 포함 (읽기 전용 관찰)
+  const snapshotReason = allReasons.find(r => r.key === 'evidence_snapshot');
+  if (snapshotReason) {
+    reasons = [snapshotReason, ...reasons];
   }
 
   return {
@@ -357,6 +467,41 @@ export function buildWhyReasons(reportModel) {
     reasons: reasons,
     allReasons: allReasons // ✅ [Phase 12-3] action line을 위한 전체 이유 목록
   };
+}
+
+/**
+ * ✅ [Phase 20-B-2] WHY 전체 결과 생성 함수 (Analyze 저장용)
+ * @param {Object} reportModel - 리포트 모델 객체 (v2Summary 형태)
+ * @returns {Object} { reasons: whyResult, actionLine: string, evidenceFlags: object }
+ */
+export function buildWhyFromReportModel(reportModel) {
+  try {
+    // WHY reasons 및 action line 생성
+    const whyResult = buildWhyReasons(reportModel);
+    const actionLine = buildWhyActionLine(whyResult, reportModel);
+    
+    // Evidence flags 추출 (deriveWhyFacts에서 계산된 것)
+    const facts = deriveWhyFacts(reportModel);
+    const evidenceFlags = facts.evidenceFlags || {};
+    
+    // ✅ [Phase 20-B Fix] reasons는 배열이어야 함 (whyResult.reasons 배열 추출)
+    const reasonsArray = Array.isArray(whyResult?.reasons) 
+      ? whyResult.reasons 
+      : (Array.isArray(whyResult?.allReasons) ? whyResult.allReasons : []);
+    
+    return {
+      reasons: reasonsArray,
+      actionLine: actionLine,
+      evidenceFlags: evidenceFlags
+    };
+  } catch (e) {
+    // 실패 시 기본값 반환 (reasons는 배열)
+    return {
+      reasons: [],
+      actionLine: '추천: 리포트를 갱신하세요.',
+      evidenceFlags: {}
+    };
+  }
 }
 
 /**
