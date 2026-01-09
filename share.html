@@ -1428,8 +1428,11 @@
             shouldScroll = false;
           }
           
-          // 디버그 로그
-          console.debug('[helper-link]', { state, ctaType, linkText: linkText.substring(0, 20), shouldScroll, shouldPrevent, targetSelector });
+          // ✅ [Phase24-2] 디버그 로그 (dev-only: localhost에서만 출력)
+          const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          if (isDev) {
+            console.debug('[helper-link]', { state, ctaType, linkText: linkText.substring(0, 20), shouldScroll, shouldPrevent, targetSelector });
+          }
           
           // 스크롤 또는 prevent 처리
           if (shouldPrevent) {
