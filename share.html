@@ -2774,6 +2774,8 @@
         // - 저장 키: __recentReportsV1 (최대 10, id 기준 dedupe)
         // - viewState/스코어링/기존 저장 키(__lastV2/__currentReportId)에는 영향 없음
         const RECENT_KEY = '__recentReportsV1';
+        const RECENT_CLEARED_KEY = '__recentReportsClearedV1';
+        const RECENT_CLEARED_FOR_ID_KEY = '__recentReportsClearedForIdV1';
         const parseJsonSafe = (str, fallback) => {
           try { return JSON.parse(str); } catch { return fallback; }
         };
@@ -2814,7 +2816,18 @@
         const currentReportIdForRecent = localStorage.getItem('__currentReportId') || '';
         const recentId = snapshotId || currentReportIdForRecent || null;
 
-        if (reportModel && recentId) {
+        // ✅ [Phase 27-0 Hotfix] 최근 목록 "목록 비우기" 이후 새로고침 시 재등장 방지
+        // - __recentReportsClearedV1 === "1" 이고, 현재 리포트 id가 __recentReportsClearedForIdV1 와 같으면
+        //   이번 렌더에서 recent 자동 저장을 스킵한다.
+        const recentClearedFlag = (() => {
+          try { return localStorage.getItem(RECENT_CLEARED_KEY) === '1'; } catch { return false; }
+        })();
+        const recentClearedForId = (() => {
+          try { return localStorage.getItem(RECENT_CLEARED_FOR_ID_KEY) || ''; } catch { return ''; }
+        })();
+        const shouldSkipRecentAutoSave = Boolean(recentClearedFlag && recentId && (recentClearedForId === '' || recentClearedForId === recentId));
+
+        if (reportModel && recentId && !shouldSkipRecentAutoSave) {
           const now = Date.now();
           const recentUrl = snapshotId
             ? (location.origin + location.pathname + `?id=${encodeURIComponent(snapshotId)}&r=${encodeURIComponent(String(now))}`)
@@ -2832,6 +2845,10 @@
           const deduped = existing.filter(it => it && typeof it === 'object' && it.id !== entry.id);
           const next = [entry, ...deduped].slice(0, 10);
           saveRecentReports(next);
+          
+          // 새 항목 저장 시에는 cleared 플래그 해제 (정상 동작 복구)
+          try { localStorage.removeItem(RECENT_CLEARED_KEY); } catch {}
+          try { localStorage.removeItem(RECENT_CLEARED_FOR_ID_KEY); } catch {}
         }
 
         const renderRecentReportsSection = () => {
@@ -2887,7 +2904,15 @@
           const clearBtn = document.getElementById('btnRecentClear');
           if (clearBtn) {
             clearBtn.onclick = () => {
+              // ✅ [Phase 27-0] "목록 비우기" 정책:
+              // - recent 목록만 삭제 (key: __recentReportsV1)
+              // - 재초기화/리로드/페이지 이동/ShareViewState bootstrap 호출 금지
+              // - 새로고침 시 재등장 방지 플래그 설정 (key: __recentReportsClearedV1)
               try { localStorage.removeItem(RECENT_KEY); } catch {}
+              try { localStorage.setItem(RECENT_CLEARED_KEY, '1'); } catch {}
+              try { localStorage.setItem(RECENT_CLEARED_FOR_ID_KEY, String(recentId || '')); } catch {}
+              console.log('[share][recent] cleared:', RECENT_KEY, 'flagged:', RECENT_CLEARED_KEY);
+
               window.__recentReportsExpandedV1 = false;
               renderRecentReportsSection();
             };
