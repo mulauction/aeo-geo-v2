@@ -294,6 +294,105 @@ Action line must be a verb sentence that targets the top missing signal:
 
 ---
 
+## ✅ [Phase21] WHY/Evidence Data Contract Regression Tests
+
+**기준 문서**: `docs/WHY_DATA_CONTRACT.md`, `docs/PHASE21_ROADMAP.md`
+
+### Test D: Unknown-safe Behavior (입력 누락 시 WHY 생성 실패 없음)
+
+**Steps:**
+1. Navigate to: `/share.html?r=<valid-report-id>` (정상 리포트 ID 사용)
+2. Open browser console (F12 or Cmd+Option+I)
+3. Execute the following to simulate partial data loss:
+   ```javascript
+   // Simulate missing scores
+   const reportModel = JSON.parse(localStorage.getItem('__lastV2'));
+   if (reportModel && reportModel.analysis) {
+     reportModel.analysis.scores = null; // 또는 일부 슬롯만 null
+   }
+   localStorage.setItem('__lastV2', JSON.stringify(reportModel));
+   ```
+4. Refresh the page
+
+**Expected Results:**
+- ✅ Page loads without console errors
+- ✅ WHY panel renders successfully (no exceptions thrown)
+- ✅ WHY panel shows at least 1 reason (minimum fallback: "근거가 부족해 추가 측정이 필요합니다")
+- ✅ Action line is rendered (even with missing scores)
+- ✅ Confidence level is displayed (likely "low" when data is missing)
+- ✅ No JavaScript runtime errors or uncaught exceptions
+
+**Pass Criteria:**
+- WHY 생성 로직이 입력 누락 시에도 예외를 던지지 않음
+- reasons 배열이 최소 1개 이상 반환됨
+- actionLine이 항상 렌더링됨
+- Unknown-safe 규칙 준수 확인
+
+---
+
+### Test E: Confidence Level Determination (점수/근거 기반 신뢰도 판정)
+
+**Steps:**
+1. Navigate to: `/share.html?r=<valid-report-id>` (정상 리포트 ID 사용)
+2. Verify the report has:
+   - All KPI scores measured (branding, contentStructureV2, urlStructureV1 are numbers, not null)
+   - Evidence summary present (brandingEvidenceCount > 0, contentEvidenceCount > 0)
+3. Observe WHY panel confidence level
+
+**Expected Results:**
+- ✅ Confidence level is displayed (high/medium/low 중 하나)
+- ✅ When all scores are measured AND evidence is sufficient → confidence should be "high"
+- ✅ When some scores are null OR evidence is sparse → confidence should be "medium" or "low"
+- ✅ Confidence determination follows documented rules:
+  - high: 주요 슬롯 측정됨 + evidence summary 충분
+  - medium: 일부 측정/일부 근거
+  - low: 다수가 null/근거 부족/측정 필요
+- ✅ Action line content aligns with confidence level (low일 때 "측정/자료 보강" 중심)
+
+**Pass Criteria:**
+- Confidence level이 문서화된 원칙에 따라 판정됨
+- Confidence와 actionLine이 일관됨 (low일 때 측정/보강 액션)
+- 점수와 근거 상태에 따라 적절한 confidence 레벨 표시
+
+---
+
+### Test F: Input/Output Contract Compliance (WHY 빌더 계약 준수)
+
+**Steps:**
+1. Navigate to: `/share.html?r=<valid-report-id>` (정상 리포트 ID 사용)
+2. Open browser console (F12 or Cmd+Option+I)
+3. Inspect WHY panel rendering:
+   - Check that WHY reasons are displayed
+   - Check that action line is displayed
+   - Check that confidence level is displayed (if applicable)
+
+**Expected Results:**
+- ✅ WHY panel outputs exactly 3 types:
+  1. reasons: Array<Reason> (최소 1개 이상)
+  2. actionLine: string (1줄 문장)
+  3. confidence: "high" | "medium" | "low" (표시되는 경우)
+- ✅ Each reason has required fields:
+  - id: string (stable key)
+  - title: string (짧은 요약)
+  - detail?: string (선택)
+  - evidenceRefs?: string[] (선택)
+  - severity?: "info" | "warn" | "risk" (선택)
+- ✅ Action line is executable (contains verb like "입력하세요", "실행하세요", "추가하세요")
+- ✅ Action line does not use exaggerated/definitive language (unknown-safe)
+- ✅ WHY builder uses only documented inputs:
+  - reportModel (화면 상태/분석 결과)
+  - analysis.scores (KPI 점수 슬롯)
+  - evidence summary (근거 요약)
+- ✅ No additional dependencies beyond the 3 documented inputs
+
+**Pass Criteria:**
+- WHY 출력이 계약서에 명시된 3종(reasons/actionLine/confidence)을 모두 포함
+- reasons 구조가 계약서 필드 규격을 준수
+- actionLine이 실행 가능한 문장이며 unknown-safe
+- 입력 의존성이 문서화된 3종만 사용됨
+
+---
+
 ## Notes
 
 - These tests focus on **UI rendering** and **error handling**, not on data correctness
