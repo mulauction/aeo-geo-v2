@@ -1761,6 +1761,20 @@
       const urlParams = new URLSearchParams(window.location.search);
       const rParam = urlParams.get('r');
       
+      // ✅ [Phase22] viewState가 OK가 아니면 snapshot fetch 금지
+      const currentViewState = window.__shareViewState;
+      if (currentViewState && currentViewState !== 'OK') {
+        console.log('[loadReportModel] viewState is not OK, skipping fetch:', currentViewState);
+        return null;
+      }
+      
+      // ✅ [Phase22] r 파라미터가 테스트 상태면 fetch 금지
+      const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
+      if (rParam && testStates.includes(rParam)) {
+        console.log('[loadReportModel] r is test state, skipping fetch:', rParam);
+        return null;
+      }
+      
       // ✅ [Phase 16-2] r 파라미터가 존재할 경우, 반드시 해당 reportId만 사용 (fallback 절대 금지)
       if (rParam) {
         try {
@@ -2029,9 +2043,19 @@
           console.log('[share] view mode: GET only');
         }
         
+        // ✅ [Phase22] r 파라미터가 테스트 상태('EXPIRED' | 'OTHER_DEVICE' | 'NO_REPORT')면 viewState를 먼저 확정
+        const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
+        let viewState = null;
+        if (rParam && testStates.includes(rParam)) {
+          viewState = rParam;
+          window.__shareViewState = viewState;
+          console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
+        }
+        
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
         // 기존 localStorage 복원 우선 (회귀 금지)
-        const reportModel = await loadReportModel();
+        // 테스트 상태가 아닐 때만 loadReportModel 호출
+        const reportModel = viewState ? null : await loadReportModel();
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
@@ -2066,10 +2090,11 @@
         }
         
         // ✅ [Hotfix] r === __currentReportId && __lastV2 존재 시 무조건 OK 판정
-        let viewState;
-        // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
-        window.__shareViewState = null;
-        if (rParam && rParam.length > 0) {
+        // ✅ [Phase22] 테스트 상태가 이미 설정된 경우 viewState 결정 로직 건너뛰기
+        if (!viewState) {
+          // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
+          window.__shareViewState = null;
+          if (rParam && rParam.length > 0) {
           const currentReportId = localStorage.getItem('__currentReportId');
           if (currentReportId && rParam === currentReportId && lastV2Str && lastV2Str.length > 10) {
             // r === __currentReportId && __lastV2 존재 시 무조건 OK
@@ -2090,10 +2115,20 @@
               }
             }
           }
-        } else {
-          // r이 없으면 기존 로직 사용
-          viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
-          console.log('[ShareViewState:debug]', { r: null, current: localStorage.getItem('__currentReportId') || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
+          } else {
+            // r이 없으면 기존 로직 사용
+            viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
+            console.log('[ShareViewState:debug]', { r: null, current: localStorage.getItem('__currentReportId') || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
+          }
+          
+          // ✅ [Phase22] Dev-only viewState override (URL 파라미터로 강제 설정)
+          const vsOverride = urlParams.get('vs');
+          const allowedStates = ['OK', 'EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
+          if (vsOverride && allowedStates.includes(vsOverride)) {
+            const originalViewState = viewState;
+            viewState = vsOverride;
+            console.warn('[ShareViewState:override]', { from: originalViewState, to: viewState, vs: vsOverride });
+          }
         }
         
         // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
@@ -2321,6 +2356,12 @@
         
         // ✅ [Phase 14-1] viewState !== 'OK'일 때는 헤더만 렌더링하고 KPI/WHY/NextActions 건너뛰기
         if (viewState !== 'OK') {
+          // ✅ [Phase22-UX] WHY 패널 숨김 처리 (비-OK 상태에서 WHY 표시 방지)
+          const okWhyPanel = document.querySelector('.why-panel[data-why="ok"]');
+          if (okWhyPanel) {
+            okWhyPanel.style.display = 'none';
+            okWhyPanel.innerHTML = '';
+          }
           document.getElementById('reportHeader').innerHTML = reportHeader;
           const shareContentEl = document.getElementById('shareContent');
           // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
