@@ -1351,44 +1351,97 @@
         }
       }
       
-      // document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
+      // ✅ [Phase23] Helper links navigation policy by viewState
+      // Only intercepts helper links ("왜 리포트를 못 여나요" / "신뢰도 사유 보기")
+      // Primary nav buttons ("홈으로", "최신 리포트 보기") are NOT affected
       document.addEventListener('click', function(e) {
         try {
-          const el = e.target.closest('[data-target]');
-          if (!el) return;
+          // ✅ [Phase23] Helper link detection: match by text content or data-target attribute
+          const clickedEl = e.target.closest('a');
+          if (!clickedEl) return;
           
-          const selector = el.dataset.target;
-          if (!selector || !selector.startsWith('#')) return;
+          const linkText = clickedEl.textContent?.trim() || '';
+          const hasDataTarget = clickedEl.hasAttribute('data-target');
+          const selector = clickedEl.getAttribute('data-target');
           
-          // state 확인
+          // ✅ [Phase23] Skip primary navigation buttons (홈으로, 최신 리포트 보기)
+          // These have href to home.html/share.html or classes btn-home/btn-latest
+          const href = clickedEl.getAttribute('href') || '';
+          const className = clickedEl.className || '';
+          if (href.includes('home.html') || href.includes('share.html') || 
+              className.includes('btn-home') || className.includes('btn-latest')) {
+            return; // Let primary nav buttons work normally
+          }
+          
+          // ✅ [Phase23] Only process helper links
+          const isHelperLink = 
+            linkText.includes('왜 리포트를 못 여나요') ||
+            linkText.includes('신뢰도 사유 보기') ||
+            (hasDataTarget && selector && selector.startsWith('#'));
+          
+          if (!isHelperLink) return;
+          
+          // ✅ [Phase23] state 확인 (기존 변수 사용)
           const state = window.__ShareViewState?.state || window.__shareViewState;
           
-          // 스크롤 정책 확인
+          // ✅ [Phase23] viewState별 네비게이션 정책 적용
           let shouldScroll = false;
-          if (state === 'OK' && selector === '#obs-lite') {
-            shouldScroll = true;
-          } else if (state === 'EXPIRED' && selector === '#expired-banner') {
-            shouldScroll = true;
-          } else if (state === 'OTHER_DEVICE') {
-            // OTHER_DEVICE는 스크롤하지 않음
+          let targetId = null;
+          
+          if (state === 'OK') {
+            // OK: "신뢰도 사유 보기 →" → #obs-lite로 스크롤
+            if (linkText.includes('신뢰도 사유 보기') || selector === '#obs-lite') {
+              shouldScroll = true;
+              targetId = 'obs-lite';
+            }
+            // "왜 리포트를 못 여나요" → 타겟이 있으면 스크롤, 없으면 no-op
+            else if (linkText.includes('왜 리포트를 못 여나요') && selector) {
+              const targetEl = document.querySelector(selector);
+              if (targetEl) {
+                shouldScroll = true;
+                targetId = selector.replace('#', '');
+              }
+            }
+          } else if (state === 'EXPIRED') {
+            // EXPIRED: "왜 리포트를 못 여나요? →" → #expired-banner로 스크롤
+            if (linkText.includes('왜 리포트를 못 여나요') || selector === '#expired-banner') {
+              shouldScroll = true;
+              targetId = 'expired-banner';
+            }
+            // "신뢰도 사유 보기" → no-op (may not exist, that's OK)
+          } else if (state === 'OTHER_DEVICE' || state === 'NO_REPORT') {
+            // OTHER_DEVICE / NO_REPORT: 모든 helper links 무동작
             shouldScroll = false;
           }
           
-          // 디버그 로그
+          // ✅ [Phase23] 디버그 로그
           if (window.__DEBUG_CTA_SCROLL) {
-            console.info('[cta-scroll:capture]', selector, 'text=', el.textContent?.trim() || '', 'state=', (state || 'unknown'), 'handled=', shouldScroll);
+            console.info('[helper-link:capture]', { linkText, selector, state: (state || 'unknown'), shouldScroll, targetId });
           }
           
-          // 스크롤하지 않으면 조용히 리턴
-          if (!shouldScroll) return;
+          // ✅ [Phase23] Helper link 클릭 처리
+          if (!shouldScroll) {
+            // No-op: preventDefault + stopPropagation (no hash change, no scroll to top)
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return;
+          }
           
-          // 이벤트 차단 (유효한 [data-target] 클릭만)
+          // ✅ [Phase23] Allowed scroll: preventDefault 후 스크롤 실행
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
           
-          // 스크롤 실행
-          scrollToTarget(selector);
+          // 타겟 요소 찾기 및 스크롤
+          if (targetId) {
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) {
+              const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              targetEl.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+            }
+            // 타겟이 없으면 no-op (에러 없이 조용히 처리)
+          }
         } catch (err) {
           // 조용히 무시
         }
