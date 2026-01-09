@@ -86,6 +86,32 @@ export function render(root, state) {
       return;
     }
   
+    // ✅ [Phase 20-C] done 상태이지만 result가 없거나 더미 결과인 경우 처리
+    if (state.phase === "done") {
+      // result가 없거나 더미 결과만 있는 경우 초기 상태로 처리
+      const hasActualResults = state.analysis?.scores && (
+        (state.analysis.scores.contentStructureV2 && state.analysis.scores.contentStructureV2.score !== null) ||
+        (state.analysis.scores.branding && state.analysis.scores.branding.score !== null) ||
+        (state.analysis.scores.urlStructureV1 && state.analysis.scores.urlStructureV1 !== null && state.analysis.scores.urlStructureV1.score !== null)
+      );
+      
+      const isDemoMode = globalThis.DEMO_MODE === true || globalThis.__DEMO_MODE === true;
+      
+      // 실제 결과가 없고 demo 모드가 아니면 초기 상태로 렌더링
+      if (!hasActualResults && !isDemoMode) {
+        root.status.textContent = "";
+        root.result.innerHTML = '<p style="color: var(--muted); font-size: 14px;">분석을 실행해주세요.</p>';
+        return;
+      }
+      
+      // result가 없으면 초기 상태로 처리
+      if (!state.result) {
+        root.status.textContent = "";
+        root.result.innerHTML = '<p style="color: var(--muted); font-size: 14px;">분석을 실행해주세요.</p>';
+        return;
+      }
+    }
+  
     if (state.phase === "done" && state.result) {
       const r = state.result;
       root.status.textContent = "완료";

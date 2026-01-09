@@ -102,10 +102,15 @@
       <textarea id="inputText" class="input" rows="6"></textarea>
     </div>
     
-    <button id="btnAnalyze" class="btn btn-primary">Analyze</button>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+      <button id="btnAnalyze" class="btn btn-primary">Analyze</button>
+      <button id="btnHardReset" class="btn btn-secondary" style="font-size: 12px; padding: 8px 16px;">하드 리셋</button>
+    </div>
     
-    <div id="status"></div>
-    <div id="result"></div>
+    <div id="analyze-result" hidden>
+      <div id="status"></div>
+      <div id="result"></div>
+    </div>
   </div>
 
   <div id="modalOverlay"></div>
@@ -130,8 +135,243 @@
 
   <script type="module">
     import { boot } from './core/lifecycle.js';
+    import { setState, getState } from './core/state.js';
+    import { render } from './core/view.js';
+    
+    // ✅ [Phase 20-C] 저장된 실제 분석 결과 확인 함수
+    function hasSavedAnalysisResult() {
+      try {
+        // __lastV2 확인 (v2Summary.analysis.scores 또는 analysis.scores 구조 확인)
+        const lastV2Str = localStorage.getItem('__lastV2');
+        if (lastV2Str) {
+          const lastV2 = JSON.parse(lastV2Str);
+          
+          // v2Summary.analysis.scores 구조 확인
+          if (lastV2 && lastV2.v2Summary && lastV2.v2Summary.analysis && lastV2.v2Summary.analysis.scores) {
+            const scores = lastV2.v2Summary.analysis.scores;
+            if ((scores.contentStructureV2 && scores.contentStructureV2.score !== null && scores.contentStructureV2.score !== undefined) ||
+                (scores.branding && scores.branding.score !== null && scores.branding.score !== undefined) ||
+                (scores.urlStructureV1 && scores.urlStructureV1 !== null && scores.urlStructureV1.score !== null && scores.urlStructureV1.score !== undefined)) {
+              return true;
+            }
+          }
+          
+          // 직접 analysis.scores 구조 확인 (fallback)
+          if (lastV2 && lastV2.analysis && lastV2.analysis.scores) {
+            const scores = lastV2.analysis.scores;
+            if ((scores.contentStructureV2 && scores.contentStructureV2.score !== null && scores.contentStructureV2.score !== undefined) ||
+                (scores.branding && scores.branding.score !== null && scores.branding.score !== undefined) ||
+                (scores.urlStructureV1 && scores.urlStructureV1 !== null && scores.urlStructureV1.score !== null && scores.urlStructureV1.score !== undefined)) {
+              return true;
+            }
+          }
+        }
+        
+        // _aeo_state_v2 확인 (fallback)
+        const stateV2Str = localStorage.getItem('_aeo_state_v2');
+        if (stateV2Str) {
+          const stateV2 = JSON.parse(stateV2Str);
+          if (stateV2 && stateV2.analysis && stateV2.analysis.scores) {
+            const scores = stateV2.analysis.scores;
+            if ((scores.contentStructureV2 && scores.contentStructureV2.score !== null && scores.contentStructureV2.score !== undefined) ||
+                (scores.branding && scores.branding.score !== null && scores.branding.score !== undefined) ||
+                (scores.urlStructureV1 && scores.urlStructureV1 !== null && scores.urlStructureV1.score !== null && scores.urlStructureV1.score !== undefined)) {
+              return true;
+            }
+          }
+        }
+      } catch (e) {
+        // 파싱 실패 시 false 반환
+      }
+      return false;
+    }
+    
+    // ✅ [Phase 20-C] 결과 영역 초기화 함수 (저장된 결과가 없을 때)
+    function resetAnalyzeResultIfNoRealData() {
+      const analyzeResultEl = document.getElementById('analyze-result');
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('result');
+      
+      if (!analyzeResultEl) return;
+      
+      const hasSaved = hasSavedAnalysisResult();
+      const isDemoMode = globalThis.DEMO_MODE === true || globalThis.__DEMO_MODE === true;
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDemoParam = urlParams.get('demo') === '1';
+      const isDemo = isDemoMode || isDemoParam;
+      
+      // 저장된 실제 결과가 없고 demo 모드가 아니면 무조건 숨김+초기화
+      if (!hasSaved && !isDemo) {
+        analyzeResultEl.setAttribute('hidden', '');
+        analyzeResultEl.hidden = true;
+        
+        // 결과 컨테이너들만 비움 (DOM 구조는 유지)
+        if (statusEl) {
+          statusEl.textContent = '';
+          statusEl.innerHTML = '';
+        }
+        if (resultEl) {
+          resultEl.textContent = '';
+          resultEl.innerHTML = '';
+        }
+      }
+    }
+    
+    // ✅ [Phase 20-C] 페이지 로드 시점 초기화 가드 (단 1회만 실행)
+    let __analyzeResultInitialized = false;
+    function initializeAnalyzeResultOnLoad() {
+      if (__analyzeResultInitialized) return;
+      __analyzeResultInitialized = true;
+      
+      // DEMO_MODE 확인
+      const isDemoMode = globalThis.DEMO_MODE === true || globalThis.__DEMO_MODE === true;
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDemoParam = urlParams.get('demo') === '1';
+      const isDemo = isDemoMode || isDemoParam;
+      
+      // 실제 분석 결과 확인 (__lastV2 기준)
+      const hasSaved = hasSavedAnalysisResult();
+      
+      // 조건: DEMO_MODE가 아니고, 실제 분석 결과가 없으면 무조건 초기화
+      if (!isDemo && !hasSaved) {
+        const analyzeResultEl = document.getElementById('analyze-result');
+        const statusEl = document.getElementById('status');
+        const resultEl = document.getElementById('result');
+        
+        if (analyzeResultEl) {
+          // 숨김 처리
+          analyzeResultEl.setAttribute('hidden', '');
+          analyzeResultEl.hidden = true;
+          
+          // 결과 컨테이너들만 비움 (DOM 구조는 유지)
+          if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.innerHTML = '';
+          }
+          if (resultEl) {
+            resultEl.textContent = '';
+            resultEl.innerHTML = '';
+          }
+        }
+      }
+    }
+    
+    // ✅ [Phase 20-C] DOMContentLoaded 시점에 즉시 실행되는 초기화 가드
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        initializeAnalyzeResultOnLoad();
+      }, { once: true });
+    } else {
+      // 이미 로드된 경우 즉시 실행
+      initializeAnalyzeResultOnLoad();
+    }
+    
+    // ✅ [Phase 20-C] window.onload 시점에도 확인 (단 1회만, fallback)
+    window.addEventListener('load', () => {
+      if (!__analyzeResultInitialized) {
+        initializeAnalyzeResultOnLoad();
+      }
+    }, { once: true });
+    
+    // ✅ [Phase 20-C] 초기 상태 확인 및 결과 영역 표시 제어
+    (function() {
+      const analyzeResultEl = document.getElementById('analyze-result');
+      if (analyzeResultEl) {
+        // 초기화: 저장된 결과가 없으면 무조건 숨김+초기화
+        resetAnalyzeResultIfNoRealData();
+        
+        // ✅ [Phase 20-C] 주기적 체크 제거 (렌더 루프와 충돌 방지)
+        // setInterval(checkAndUpdateVisibility, 120) 제거됨
+        // 결과 영역 표시/숨김은 view.js의 렌더링 로직에 맡김
+      }
+    })();
     
     boot();
+    
+    // ✅ [Phase 20-C] boot() 완료 후 초기화 재확인 (view.js 렌더링 후 더미 텍스트 제거)
+    setTimeout(() => {
+      resetAnalyzeResultIfNoRealData();
+    }, 200);
+    
+    // ✅ [Phase 20-C] 하드 리셋 기능
+    (function() {
+      // boot() 완료 후 실행되도록 약간의 지연
+      setTimeout(() => {
+        const btnHardReset = document.getElementById('btnHardReset');
+        if (!btnHardReset) return;
+        
+        btnHardReset.addEventListener('click', () => {
+          // 확인 대화상자
+          if (!confirm('모든 분석 데이터를 삭제하고 초기화하시겠습니까?')) {
+            return;
+          }
+          
+          // ✅ [Phase 20-C] 하드 리셋: 모든 관련 localStorage 키 삭제
+          const keysToRemove = [
+            '__lastV2',
+            '__currentReportId',
+            '_aeo_state_v2',
+            '_evidenceV1'
+          ];
+          
+          keysToRemove.forEach(key => {
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn(`[hard-reset] Failed to remove ${key}:`, e);
+            }
+          });
+          
+          // window 객체의 상태도 초기화
+          if (window.__lastV2) {
+            delete window.__lastV2;
+          }
+          
+          // ✅ [Phase 20-C] 상태 초기화
+          setState({
+            input: '',
+            phase: 'idle',
+            result: null
+          });
+          
+          // 화면 초기화
+          const root = {
+            inputText: document.getElementById('inputText'),
+            btnAnalyze: document.getElementById('btnAnalyze'),
+            status: document.getElementById('status'),
+            result: document.getElementById('result')
+          };
+          
+          if (root.inputText) {
+            root.inputText.value = '';
+            root.inputText.disabled = false;
+          }
+          if (root.btnAnalyze) {
+            root.btnAnalyze.disabled = false;
+          }
+          if (root.status) {
+            root.status.innerHTML = '';
+          }
+          if (root.result) {
+            root.result.innerHTML = '';
+          }
+          
+          // view 렌더링 (초기 상태로)
+          try {
+            const initialState = getState();
+            render(root, initialState);
+          } catch (e) {
+            console.warn('[hard-reset] Failed to render:', e);
+          }
+          
+          // ✅ [Phase 20-C] 하드 리셋 후 결과 영역 초기화 재확인
+          resetAnalyzeResultIfNoRealData();
+          
+          console.log('[hard-reset] 완료. localStorage 키 삭제:', keysToRemove);
+          console.log('[hard-reset] 확인:', Object.keys(localStorage).sort());
+        });
+      }, 100);
+    })();
   </script>
 </body>
 </html>

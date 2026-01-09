@@ -111,33 +111,8 @@ export function bindActions(root) {
         }
       }
 
+      // ✅ [Phase 20-C] analysis.scores를 먼저 설정 (buildReportPayload() 호출 전)
       setState({
-        phase: "done",
-        result: {
-          score: 62,
-          grade: "B",
-          summary: `입력 "${input}" 기준 더미 결과입니다.`,
-          evidence: [
-            "구조화 요약 블록 부재(더미)",
-            "핵심 정보 분리 부족(더미)",
-            "AI 인용 신호 약함(더미)",
-          ],
-          actions: [
-            "상단 5~7줄 요약 추가",
-            "스펙/USP 리스트화",
-            "FAQ 3개 구성",
-          ],
-          urlStructureV1: {
-            score: null,
-            grade: null,
-            checks: {},
-            meta: {
-              targetUrl: null,
-              analyzedAt: null,
-              version: "v1"
-            }
-          },
-        },
         analysis: {
           scores: analysisScores,
           ...(evidenceData ? { evidence: evidenceData } : {})
@@ -145,8 +120,79 @@ export function bindActions(root) {
       });
       
       // ✅ [inputs 복구] 분석 완료 시점에 __lastV2 스냅샷 생성 및 저장
+      // buildReportPayload()를 먼저 호출하여 실제 result를 가져옴
       const finalState = getState();
       const reportPayload = buildReportPayload();
+      
+      // ✅ [Phase 20-C] 더미 결과 생성은 명시적 demo 플래그가 있을 때만 허용
+      const hasActualResults = (
+        (contentStructureV2Result && contentStructureV2Result.score !== null && contentStructureV2Result.score !== undefined) ||
+        (brandingResult && brandingResult.score !== null && brandingResult.score !== undefined) ||
+        (analysisScores.urlStructureV1 && analysisScores.urlStructureV1 !== null && analysisScores.urlStructureV1.score !== null && analysisScores.urlStructureV1.score !== undefined)
+      );
+      
+      const isDemoMode = globalThis.DEMO_MODE === true || globalThis.__DEMO_MODE === true;
+      
+      // 실제 결과가 없고 demo 모드가 아니면 더미 결과를 생성하지 않음
+      if (!hasActualResults && !isDemoMode) {
+        // 초기 상태로 유지 (더미 결과 생성하지 않음)
+        setState({
+          phase: "idle",
+          result: null,
+          analysis: {
+            scores: analysisScores,
+            ...(evidenceData ? { evidence: evidenceData } : {})
+          }
+        });
+      } else if (isDemoMode) {
+        // demo 모드일 때만 더미 결과 설정
+        setState({
+          phase: "done",
+          result: {
+            score: 62,
+            grade: "B",
+            summary: `입력 "${input}" 기준 더미 결과입니다.`,
+            evidence: [
+              "구조화 요약 블록 부재(더미)",
+              "핵심 정보 분리 부족(더미)",
+              "AI 인용 신호 약함(더미)",
+            ],
+            actions: [
+              "상단 5~7줄 요약 추가",
+              "스펙/USP 리스트화",
+              "FAQ 3개 구성",
+            ],
+            urlStructureV1: {
+              score: null,
+              grade: null,
+              checks: {},
+              meta: {
+                targetUrl: null,
+                analyzedAt: null,
+                version: "v1"
+              }
+            },
+          },
+          analysis: {
+            scores: analysisScores,
+            ...(evidenceData ? { evidence: evidenceData } : {})
+          }
+        });
+      } else {
+        // 실제 결과가 있을 때 (demo 모드 아님) - contentStructureV2Result 기반으로 result 구성
+        setState({
+          phase: "done",
+          result: {
+            score: contentStructureV2Result?.score || null,
+            grade: contentStructureV2Result?.grade || null,
+            summary: `입력 "${input}" 기준 결과입니다.`
+          },
+          analysis: {
+            scores: analysisScores,
+            ...(evidenceData ? { evidence: evidenceData } : {})
+          }
+        });
+      }
       
       // ✅ 이전 __lastV2에서 url 추출 (brand/product 변경되지 않았을 때만 유지)
       const prevUrl = (!shouldResetUrlData && prevLastV2 && prevLastV2.inputs) 
@@ -169,13 +215,25 @@ export function bindActions(root) {
       };
       
       // v2Summary 리포트 모델 생성 (inputs 포함)
+      // ✅ [Phase 20-C] DEMO_MODE가 아닌 경우 result는 contentStructureV2Result 기반으로 구성
+      const v2SummaryResult = isDemoMode 
+        ? (reportPayload.result || null)
+        : (hasActualResults 
+          ? {
+              score: contentStructureV2Result?.score || null,
+              grade: contentStructureV2Result?.grade || null,
+              summary: `입력 "${input}" 기준 결과입니다.`
+            }
+          : null);
+      
       const v2Summary = {
         inputs: inputs,
         input: finalState.input || null,
-        result: reportPayload.result || null,
+        result: v2SummaryResult,
         analysis: {
           scores: v2SummaryAnalysisScores,
-          inputText: input || null
+          inputText: input || null,
+          ...(evidenceData ? { evidence: evidenceData } : {})
         },
         generatedAt: reportPayload.generatedAt || Date.now(),
         createdAt: new Date().toISOString()
@@ -271,17 +329,23 @@ export function bindActions(root) {
         product: productFromUrl || ''
       };
       
+      // ✅ [Phase 20-C] evidenceData 추출 (reportPayload.analysis.evidence 또는 state에서)
+      const shareEvidenceData = reportPayload.analysis?.evidence || state.analysis?.evidence || null;
+      
       // __lastV2 리포트 모델 생성 (inputs 포함)
       const lastV2 = {
         inputs: inputs,
         input: state.input || null,
         result: reportPayload.result || null,
-        analysis: reportPayload.analysis || {
-          scores: {
-            branding: null,
-            contentStructureV2: null,
-            urlStructureV1: null
-          }
+        analysis: {
+          ...(reportPayload.analysis || {
+            scores: {
+              branding: null,
+              contentStructureV2: null,
+              urlStructureV1: null
+            }
+          }),
+          ...(shareEvidenceData ? { evidence: shareEvidenceData } : {})
         },
         generatedAt: reportPayload.generatedAt || Date.now(),
         createdAt: new Date().toISOString()
