@@ -1351,44 +1351,85 @@
         }
       }
       
-      // document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
+      // ✅ [Phase24-3] document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
       document.addEventListener('click', function(e) {
         try {
-          const el = e.target.closest('[data-target]');
+          // Helper link 식별: data-target 또는 data-cta 또는 텍스트 내용으로 판단
+          const el = e.target.closest('[data-target]') || 
+                     e.target.closest('[data-cta]') ||
+                     (e.target.closest('a') && (
+                       e.target.textContent?.includes('왜 리포트를 못 여나요') ||
+                       e.target.textContent?.includes('신뢰도 사유 보기')
+                     ) ? e.target.closest('a') : null);
+          
           if (!el) return;
           
+          // Primary nav buttons는 제외 (홈으로, 최신 리포트 보기 등)
+          if (el.classList.contains('btn-home') || 
+              el.classList.contains('btn-latest') ||
+              el.getAttribute('href') === './home.html' ||
+              el.getAttribute('href') === './share.html') {
+            return;
+          }
+          
           const selector = el.dataset.target;
-          if (!selector || !selector.startsWith('#')) return;
+          const ctaType = el.dataset.cta;
+          const linkText = el.textContent?.trim() || '';
           
           // state 확인
           const state = window.__ShareViewState?.state || window.__shareViewState;
           
-          // 스크롤 정책 확인
+          // ✅ [Phase24-3] Helper link 정책 적용 (viewState별 분리)
           let shouldScroll = false;
-          if (state === 'OK' && selector === '#obs-lite') {
-            shouldScroll = true;
-          } else if (state === 'EXPIRED' && selector === '#expired-banner') {
-            shouldScroll = true;
-          } else if (state === 'OTHER_DEVICE') {
-            // OTHER_DEVICE는 스크롤하지 않음
+          let shouldPrevent = false;
+          let targetSelector = null;
+          
+          if (state === 'OK') {
+            // OK: 신뢰도 사유 보기 → #obs-lite로 스크롤
+            if (selector === '#obs-lite' || (ctaType === 'reliability' && linkText.includes('신뢰도 사유 보기'))) {
+              shouldScroll = true;
+              targetSelector = '#obs-lite';
+            } else if (selector && selector.startsWith('#')) {
+              // 다른 data-target이 있으면 스크롤
+              shouldScroll = true;
+              targetSelector = selector;
+            }
+          } else if (state === 'EXPIRED') {
+            // EXPIRED: "왜 리포트를 못 여나요?" → #expired-banner로 스크롤
+            if (selector === '#expired-banner' || 
+                ctaType === 'why-report' || 
+                linkText.includes('왜 리포트를 못 여나요')) {
+              shouldScroll = true;
+              targetSelector = '#expired-banner';
+            } else if (selector && selector.startsWith('#')) {
+              // 다른 data-target이 있으면 스크롤
+              shouldScroll = true;
+              targetSelector = selector;
+            }
+          } else if (state === 'OTHER_DEVICE' || state === 'NO_REPORT') {
+            // OTHER_DEVICE/NO_REPORT: 모든 helper link는 no-op (스크롤/해시 변경 금지)
+            shouldPrevent = true;
             shouldScroll = false;
           }
           
-          // 디버그 로그
-          if (window.__DEBUG_CTA_SCROLL) {
-            console.info('[cta-scroll:capture]', selector, 'text=', el.textContent?.trim() || '', 'state=', (state || 'unknown'), 'handled=', shouldScroll);
+          // 스크롤 또는 prevent 처리
+          if (shouldPrevent) {
+            // OTHER_DEVICE/NO_REPORT: 클릭 무동작
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return;
           }
           
-          // 스크롤하지 않으면 조용히 리턴
-          if (!shouldScroll) return;
+          if (!shouldScroll || !targetSelector) return;
           
-          // 이벤트 차단 (유효한 [data-target] 클릭만)
+          // 이벤트 차단 (유효한 helper link 클릭만)
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
           
-          // 스크롤 실행
-          scrollToTarget(selector);
+          // 스크롤 실행 (smooth scroll)
+          scrollToTarget(targetSelector);
         } catch (err) {
           // 조용히 무시
         }
@@ -2208,11 +2249,12 @@
         const urlStructureV1Score = scores.urlStructureV1;
         
         // ✅ [Phase 18-B] AI 추천 준비도 리포트 신뢰 카피 블록 (모든 상태에서 표시)
+        // ✅ [Phase24-3] Helper link UX: OTHER_DEVICE/NO_REPORT는 비활성화 스타일 적용
         const ctaLink = viewState === 'OK' 
           ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
           : viewState === 'EXPIRED'
           ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
-          : '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="noop" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>';
+          : '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="noop" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #999; text-decoration: none; font-weight: 500; cursor: default;">왜 리포트를 못 여나요? →</a>';
         
         const scoreExplainerBlock = `
           <div id="anchor-score-explainer" class="notice-card" style="margin-top: 0; margin-bottom: 24px;">
