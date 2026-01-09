@@ -1354,6 +1354,25 @@
       // ✅ [Phase24-3] document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
       document.addEventListener('click', function(e) {
         try {
+          // ✅ [Phase24-3] NO_REPORT에서 details/summary 클릭은 허용 (아코디언 토글)
+          const state = window.__ShareViewState?.state || window.__shareViewState;
+          
+          // NO_REPORT의 .no-report-why details/summary는 helper-link intercept 대상 제외
+          const isNoReportWhy = e.target.closest('.no-report-why');
+          if (isNoReportWhy) {
+            // NO_REPORT 카드의 아코디언은 자연스러운 토글 동작 허용 (스크롤/해시 변경 없음)
+            return;
+          }
+          
+          if (state === 'NO_REPORT') {
+            const isSummary = e.target.tagName === 'SUMMARY' || e.target.closest('summary');
+            const isDetails = e.target.closest('details');
+            if (isSummary || isDetails) {
+              // NO_REPORT의 다른 details/summary도 자연스러운 토글 동작 허용
+              return;
+            }
+          }
+          
           // Helper link 식별: data-target 또는 data-cta 또는 텍스트 내용으로 판단
           const el = e.target.closest('[data-target]') || 
                      e.target.closest('[data-cta]') ||
@@ -1375,9 +1394,6 @@
           const selector = el.dataset.target;
           const ctaType = el.dataset.cta;
           const linkText = el.textContent?.trim() || '';
-          
-          // state 확인
-          const state = window.__ShareViewState?.state || window.__shareViewState;
           
           // ✅ [Phase24-3] Helper link 정책 적용 (viewState별 분리)
           let shouldScroll = false;
@@ -1407,14 +1423,17 @@
               targetSelector = selector;
             }
           } else if (state === 'OTHER_DEVICE' || state === 'NO_REPORT') {
-            // OTHER_DEVICE/NO_REPORT: 모든 helper link는 no-op (스크롤/해시 변경 금지)
+            // OTHER_DEVICE/NO_REPORT: helper link는 no-op (스크롤/해시 변경/URL 변경 금지)
             shouldPrevent = true;
             shouldScroll = false;
           }
           
+          // 디버그 로그
+          console.debug('[helper-link]', { state, ctaType, linkText: linkText.substring(0, 20), shouldScroll, shouldPrevent, targetSelector });
+          
           // 스크롤 또는 prevent 처리
           if (shouldPrevent) {
-            // OTHER_DEVICE/NO_REPORT: 클릭 무동작
+            // OTHER_DEVICE/NO_REPORT: 클릭 무동작 (스크롤/해시/URL 변경 없음)
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
@@ -2249,12 +2268,14 @@
         const urlStructureV1Score = scores.urlStructureV1;
         
         // ✅ [Phase 18-B] AI 추천 준비도 리포트 신뢰 카피 블록 (모든 상태에서 표시)
-        // ✅ [Phase24-3] Helper link UX: OTHER_DEVICE/NO_REPORT는 비활성화 스타일 적용
+        // ✅ [Phase24-3] Helper link UX: viewState별 렌더링 조건 분리
         const ctaLink = viewState === 'OK' 
           ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
           : viewState === 'EXPIRED'
           ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
-          : '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="noop" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #999; text-decoration: none; font-weight: 500; cursor: default;">왜 리포트를 못 여나요? →</a>';
+          : viewState === 'OTHER_DEVICE'
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report-disabled" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #999; text-decoration: none; font-weight: 500; cursor: default;">왜 리포트를 못 여나요? →</a>'
+          : ''; // NO_REPORT: Readiness 카드의 helper link 숨김 (NO_REPORT 카드의 details/summary 사용)
         
         const scoreExplainerBlock = `
           <div id="anchor-score-explainer" class="notice-card" style="margin-top: 0; margin-bottom: 24px;">
@@ -2308,6 +2329,17 @@
             message = '홈에서 다시 분석을 시작해 주세요.';
             buttons = `
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로 이동</a>
+            `;
+            // ✅ [Phase24-3] NO_REPORT 아코디언 추가
+            buttons += `
+              <details class="no-report-why" style="margin-top: 16px; font-size: 13px;">
+                <summary style="cursor: pointer; color: #0066cc; text-decoration: none; font-weight: 500; display: inline-block; padding: 4px 0;">왜 리포트를 못 여나요? →</summary>
+                <div style="margin-top: 12px; padding-left: 8px; border-left: 2px solid #ffc107;">
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">이 공유 링크는 동일 브라우저/기기에서만 리포트 데이터를 찾을 수 있습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">다른 브라우저/시크릿 모드에서는 접근할 수 없습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">해결: 홈에서 다시 분석해 이 브라우저에 최신 리포트를 생성하세요.</p>
+                </div>
+              </details>
             `;
           } else if (viewState === 'EXPIRED') {
             title = '이 링크로는 리포트를 열 수 없습니다';
