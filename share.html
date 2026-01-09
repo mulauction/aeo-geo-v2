@@ -2672,6 +2672,7 @@
           <div id="share-status"></div>
           ${statusPanel}
           ${getOnlyNotice}
+          ${viewState === 'OK' ? '<div id="recentReportsMount"></div>' : ''}
           <div class="report-header-summary">
             리포트가 준비되었습니다. AI 검색·추천 환경에서의 인식 가능성을 구조적 기준으로 분석한 결과입니다.
           </div>
@@ -2768,6 +2769,138 @@
           
           return;
         }
+
+        // ✅ [Phase 27-0] Recent Reports 저장/표시 (OK 상태에서만)
+        // - 저장 키: __recentReportsV1 (최대 10, id 기준 dedupe)
+        // - viewState/스코어링/기존 저장 키(__lastV2/__currentReportId)에는 영향 없음
+        const RECENT_KEY = '__recentReportsV1';
+        const parseJsonSafe = (str, fallback) => {
+          try { return JSON.parse(str); } catch { return fallback; }
+        };
+        const loadRecentReports = () => {
+          try {
+            const raw = localStorage.getItem(RECENT_KEY);
+            const arr = parseJsonSafe(raw || '[]', []);
+            return Array.isArray(arr) ? arr : [];
+          } catch {
+            return [];
+          }
+        };
+        const saveRecentReports = (items) => {
+          try {
+            localStorage.setItem(RECENT_KEY, JSON.stringify(items));
+          } catch {
+            // 저장 실패는 조용히 무시 (UX 영향 최소화)
+          }
+        };
+        const formatRecentDate = (ts) => {
+          try {
+            return new Date(ts).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          } catch {
+            return '';
+          }
+        };
+        const getBestKpiScore = () => {
+          const candidates = [
+            brandingScore?.score,
+            contentStructureV2Score?.score,
+            urlStructureV1Score?.score
+          ].filter(v => typeof v === 'number' && Number.isFinite(v));
+          if (!candidates.length) return null;
+          return Math.max(...candidates);
+        };
+
+        const snapshotId = urlParams.get('id');
+        const currentReportIdForRecent = localStorage.getItem('__currentReportId') || '';
+        const recentId = snapshotId || currentReportIdForRecent || null;
+
+        if (reportModel && recentId) {
+          const now = Date.now();
+          const recentUrl = snapshotId
+            ? (location.origin + location.pathname + `?id=${encodeURIComponent(snapshotId)}&r=${encodeURIComponent(String(now))}`)
+            : (location.origin + location.pathname);
+
+          const entry = {
+            id: recentId,
+            target: analysisTarget || '분석 대상 없음',
+            createdAt: now,
+            score: getBestKpiScore(),
+            url: recentUrl
+          };
+
+          const existing = loadRecentReports();
+          const deduped = existing.filter(it => it && typeof it === 'object' && it.id !== entry.id);
+          const next = [entry, ...deduped].slice(0, 10);
+          saveRecentReports(next);
+        }
+
+        const renderRecentReportsSection = () => {
+          const mount = document.getElementById('recentReportsMount');
+          if (!mount) return;
+          const items = loadRecentReports();
+          if (!items.length) {
+            mount.innerHTML = '';
+            return;
+          }
+
+          const expanded = window.__recentReportsExpandedV1 === true;
+          const visible = expanded ? items.slice(0, 10) : items.slice(0, 3);
+
+          const rows = visible.map((it) => {
+            const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
+            const when = (it && typeof it === 'object' && it.createdAt) ? formatRecentDate(it.createdAt) : '';
+            const score = (it && typeof it === 'object' && typeof it.score === 'number') ? `${it.score}점` : '';
+            const url = (it && typeof it === 'object' && it.url) ? String(it.url) : '';
+            return `
+              <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border);">
+                <div style="min-width: 0;">
+                  <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}</div>
+                  <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
+                </div>
+                <button type="button" class="btn btn-primary" data-recent-open="${esc(url)}" style="padding: 8px 12px; font-size: 13px;">열기</button>
+              </div>
+            `;
+          }).join('');
+
+          mount.innerHTML = `
+            <div class="content-section" style="margin: 12px 0 0 0; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px;">최근 리포트</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button type="button" class="btn" id="btnRecentToggle" style="padding: 8px 10px; font-size: 13px;">${expanded ? '접기' : '전체 보기'}</button>
+                  <button type="button" class="btn" id="btnRecentClear" style="padding: 8px 10px; font-size: 13px;">목록 비우기</button>
+                </div>
+              </div>
+              <div style="border-bottom: 1px solid var(--border);"></div>
+              <div>${rows}</div>
+            </div>
+          `;
+
+          // 이벤트 바인딩 (OK 상태 전용 섹션)
+          const toggleBtn = document.getElementById('btnRecentToggle');
+          if (toggleBtn) {
+            toggleBtn.onclick = () => {
+              window.__recentReportsExpandedV1 = !(window.__recentReportsExpandedV1 === true);
+              renderRecentReportsSection();
+            };
+          }
+          const clearBtn = document.getElementById('btnRecentClear');
+          if (clearBtn) {
+            clearBtn.onclick = () => {
+              try { localStorage.removeItem(RECENT_KEY); } catch {}
+              window.__recentReportsExpandedV1 = false;
+              renderRecentReportsSection();
+            };
+          }
+          mount.querySelectorAll('[data-recent-open]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const url = btn.getAttribute('data-recent-open') || '';
+              if (!url) return;
+              // 저장된 URL로 이동 (우리 코드가 만든 same-site URL만 저장)
+              location.href = url;
+            });
+          });
+        };
         
         // ✅ [Phase 8-0] KPI Bar 그래프 (3종 시각화)
         const kpiBar = (label, value) => {
@@ -3072,8 +3205,19 @@
         }
         
         document.getElementById('reportHeader').innerHTML = reportHeader;
+        renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
-        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
+        const proHooksSection = `
+          <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
+            <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--muted);">아래 기능은 준비 중입니다.</p>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button type="button" class="btn" style="opacity: 0.7;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">리포트 비교(2개)</button>
+              <button type="button" class="btn" style="opacity: 0.7;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">PDF 자동 생성</button>
+            </div>
+          </div>
+        `;
+        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + proHooksSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
