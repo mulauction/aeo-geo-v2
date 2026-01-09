@@ -1,0 +1,57 @@
+{
+  "id": "99969e070b1a477283ad91c112b686a7",
+  "reportModel": {
+    "inputs": {
+      "brand": "",
+      "product": "123213"
+    },
+    "input": "123213",
+    "result": {
+      "score": 62,
+      "grade": "B",
+      "summary": "입력 \"123213\" 기준 더미 결과입니다.",
+      "evidence": [
+        "구조화 요약 블록 부재(더미)",
+        "핵심 정보 분리 부족(더미)",
+        "AI 인용 신호 약함(더미)"
+      ],
+      "actions": [
+        "상단 5~7줄 요약 추가",
+        "스펙/USP 리스트화",
+        "FAQ 3개 구성"
+      ],
+      "urlStructureV1": {
+        "score": null,
+        "grade": null,
+        "checks": {},
+        "meta": {
+          "targetUrl": null,
+          "analyzedAt": null,
+          "version": "v1"
+        }
+      }
+    },
+    "analysis": {
+      "scores": {
+        "branding": null,
+        "contentStructureV2": {
+          "score": 0,
+          "grade": "F",
+          "evidence": [
+            "제목 구조: H1 제목 부재",
+            "제목 구조: H2 제목 부재",
+            "요약 문단: 문단 구조 부재",
+            "리스트 사용: 리스트 부재",
+            "키워드 명시: 키워드 강조 부족",
+            "중복/빈 문단: 문단 없음"
+          ]
+        },
+        "urlStructureV1": null
+      }
+    },
+    "generatedAt": 1767943122070,
+    "createdAt": "2026-01-09T07:18:42.070Z"
+  },
+  "source": "analyze",
+  "createdAt": "2026-01-09T07:18:42.084Z"
+}

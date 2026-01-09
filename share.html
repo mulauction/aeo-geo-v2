@@ -1315,6 +1315,13 @@
     (function () {
       const params = new URLSearchParams(location.search);
       const id = params.get("id");
+      
+      // ✅ [Phase 26-0B] id 파라미터가 있으면 POST 스냅샷 생성 비활성화 (GET-only 모드)
+      const hasId = Boolean(id);
+      if (hasId) {
+        // POST 관련 함수를 오버라이드하여 실행 방지
+        window.__SHARE_READ_ONLY_MODE__ = true;
+      }
 
       // id 없으면 기존 동작 유지
       if (!id) return;
@@ -1332,7 +1339,7 @@
           (location.hostname === "localhost" || location.hostname === "127.0.0.1") &&
           /^550[0-9]$/.test(location.port || "");
 
-        // 정적 서버(550x)일 때는 same-origin 시도하지 않고 처음부터 localhost:3001로만 요청
+        // 정적 서버(5500~5509)면 무조건 localhost:3001로 바로 실행 (same-origin 시도 금지)
         if (isDevStaticServer) {
           try {
             const fallbackUrl = `http://localhost:3001${path}`;
@@ -1377,9 +1384,10 @@
 
           // ✅ 기존 파이프라인 "그대로" 쓰기 위해 주입
           localStorage.setItem("__lastV2", JSON.stringify(snapshot.reportModel));
-          // __currentReportId도 설정하여 기존 로직과 호환
-          if (snapshot.id) {
-            localStorage.setItem("__currentReportId", snapshot.id);
+          // __currentReportId는 r 파라미터(숫자 timestamp)로 유지 (snapshot.id 해시 사용 안 함)
+          const rParam = params.get("r");
+          if (rParam) {
+            localStorage.setItem("__currentReportId", rParam);
           }
 
           dlog("[share] snapshot injected into localStorage (__lastV2)");
@@ -1754,20 +1762,64 @@
     }
     
     /**
-     * ✅ [Phase 11-2C] 포트 5502 체크 헬퍼
-     * @returns {boolean} localhost:5502 여부
+     * ✅ [Phase 11-2C] 포트 5500~5509 정적 서버 체크 헬퍼
+     * @returns {boolean} localhost:5500~5509 여부
      */
-    function isStaticLocal() {
-      return location.hostname === 'localhost' && String(location.port) === '5502';
+    function isDevStaticServer() {
+      return (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+             /^550[0-9]$/.test(location.port || '');
     }
 
     /**
      * ✅ [Phase 11-2C] API 베이스 URL 배열 반환
+     * 정적 서버(5500~5509)에서는 무조건 localhost:3001만 사용 (same-origin 시도 없음)
      * @returns {string[]} API 베이스 URL 배열
      */
     function apiBases() {
-      if (isStaticLocal()) return ['http://localhost:3001'];
+      if (isDevStaticServer()) return ['http://localhost:3001'];
       return ['', 'http://localhost:3001'];
+    }
+
+    /**
+     * ✅ [Phase 26-0B] Snapshot POST API 호출 헬퍼
+     * 정적 서버(5500~5509)에서는 무조건 localhost:3001로만 요청
+     * id 파라미터가 있으면 POST 실행 차단 (GET-only 모드)
+     * @param {Object} reportModel - 리포트 모델
+     * @returns {Promise<string|null>} snapshot ID 또는 null
+     */
+    async function postSnapshotApi(reportModel) {
+      // ✅ [Phase 26-0B] id 파라미터가 있으면 POST 실행 차단 (읽기 전용 모드)
+      if (window.__SHARE_READ_ONLY_MODE__) {
+        return null;
+      }
+      
+      // ✅ [Phase 26-0B] URL 파라미터에서 id 확인 (이중 체크)
+      const urlParams = new URLSearchParams(location.search);
+      if (urlParams.has('id')) {
+        return null;
+      }
+      
+      // 정적 서버(5500~5509)에서는 무조건 localhost:3001로만 요청
+      const baseUrl = isDevStaticServer() ? 'http://localhost:3001' : '';
+      const endpoint = `${baseUrl}/api/snapshot`;
+      
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ reportModel })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          return data?.id || null;
+        }
+      } catch (err) {
+        // 조용히 실패 처리
+      }
+      return null;
     }
 
     /**
@@ -3020,8 +3072,40 @@
         const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
         if (copyBtn) {
           copyBtn.addEventListener('click', async () => {
-            // ✅ [Phase 11-2C] 공유 링크 진입 시 POST 차단 (forceWrite 제외)
+            // ✅ [Phase 26-0B] id 파라미터가 있으면 POST 실행 스킵 (읽기 전용 공유 리포트)
             const currentUrlParams = new URLSearchParams(location.search);
+            const currentIdParam = currentUrlParams.get('id');
+            if (currentIdParam) {
+              // id 파라미터가 있으면 읽기 전용이므로 POST 없이 로컬 복사만
+              const shareUrl = location.href;
+              const originalText = copyBtn.textContent;
+              
+              try {
+                await navigator.clipboard.writeText(shareUrl);
+                copyBtn.textContent = '복사됨';
+                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                showToast('공유 링크가 복사되었습니다');
+              } catch (err) {
+                try {
+                  const textarea = document.createElement('textarea');
+                  textarea.value = shareUrl;
+                  textarea.style.position = 'fixed';
+                  textarea.style.left = '-9999px';
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textarea);
+                  copyBtn.textContent = '복사됨';
+                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                  showToast('공유 링크가 복사되었습니다');
+                } catch (fallbackErr) {
+                  showToast('복사 실패: 브라우저 권한을 확인해주세요', 2000, true);
+                }
+              }
+              return;
+            }
+            
+            // ✅ [Phase 11-2C] 공유 링크 진입 시 POST 차단 (forceWrite 제외)
             const currentRParam = currentUrlParams.get('r');
             const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
             const getOnly = (!forceWrite) && Boolean(currentRParam);
@@ -3127,36 +3211,8 @@
               // c) 서버 저장 시작
               setShareStatus('서버에 저장 중…');
               
-              // d) POST 요청 (포트 5502일 때는 http://localhost:3001만 사용)
-              const endpoints = makeSnapshotPostUrls();
-              
-              let snapshotId = null;
-              for (const endpoint of endpoints) {
-                try {
-                  // 검증 로그 (개발용)
-                  console.log('[share] POST snapshot ->', endpoint);
-                  
-                  const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ reportModel: v2Summary })
-                  });
-                  
-                  if (response.ok) {
-                    const data = await response.json();
-                    snapshotId = data.id;
-                    break;
-                  } else if (response.status !== 404) {
-                    // 404가 아니면 다음 엔드포인트 시도
-                    continue;
-                  }
-                } catch (err) {
-                  // 네트워크 오류 시 다음 엔드포인트 시도
-                  continue;
-                }
-              }
+              // d) POST 요청 (정적 서버에서는 무조건 localhost:3001로만 요청)
+              const snapshotId = await postSnapshotApi(v2Summary);
               
               if (!snapshotId) {
                 throw new Error('서버 저장 실패');
