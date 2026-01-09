@@ -9,40 +9,24 @@ import { buildImproveRequestV1, requestImproveV1 } from "./api/improveClient.js"
 
 /**
  * [Phase 26-1] Snapshot API fetch with dev fallback
- * (1) 먼저 same-origin으로 시도하고 실패하면 (2) dev fallback으로 http://localhost:3001/api/snapshot 로 1회 재시도
- * 무한 재시도 금지
- * @param {string} path - API 경로 (예: '/api/snapshot' 또는 '/api/snapshot/:id')
- * @param {RequestInit} options - fetch options
- * @returns {Promise<Response>}
+ * (1) same-origin 으로 먼저 시도
+ * (2) dev static server(550x)에서 실패하면
+ *     http://localhost:3001 으로 1회 fallback
  */
+
 async function fetchSnapshotApi(path, options = {}) {
   const isDevStaticServer = 
     (location.hostname === "localhost" || location.hostname === "127.0.0.1") &&
     /^550[0-9]$/.test(location.port || "");
 
-  // (1) 먼저 same-origin으로 시도
-  try {
-    const res = await fetch(path, options);
-    // 성공하면 반환, 정적 서버가 아니면 실패해도 반환
-    if (res.ok || !isDevStaticServer) {
-      return res;
-    }
-    // 정적 서버에서 실패(404 등)하면 fallback으로 진행
-  } catch (e) {
-    // fetch 실패 (네트워크 오류 등)
-    if (!isDevStaticServer) {
-      throw e;
-    }
-    // 정적 서버에서 네트워크 오류면 fallback으로 진행
-  }
-
-  // (2) dev fallback: localhost:3001로 1회 재시도 (무한 재시도 금지)
+  // 정적 서버(5500~5509)면 무조건 localhost:3001로 바로 실행 (same-origin 시도 금지)
   if (isDevStaticServer) {
     const fallbackUrl = `http://localhost:3001${path}`;
     return fetch(fallbackUrl, options);
   }
 
-  throw new Error("Snapshot API fetch failed");
+  // 정적 서버가 아닐 때는 same-origin으로 시도
+  return fetch(path, options);
 }
 
 
@@ -303,7 +287,7 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __currentReportId to localStorage:', e);
       }
       
-      // ✅ [Phase 26-0A] Snapshot 저장 후 share.html?id= 이동
+      // ✅ [Phase 26-0B] Snapshot 저장 후 share.html?id= 이동
       Promise.resolve().then(async () => {
         // localStorage 저장이 완료된 후 스냅샷 저장 시도
         try {
@@ -317,7 +301,7 @@ export function bindActions(root) {
             })
           });
 
-          if (res.ok) {
+          if (res && res.ok) {
             const json = await res.json();
             if (json && json.id) {
               // 성공: share.html?id= 이동
@@ -326,7 +310,19 @@ export function bindActions(root) {
             }
           }
         } catch (e) {
-          // 실패 시 조용히 fallback
+          // 실패 시 조용히 처리 (콘솔 에러 남발 금지)
+        }
+
+        // 실패 시 사용자에게 알림 표시 후 fallback
+        try {
+          // showToast 함수가 있으면 사용, 없으면 alert
+          if (typeof showToast === 'function') {
+            showToast('공유 링크 생성 실패', false);
+          } else {
+            alert('공유 링크 생성에 실패했습니다. 기존 방식으로 공유합니다.');
+          }
+        } catch (toastErr) {
+          // 토스트 표시 실패 시 조용히 무시
         }
 
         // fallback: 기존 방식 (localStorage 기반)
