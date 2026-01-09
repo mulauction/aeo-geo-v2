@@ -1990,14 +1990,16 @@
     
     /**
      * ✅ [Share 복원 로직] reportModel 복원 함수
-     * ✅ [Phase 16-2] r 파라미터가 있을 때만 해당 reportId 사용 (fallback 절대 금지)
+     * ✅ [Phase 26-2C-2] r-only(r 있고 id 없음)일 때만 해당 reportId 사용 (fallback 절대 금지)
      * 우선순위: (1) URL 파라미터 r → (2) window.__lastV2 / localStorage '__lastV2' → (3) localStorage 'aeo_state_v2'
      * ✅ [Phase 13-1B] r이 snapshot ID인 경우 localStorage 확인 후 없으면 fetch 없이 즉시 fallback
      * @returns {Promise<Object|null>} reportModel 객체 또는 null
      */
     async function loadReportModel() {
       const urlParams = new URLSearchParams(window.location.search);
+      const hasId = Boolean(urlParams.get('id'));
       const rParam = urlParams.get('r');
+      const rOnly = Boolean(rParam) && !hasId;
       
       // ✅ [Phase22] viewState가 OK가 아니면 snapshot fetch 금지
       const currentViewState = window.__shareViewState;
@@ -2013,8 +2015,9 @@
         return null;
       }
       
-      // ✅ [Phase 16-2] r 파라미터가 존재할 경우, 반드시 해당 reportId만 사용 (fallback 절대 금지)
-      if (rParam) {
+      // ✅ [Phase 26-2C-2] r-only(r 있고 id 없음)일 때만 fallback 절대 금지
+      // id가 있으면 snapshot boot가 __lastV2를 주입하므로, 정상 OK 플로우를 위해 fallback 허용
+      if (rOnly) {
         try {
           const decoded = decodeURIComponent(rParam);
           const parsed = JSON.parse(decoded);
@@ -2059,7 +2062,7 @@
         return null;
       }
       
-      // ✅ [Phase 16-2] r 파라미터가 없을 때만 fallback 로직 사용
+      // ✅ [Phase 26-2C-2] r-only가 아닐 때만 fallback 로직 사용
       // (2) window.__lastV2 또는 localStorage '__lastV2'
       if (window.__lastV2) {
         return window.__lastV2;
@@ -2266,6 +2269,26 @@
           await window.__shareIdBoot;
         }
 
+        // ✅ [Phase 26-2B] force 파라미터 체크 (개발자용 테스트 하네스)
+        const urlParams = new URLSearchParams(location.search);
+        const forceParam = urlParams.get('force');
+        let forcedState = null;
+        if (forceParam) {
+          const normalizedForce = forceParam.toUpperCase().replace(/_/g, '');
+          const validStates = ['OK', 'EXPIRED', 'OTHERDEVICE', 'FETCHFAIL'];
+          const stateMap = {
+            'OK': 'OK',
+            'EXPIRED': 'EXPIRED',
+            'OTHERDEVICE': 'OTHER_DEVICE',
+            'FETCHFAIL': 'FETCH_FAIL'
+          };
+          
+          if (validStates.includes(normalizedForce)) {
+            forcedState = stateMap[normalizedForce];
+            console.log('[share][dev] forced state:', forcedState);
+          }
+        }
+
         if (__shareInitialized) {
           console.log('[ShareViewState:bootstrap] Re-initializing Share page');
         } else {
@@ -2290,6 +2313,7 @@
         // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
         const urlParams = new URLSearchParams(window.location.search);
         const rParam = urlParams.get('r');
+        const hasId = Boolean(urlParams.get('id'));
         const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
         const getOnly = (!forceWrite) && Boolean(rParam);
         
@@ -2297,10 +2321,41 @@
           console.log('[share] view mode: GET only');
         }
         
+        // ✅ [Phase 26-2C-2] id 파라미터가 있으면 snapshot 플로우 허용 (r-only 규칙 적용 금지)
+        if (hasId && !window.__shareIdParamFlowLogged) {
+          window.__shareIdParamFlowLogged = true;
+          console.log('[share] id param present – allowing snapshot flow');
+        }
+        
+        // ✅ [Phase 26-2B] force 파라미터 체크 (개발자용 테스트 하네스)
+        const forceParam = urlParams.get('force');
+        let forcedState = null;
+        if (forceParam) {
+          const normalizedForce = forceParam.toUpperCase().replace(/_/g, '');
+          const validStates = ['OK', 'EXPIRED', 'OTHERDEVICE', 'FETCHFAIL'];
+          const stateMap = {
+            'OK': 'OK',
+            'EXPIRED': 'EXPIRED',
+            'OTHERDEVICE': 'OTHER_DEVICE',
+            'FETCHFAIL': 'FETCH_FAIL'
+          };
+          
+          if (validStates.includes(normalizedForce)) {
+            forcedState = stateMap[normalizedForce];
+            console.log('[share][dev] forced state:', forcedState);
+          }
+        }
+        
         // ✅ [Phase22] r 파라미터가 테스트 상태('EXPIRED' | 'OTHER_DEVICE' | 'NO_REPORT')면 viewState를 먼저 확정
         const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
         let viewState = null;
-        if (rParam && testStates.includes(rParam)) {
+        if (forcedState && forcedState !== 'OK') {
+          // force 파라미터가 있고 OK가 아니면 강제 상태 설정 (OK는 정상 플로우 유지)
+          // FETCH_FAIL은 NO_REPORT와 동일하게 처리
+          viewState = forcedState === 'FETCH_FAIL' ? 'NO_REPORT' : forcedState;
+          window.__shareViewState = viewState;
+          console.warn('[ShareViewState:force]', { forcedState, viewState, note: 'Forced state - skipping loadReportModel and fetch' });
+        } else if (rParam && testStates.includes(rParam)) {
           viewState = rParam;
           window.__shareViewState = viewState;
           console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
@@ -2322,8 +2377,9 @@
         
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
         // 기존 localStorage 복원 우선 (회귀 금지)
-        // 테스트 상태나 NO_REPORT가 아닐 때만 loadReportModel 호출
-        const reportModel = viewState ? null : await loadReportModel();
+        // 테스트 상태나 NO_REPORT, 또는 force로 OK가 아닌 상태가 아닐 때만 loadReportModel 호출
+        // force=OK인 경우는 정상 플로우 유지 (에러 분기만 우회)
+        const reportModel = (viewState && viewState !== 'OK') ? null : await loadReportModel();
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
@@ -2336,55 +2392,85 @@
           reportModel.analysis &&
           reportModel.analysis.scores &&
           Object.keys(reportModel.analysis.scores).length > 0;
+        
+        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때만 localStorage fallback 비활성화
+        const hasR = Boolean(rParam);
+        const isROnly = hasR && !hasId;
+        // ✅ [Phase 26-2C-LogPolish] force=<state>일 때는 r-only 감지 로그를 출력하지 않음 (동작은 동일)
+        if (!forcedState && isROnly) {
+          console.log('[share] r-only param detected – disabling localStorage fallback');
+        }
+        
         let hasLastV2 = false;
         let lastV2Str = null;
-        try {
-          lastV2Str = localStorage.getItem('__lastV2');
-          if (lastV2Str) {
-            JSON.parse(lastV2Str);
-            hasLastV2 = true;
+        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때만 hasLastV2를 false로 강제 (localStorage fallback 방지)
+        if (!isROnly) {
+          try {
+            lastV2Str = localStorage.getItem('__lastV2');
+            if (lastV2Str) {
+              JSON.parse(lastV2Str);
+              hasLastV2 = true;
+            }
+          } catch (e) {
+            hasLastV2 = false;
           }
-        } catch (e) {
-          hasLastV2 = false;
         }
         
         // ✅ [Hotfix] r 파라미터가 있고 __lastV2가 존재하면 __currentReportId를 r로 동기화
-        if (rParam && rParam.length > 0 && lastV2Str && lastV2Str.length > 10) {
-          const currentReportId = localStorage.getItem('__currentReportId');
-          if (currentReportId !== rParam) {
-            localStorage.setItem('__currentReportId', rParam);
-            console.log('[ShareViewState:sync] __currentReportId synchronized to r:', rParam);
+        // 단, r 파라미터가 있을 때는 localStorage fallback을 사용하지 않으므로 동기화만 수행
+        if (rParam && rParam.length > 0) {
+          try {
+            lastV2Str = localStorage.getItem('__lastV2');
+            if (lastV2Str && lastV2Str.length > 10) {
+              const currentReportId = localStorage.getItem('__currentReportId');
+              if (currentReportId !== rParam) {
+                localStorage.setItem('__currentReportId', rParam);
+                console.log('[ShareViewState:sync] __currentReportId synchronized to r:', rParam);
+              }
+            }
+          } catch (e) {
+            // 동기화 실패 시 무시
           }
+        }
+        
+        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없으며 reportModel이 null이면 EXPIRED로 강제 설정
+        if (isROnly && !reportModel && !viewState) {
+          viewState = 'EXPIRED';
+          window.__shareViewState = viewState;
+          console.warn('[ShareViewState:r-param]', { r: rParam, hasId, reportModel: null, viewState: 'EXPIRED', note: 'r-only param exists but reportModel is null - forcing EXPIRED' });
         }
         
         // ✅ [Hotfix] r === __currentReportId && __lastV2 존재 시 무조건 OK 판정
         // ✅ [Phase22] 테스트 상태가 이미 설정된 경우 viewState 결정 로직 건너뛰기
-        if (!viewState) {
+        // ✅ [Phase 26-2B] force 파라미터가 OK가 아닌 경우 이미 설정되었으므로 건너뛰기
+        // ✅ [Phase 26-2C] r 파라미터가 있고 reportModel이 null이면 이미 EXPIRED로 설정되었으므로 건너뛰기
+        // force=OK인 경우는 정상 플로우 유지하되, 최종적으로 OK로 강제 설정
+        if (!viewState || forcedState === 'OK') {
+          // force=OK인 경우 기존 계산 로직을 실행하되, 최종적으로 OK로 강제 설정
+          if (forcedState === 'OK' && viewState) {
+            // 이미 viewState가 설정된 경우 (예: 테스트 상태)는 유지하지 않고 재계산
+            viewState = null;
+          }
           // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
           window.__shareViewState = null;
           if (rParam && rParam.length > 0) {
           const currentReportId = localStorage.getItem('__currentReportId');
-          if (currentReportId && rParam === currentReportId && lastV2Str && lastV2Str.length > 10) {
-            // r === __currentReportId && __lastV2 존재 시 무조건 OK
+          // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때는 localStorage fallback 사용 안 함
+          // id가 있으면 정상 snapshot share이므로 OK flow 허용
+          // reportModel이 로드되었을 때만 OK 판정
+          if (requestedLoaded) {
+            // reportModel이 성공적으로 로드된 경우에만 OK
             viewState = 'OK';
-            console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0, forced: 'OK' });
+            console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId, requestedLoaded: true, viewState: 'OK' });
           } else {
-            // 기존 로직 사용
-            viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
-            console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
-            
-            // ✅ [Hotfix] OTHER_DEVICE가 뜬 경우 r/current 불일치 재확인 및 재판정
-            if (viewState === 'OTHER_DEVICE' && rParam && lastV2Str && lastV2Str.length > 10) {
-              const currentReportIdRecheck = localStorage.getItem('__currentReportId');
-              if (currentReportIdRecheck === rParam) {
-                // 재확인 결과 일치하면 OK로 변경
-                viewState = 'OK';
-                console.log('[ShareViewState:recheck] OTHER_DEVICE -> OK (r === currentReportId)', { r: rParam, current: currentReportIdRecheck });
-              }
+            // reportModel이 없으면 EXPIRED (이미 위에서 설정되었을 수 있음)
+            if (!viewState) {
+              viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2: false });
+              console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId || null, requestedLoaded: false, hasLastV2: false });
             }
           }
           } else {
-            // r이 없으면 기존 로직 사용
+            // r이 없으면 기존 로직 사용 (localStorage fallback 허용)
             viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
             console.log('[ShareViewState:debug]', { r: null, current: localStorage.getItem('__currentReportId') || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
           }
@@ -2397,6 +2483,12 @@
             viewState = vsOverride;
             console.warn('[ShareViewState:override]', { from: originalViewState, to: viewState, vs: vsOverride });
           }
+        }
+        
+        // ✅ [Phase 26-2B] force=OK인 경우 최종적으로 OK로 강제 설정 (에러 분기 우회)
+        if (forcedState === 'OK' && viewState !== 'OK') {
+          viewState = 'OK';
+          console.warn('[ShareViewState:force]', { forcedState: 'OK', note: 'Forced OK - bypassing error branches' });
         }
         
         // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
