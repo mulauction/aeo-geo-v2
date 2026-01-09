@@ -1535,10 +1535,18 @@
     }
     
     // === [Phase 10-0] Share reportId 고정 로직 ===
+    // ✅ [Phase24-1] NO_REPORT 상태 체크: replaceState 호출 금지
     const params = new URLSearchParams(location.search);
     let r = params.get('r');
+    
+    // ✅ [Phase24-1] NO_REPORT 상태 감지: ?r이 없고 localStorage도 비어있으면 replaceState 건너뛰기
+    const checkLastV2Str = localStorage.getItem('__lastV2');
+    const checkCurrentReportId = localStorage.getItem('__currentReportId');
+    const checkHasLastV2 = checkLastV2Str && checkLastV2Str.length > 10;
+    const checkHasCurrentReportId = checkCurrentReportId && checkCurrentReportId.length > 0;
+    const isNoReportState = !r && !checkHasLastV2 && !checkHasCurrentReportId;
 
-    if (!r) {
+    if (!r && !isNoReportState) {
       r = localStorage.getItem('__currentReportId') || '';
 
       if (!r) {
@@ -1559,11 +1567,19 @@
 
       if (r) {
         localStorage.setItem('__currentReportId', r);
-        history.replaceState(
-          null,
-          '',
-          `${location.pathname}?r=${encodeURIComponent(r)}`
-        );
+        // ✅ [Phase24-1] Safe URL construction for replaceState
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('r', r);
+          history.replaceState(null, '', url.toString());
+        } catch (err) {
+          // Fallback: use pathname if URL constructor fails
+          history.replaceState(
+            null,
+            '',
+            `${location.pathname}?r=${encodeURIComponent(r)}`
+          );
+        }
       }
     }
     
@@ -1954,9 +1970,20 @@
       return reportPayload;
     }
     
+    // ✅ [Phase24-1] NO_REPORT 상태 체크: 로그인 게이트보다 먼저 실행
+    // ?r이 없고 localStorage도 비어있으면 NO_REPORT로 처리 (로그인 게이트 우회)
+    const urlParamsCheck = new URLSearchParams(window.location.search);
+    const rParamCheck = urlParamsCheck.get('r');
+    const lastV2StrCheck = localStorage.getItem('__lastV2');
+    const currentReportIdCheck = localStorage.getItem('__currentReportId');
+    const hasLastV2Check = lastV2StrCheck && lastV2StrCheck.length > 10;
+    const hasCurrentReportIdCheck = currentReportIdCheck && currentReportIdCheck.length > 0;
+    const isNoReportStateCheck = !rParamCheck && !hasLastV2Check && !hasCurrentReportIdCheck;
+    
     // ✅ [Phase 4-2 Gate] share.html 진입 즉시 로그인 체크
     // 리포트 렌더/복원 로직을 절대 실행하지 않도록 가장 먼저 체크
-    if (!isLoggedIn()) {
+    // 단, NO_REPORT 상태일 때는 로그인 게이트를 우회하여 빈 상태 UX 표시
+    if (!isLoggedIn() && !isNoReportStateCheck) {
       // document.title 변경
       document.title = "Login required";
       
@@ -2052,9 +2079,23 @@
           console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
         }
         
+        // ✅ [Phase24-1] NO_REPORT 상태 감지: ?r이 없고 localStorage도 비어있으면 NO_REPORT
+        if (!viewState && !rParam) {
+          const lastV2Str = localStorage.getItem('__lastV2');
+          const currentReportId = localStorage.getItem('__currentReportId');
+          const hasLastV2 = lastV2Str && lastV2Str.length > 10;
+          const hasCurrentReportId = currentReportId && currentReportId.length > 0;
+          
+          if (!hasLastV2 && !hasCurrentReportId) {
+            viewState = 'NO_REPORT';
+            window.__shareViewState = viewState;
+            console.log('[ShareViewState:no-report]', { r: null, hasLastV2: false, hasCurrentReportId: false, viewState: 'NO_REPORT' });
+          }
+        }
+        
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
         // 기존 localStorage 복원 우선 (회귀 금지)
-        // 테스트 상태가 아닐 때만 loadReportModel 호출
+        // 테스트 상태나 NO_REPORT가 아닐 때만 loadReportModel 호출
         const reportModel = viewState ? null : await loadReportModel();
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
