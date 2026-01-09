@@ -265,9 +265,37 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __currentReportId to localStorage:', e);
       }
       
-      // ✅ [Hotfix] microtask를 사용하여 localStorage 저장 완료 후 이동
-      Promise.resolve().then(() => {
-        // localStorage 저장이 완료된 후 이동
+      // ✅ [Phase 26-0A] Snapshot 저장 후 share.html?id= 이동
+      Promise.resolve().then(async () => {
+        // localStorage 저장이 완료된 후 스냅샷 저장 시도
+        const isLocalhost =
+          location.hostname === "localhost" || location.hostname === "127.0.0.1";
+        const API_ORIGIN = isLocalhost ? "http://localhost:3001" : location.origin;
+
+        try {
+          // POST /api/snapshot으로 저장
+          const res = await fetch(`${API_ORIGIN}/api/snapshot`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({
+              reportModel: lastV2,
+              source: "analyze"
+            })
+          });
+
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.id) {
+              // 성공: share.html?id= 이동
+              window.location.href = `./share.html?id=${encodeURIComponent(json.id)}`;
+              return;
+            }
+          }
+        } catch (e) {
+          // 실패 시 조용히 fallback
+        }
+
+        // fallback: 기존 방식 (localStorage 기반)
         window.location.href = `./share.html?r=${encodeURIComponent(reportId)}`;
       });
     }

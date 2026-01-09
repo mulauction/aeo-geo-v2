@@ -12,6 +12,7 @@
 const express = require('express');
 const cors = require('cors');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
+const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -23,6 +24,62 @@ app.use(express.json({ limit: '1mb' })); // payload 크기 제한
 // 헬스 체크
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ✅ [Phase 26-0A] Snapshot API
+// POST /api/snapshot
+app.post('/api/snapshot', async (req, res) => {
+  try {
+    const { reportModel, source } = req.body;
+
+    if (!reportModel || typeof reportModel !== 'object') {
+      return res.status(400).json({
+        error: 'INVALID_PAYLOAD',
+        message: 'reportModel이 필요합니다.'
+      });
+    }
+
+    const id = await saveSnapshot(reportModel, source || '');
+
+    res.status(201).json({ id });
+  } catch (error) {
+    console.error('[POST /api/snapshot] Error:', error);
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: 'Snapshot 저장 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+// GET /api/snapshot/:id
+app.get('/api/snapshot/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        error: 'INVALID_ID',
+        message: 'Snapshot ID가 필요합니다.'
+      });
+    }
+
+    const snapshot = await getSnapshot(id);
+
+    if (!snapshot) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Snapshot을 찾을 수 없습니다.'
+      });
+    }
+
+    res.json(snapshot);
+  } catch (error) {
+    console.error('[GET /api/snapshot/:id] Error:', error);
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: 'Snapshot 조회 중 오류가 발생했습니다.'
+    });
+  }
 });
 
 /**
