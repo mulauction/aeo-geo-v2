@@ -1326,21 +1326,46 @@
       // dev-only 로그
       const dlog = (...args) => { if (isLocalhost) console.log(...args); };
 
-      // ✅ API origin 결정: dev(localhost)면 3001, 아니면 현재 origin
-      const API_ORIGIN = isLocalhost ? "http://localhost:3001" : location.origin;
+      // ✅ [Phase 26-1] Snapshot API fetch with dev fallback
+      async function fetchSnapshotApi(path, options = {}) {
+        const isDevStaticServer = 
+          (location.hostname === "localhost" || location.hostname === "127.0.0.1") &&
+          /^550[0-9]$/.test(location.port || "");
+
+        // 정적 서버(550x)일 때는 same-origin 시도하지 않고 처음부터 localhost:3001로만 요청
+        if (isDevStaticServer) {
+          try {
+            const fallbackUrl = `http://localhost:3001${path}`;
+            return await fetch(fallbackUrl, options);
+          } catch (e) {
+            // 3001도 실패하면 조용히 return하여 기존 empty UX로 떨어지게 유지
+            dlog("[share] snapshot API fetch failed (3001)");
+            return null;
+          }
+        }
+
+        // 정적 서버가 아닐 때는 same-origin으로 시도
+        try {
+          return await fetch(path, options);
+        } catch (e) {
+          // 실패 시 조용히 return
+          return null;
+        }
+      }
 
       // ✅ window.__shareIdBoot Promise 생성 (bootstrap에서 await)
       window.__shareIdBoot = (async function bootFromSnapshot() {
         try {
           dlog("[share] fetching snapshot for id:", id);
 
-          const res = await fetch(`${API_ORIGIN}/api/snapshot/${encodeURIComponent(id)}`, {
+          const res = await fetchSnapshotApi(`/api/snapshot/${encodeURIComponent(id)}`, {
             method: "GET",
             headers: { "Accept": "application/json" }
           });
 
-          if (!res.ok) {
-            dlog("[share] snapshot not found (404)");
+          // fetchSnapshotApi가 null을 반환하거나 응답이 없으면 조용히 return
+          if (!res || !res.ok) {
+            dlog("[share] snapshot not found or fetch failed");
             return; // 실패 시 조용히 무시, 기존 empty-state UX로 처리
           }
 

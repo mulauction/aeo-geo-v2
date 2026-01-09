@@ -7,6 +7,44 @@ import { buildReportPayload } from "./report.js";
 import { buildImprovementsFromReport } from "./improvements.js";
 import { buildImproveRequestV1, requestImproveV1 } from "./api/improveClient.js";
 
+/**
+ * [Phase 26-1] Snapshot API fetch with dev fallback
+ * (1) 먼저 same-origin으로 시도하고 실패하면 (2) dev fallback으로 http://localhost:3001/api/snapshot 로 1회 재시도
+ * 무한 재시도 금지
+ * @param {string} path - API 경로 (예: '/api/snapshot' 또는 '/api/snapshot/:id')
+ * @param {RequestInit} options - fetch options
+ * @returns {Promise<Response>}
+ */
+async function fetchSnapshotApi(path, options = {}) {
+  const isDevStaticServer = 
+    (location.hostname === "localhost" || location.hostname === "127.0.0.1") &&
+    /^550[0-9]$/.test(location.port || "");
+
+  // (1) 먼저 same-origin으로 시도
+  try {
+    const res = await fetch(path, options);
+    // 성공하면 반환, 정적 서버가 아니면 실패해도 반환
+    if (res.ok || !isDevStaticServer) {
+      return res;
+    }
+    // 정적 서버에서 실패(404 등)하면 fallback으로 진행
+  } catch (e) {
+    // fetch 실패 (네트워크 오류 등)
+    if (!isDevStaticServer) {
+      throw e;
+    }
+    // 정적 서버에서 네트워크 오류면 fallback으로 진행
+  }
+
+  // (2) dev fallback: localhost:3001로 1회 재시도 (무한 재시도 금지)
+  if (isDevStaticServer) {
+    const fallbackUrl = `http://localhost:3001${path}`;
+    return fetch(fallbackUrl, options);
+  }
+
+  throw new Error("Snapshot API fetch failed");
+}
+
 
 export function bindActions(root) {
   root.btnAnalyze.addEventListener("click", async () => {
@@ -268,13 +306,9 @@ export function bindActions(root) {
       // ✅ [Phase 26-0A] Snapshot 저장 후 share.html?id= 이동
       Promise.resolve().then(async () => {
         // localStorage 저장이 완료된 후 스냅샷 저장 시도
-        const isLocalhost =
-          location.hostname === "localhost" || location.hostname === "127.0.0.1";
-        const API_ORIGIN = isLocalhost ? "http://localhost:3001" : location.origin;
-
         try {
-          // POST /api/snapshot으로 저장
-          const res = await fetch(`${API_ORIGIN}/api/snapshot`, {
+          // POST /api/snapshot으로 저장 (dev fallback 포함)
+          const res = await fetchSnapshotApi("/api/snapshot", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Accept": "application/json" },
             body: JSON.stringify({
