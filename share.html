@@ -3232,14 +3232,14 @@
         document.getElementById('reportHeader').innerHTML = reportHeader;
         renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
+        // ✅ [Phase 27-0 UI-only] Pro CTA 중복 제거
+        // - 이전: PRO 카드에서 버튼 2개가 동시에 노출되어 "중복 버튼"처럼 보였음
+        // - 현재: Pro CTA는 1개 버튼만 노출 (기능명은 텍스트로만 표시)
         const proHooksSection = `
           <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
             <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
-            <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--muted);">아래 기능은 준비 중입니다.</p>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <button type="button" class="btn" style="opacity: 0.7;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">리포트 비교(2개)</button>
-              <button type="button" class="btn" style="opacity: 0.7;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">PDF 자동 생성</button>
-            </div>
+            <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
+            <button type="button" class="btn" style="opacity: 0.75;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">PRO 기능 안내</button>
           </div>
         `;
         shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + proHooksSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
