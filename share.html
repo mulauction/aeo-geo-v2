@@ -2735,8 +2735,54 @@
         // - 원칙: CTA는 오직 `#shareCtaSlot` 1곳에만 렌더/업데이트한다 (다른 위치에는 CTA HTML을 절대 삽입하지 않음)
         const shareCtaSlotHtml = '<div id="shareCtaSlot"></div>';
 
-        // ✅ [Phase 28-0] Pro CTA policy lock (UI-only, 모든 상태 동일 동작)
-        const WAITLIST_URL = '#';
+        // ✅ [Phase 28-1] Waitlist real link + UTM + click feedback (UI-only)
+        // - 한 줄만 수정해서 실제 대기자 등록 폼 링크로 교체 가능해야 함
+        // - 기본값은 "임시 실링크 형태"로 둔다 (운영 링크 확정 시 아래 한 줄만 교체)
+        const WAITLIST_URL = 'https://example.com/waitlist';
+
+        const getWaitlistUtmContent = () => {
+          // utm_content = 현재 viewState 문자열 (가능하면 강제 파라미터(force)도 반영)
+          try {
+            const sp = new URLSearchParams(location.search);
+            const force = (sp.get('force') || '').toLowerCase();
+            const forceMap = {
+              ok: 'OK',
+              expired: 'EXPIRED',
+              other_device: 'OTHER_DEVICE',
+              fetch_fail: 'FETCH_FAIL',
+            };
+            if (force && forceMap[force]) return forceMap[force];
+          } catch {}
+          return String(window.__shareViewState || viewState || 'UNKNOWN');
+        };
+
+        const buildWaitlistUrlWithUtm = () => {
+          const base = String(WAITLIST_URL || '').trim();
+          if (!base || base === '#') return base;
+
+          const utm = {
+            utm_source: 'share',
+            utm_medium: 'pro_modal',
+            utm_campaign: 'waitlist',
+            utm_content: getWaitlistUtmContent(),
+          };
+
+          // Prefer URL API (handles existing query/hash). Fallback to manual concat if parsing fails.
+          try {
+            const u = new URL(base, location.origin);
+            Object.entries(utm).forEach(([k, v]) => u.searchParams.set(k, v));
+            return u.toString();
+          } catch {
+            const qs = Object.entries(utm)
+              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+              .join('&');
+            const hashIdx = base.indexOf('#');
+            const beforeHash = hashIdx >= 0 ? base.slice(0, hashIdx) : base;
+            const hash = hashIdx >= 0 ? base.slice(hashIdx) : '';
+            const sep = beforeHash.includes('?') ? '&' : '?';
+            return `${beforeHash}${sep}${qs}${hash}`;
+          }
+        };
         const ensureProModal = () => {
           if (document.getElementById('proModalOverlay')) return;
           const modalHtml = `
@@ -2763,9 +2809,9 @@
           };
           document.getElementById('proModalCloseX')?.addEventListener('click', close);
 
-          // ✅ [Phase 28-0] WAITLIST_URL 정책
+          // ✅ [Phase 28-1] WAITLIST_URL 정책
           // - WAITLIST_URL이 '#' 또는 빈 값이면 기본 동작 방지(스크롤 방지) + alert 안내
-          // - 실제 URL이면 새 탭으로 열기 (target=_blank, rel=noopener)
+          // - 실제 URL이면 새 탭으로 열기 + 상태별 UTM 자동 부착 + 클릭 직후 1초 토스트(중복 방지)
           const waitlistEl = document.getElementById('proModalWaitlist');
           if (waitlistEl) {
             const url = String(WAITLIST_URL || '').trim();
@@ -2773,11 +2819,31 @@
             if (!isPlaceholder) {
               waitlistEl.setAttribute('target', '_blank');
               waitlistEl.setAttribute('rel', 'noopener');
+              // 상태별 UTM 포함 href로 업데이트 (우클릭/링크복사에도 반영)
+              waitlistEl.setAttribute('href', buildWaitlistUrlWithUtm());
             }
             waitlistEl.addEventListener('click', (e) => {
               if (isPlaceholder) {
                 e.preventDefault();
                 alert('준비 중입니다. 곧 대기자 등록 링크를 연결할게요.');
+                return;
+              }
+              e.preventDefault();
+              e.stopPropagation();
+
+              const finalUrl = buildWaitlistUrlWithUtm();
+              // 새 탭 열기 (target=_blank, rel=noopener 정책 준수)
+              const win = window.open(finalUrl, '_blank', 'noopener');
+              if (win) win.opener = null;
+
+              // 1초 토스트(중복 방지)
+              const now = Date.now();
+              const lastAt = Number(window.__waitlistToastLastAt || 0);
+              if (now - lastAt >= 1000) {
+                window.__waitlistToastLastAt = now;
+                if (typeof showToast === 'function') {
+                  showToast('새 탭에서 열립니다', 1000);
+                }
               }
             });
           }
