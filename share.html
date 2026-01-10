@@ -2734,13 +2734,84 @@
         // - 중복 원인: 서로 다른 섹션에서 Pro/Upgrade CTA를 각각 렌더링하면, 상태/재렌더 타이밍에 따라 2개가 동시에 보일 수 있음
         // - 원칙: CTA는 오직 `#shareCtaSlot` 1곳에만 렌더/업데이트한다 (다른 위치에는 CTA HTML을 절대 삽입하지 않음)
         const shareCtaSlotHtml = '<div id="shareCtaSlot"></div>';
+
+        // ✅ [Phase 28-0] Pro CTA policy lock (UI-only, 모든 상태 동일 동작)
+        const WAITLIST_URL = '#';
+        const ensureProModal = () => {
+          if (document.getElementById('proModalOverlay')) return;
+          const modalHtml = `
+            <div id="proModalOverlay" role="dialog" aria-modal="true" aria-labelledby="proModalTitle" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999;">
+              <div id="proModal" style="max-width: 520px; margin: 10vh auto 0 auto; background: #fff; border-radius: 12px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 18px 18px 14px 18px;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;">
+                  <div>
+                    <div id="proModalTitle" style="font-size: 16px; font-weight: 700; color: #222;">PRO 기능은 준비 중입니다</div>
+                    <div style="margin-top: 8px; font-size: 13px; color: #555; line-height: 1.6;">대량 분석/자동 개선/브랜드 관리 등 PRO 기능을 곧 제공합니다.</div>
+                  </div>
+                  <button type="button" id="proModalCloseX" class="btn" aria-label="닫기" style="padding: 6px 10px;">닫기</button>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap: 10px; margin-top: 16px;">
+                  <a href="${esc(WAITLIST_URL)}" id="proModalWaitlist" class="btn btn-primary" style="text-decoration:none; display:inline-block;">대기자 등록</a>
+                </div>
+              </div>
+            </div>
+          `;
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+          const overlay = document.getElementById('proModalOverlay');
+          const close = () => {
+            overlay.style.display = 'none';
+          };
+          document.getElementById('proModalCloseX')?.addEventListener('click', close);
+
+          // ✅ [Phase 28-0] WAITLIST_URL 정책
+          // - WAITLIST_URL이 '#' 또는 빈 값이면 기본 동작 방지(스크롤 방지) + alert 안내
+          // - 실제 URL이면 새 탭으로 열기 (target=_blank, rel=noopener)
+          const waitlistEl = document.getElementById('proModalWaitlist');
+          if (waitlistEl) {
+            const url = String(WAITLIST_URL || '').trim();
+            const isPlaceholder = !url || url === '#';
+            if (!isPlaceholder) {
+              waitlistEl.setAttribute('target', '_blank');
+              waitlistEl.setAttribute('rel', 'noopener');
+            }
+            waitlistEl.addEventListener('click', (e) => {
+              if (isPlaceholder) {
+                e.preventDefault();
+                alert('준비 중입니다. 곧 대기자 등록 링크를 연결할게요.');
+              }
+            });
+          }
+          overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+          });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && overlay.style.display !== 'none') close();
+          });
+        };
+        const openProModal = () => {
+          ensureProModal();
+          const overlay = document.getElementById('proModalOverlay');
+          if (overlay) overlay.style.display = 'block';
+        };
+        // 클릭 동작 단일화: 어떤 상태에서도 동일 모달
+        if (!window.__shareProCtaBound) {
+          window.__shareProCtaBound = true;
+          document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-share-upgrade-cta="1"]');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openProModal();
+          });
+        }
+
         const getShareCtaHtml = (state) => {
-          if (state !== 'OK') return '';
+          // 어떤 상태에서도 CTA는 1곳에서만 렌더되며, 클릭은 동일 모달로 통일됨
           return `
             <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
               <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
               <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
-              <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">PRO 기능 안내</button>
+              <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;">PRO 기능 안내</button>
             </div>
           `;
         };
