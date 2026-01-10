@@ -17,4 +17,17 @@ export function buildQuotaBadgeCopyKR() {
   };
 }
 
+export function buildProModalCopyKR() {
+  return {
+    title: 'PRO 기능은 준비 중입니다',
+    desc: '대량 분석/자동 개선/브랜드 관리 등 PRO 기능을 곧 제공합니다.',
+  };
+}
+
+export function buildProCtaCopyKR() {
+  return {
+    ctaText: 'PRO 기능 안내',
+  };
+}
+
 

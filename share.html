@@ -1426,7 +1426,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
-    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR } from './core/ui/pricingPolicyKR.js';
+    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR } from './core/ui/pricingPolicyKR.js';
     
     // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
     (function() {
@@ -2812,13 +2812,14 @@
         };
         const ensureProModal = () => {
           if (document.getElementById('proModalOverlay')) return;
+          const proModalCopy = buildProModalCopyKR();
           const modalHtml = `
             <div id="proModalOverlay" role="dialog" aria-modal="true" aria-labelledby="proModalTitle" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999;">
               <div id="proModal" style="max-width: 520px; margin: 10vh auto 0 auto; background: #fff; border-radius: 12px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 18px 18px 14px 18px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;">
                   <div>
-                    <div id="proModalTitle" style="font-size: 16px; font-weight: 700; color: #222;">PRO 기능은 준비 중입니다</div>
-                    <div style="margin-top: 8px; font-size: 13px; color: #555; line-height: 1.6;">대량 분석/자동 개선/브랜드 관리 등 PRO 기능을 곧 제공합니다.</div>
+                    <div id="proModalTitle" style="font-size: 16px; font-weight: 700; color: #222;">${esc(proModalCopy.title)}</div>
+                    <div style="margin-top: 8px; font-size: 13px; color: #555; line-height: 1.6;">${esc(proModalCopy.desc)}</div>
                   </div>
                   <button type="button" id="proModalCloseX" class="btn" aria-label="닫기" style="padding: 6px 10px;">닫기</button>
                 </div>
@@ -2900,11 +2901,12 @@
 
         const getShareCtaHtml = (state) => {
           // 어떤 상태에서도 CTA는 1곳에서만 렌더되며, 클릭은 동일 모달로 통일됨
+          const proCtaCopy = buildProCtaCopyKR();
           return `
             <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
               <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
               <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
-              <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;">PRO 기능 안내</button>
+              <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;">${esc(proCtaCopy.ctaText)}</button>
             </div>
           `;
         };
