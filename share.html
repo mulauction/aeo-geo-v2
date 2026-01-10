@@ -1426,6 +1426,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
+    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR } from './core/ui/pricingPolicyKR.js';
     
     // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
     (function() {
@@ -2669,9 +2670,7 @@
         
         // ✅ [Phase 29-2] KR pricing/quota copy single-source freeze (UI-only)
         // - 절대 금지: 결제/로그인/차감/잔여 계산/스토리지 로직 추가
-        // - 목표: 가격/플랜/잔여(Quota badge) 문구를 단일 소스(상수+빌더)로만 관리
-        const PRICING_POLICY_KR = { FREE:{trial:10, reset:'none'}, BASIC:{monthly:100, price:19900}, PRO:{monthly:1000, price:99000}, rules:{noUnlimited:true,noTokenWord:true} };
-        function buildQuotaBadgeCopyKR() { return { planText: `FREE · 체험 ${PRICING_POLICY_KR.FREE.trial}건 제공`, remainingText: '잔여 분석: —' }; }
+        // - 목표: 가격/플랜/잔여(Quota badge) 문구를 단일 소스(모듈+빌더)로만 관리
         function applyQuotaBadgeCopyKR() {
           const planEl = document.getElementById('quotaBadgePlan');
           const remainingEl = document.getElementById('quotaBadgeRemaining');
