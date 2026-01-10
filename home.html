@@ -187,13 +187,7 @@
     import { renderHeader } from './core/header.js';
     import { createLoginModal, createCreditModal } from './core/modal.js';
     import { setModals } from './core/gate.js';
-    import { buildQuotaBadgeCopyKR } from './core/ui/pricingPolicyKR.js';
     
-    // ✅ [Phase 28-6] KR pricing/quota copy single-source wiring (HOME, UI-only)
-    // - home 화면은 아직 요금/잔여 표시 영역이 없으므로 DOM 반영은 하지 않습니다.
-    // - 목적: 숫자/문구 하드코딩이 생기지 않도록, 단일 소스 모듈 연결 경로만 확보합니다.
-    void buildQuotaBadgeCopyKR();
-
     // Header 초기화
     const headerEl = document.getElementById("header");
     if (headerEl) {
