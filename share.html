@@ -1311,6 +1311,23 @@
     }
   </style>
   <script>
+    // ✅ [Phase 29-1] Invalid share id guard (UI-only)
+    // - 목적: 유효하지 않은 r/id 값에 대해 snapshot fetch 자체를 막아 "Failed to load resource: 404"를 원천 차단
+    // - 허용 포맷:
+    //   (a) 숫자만 10~15자리
+    //   (b) 32~64 길이 hex
+    //   (c) uuid (8-4-4-4-12)
+    // - 금지: 점수/분석/스키마/스토리지(__lastV2) 로직 변경, 서버/결제/차감/로그인 로직 추가
+    function isValidShareId(s) {
+      if (!s) return false;
+      const str = String(s).trim();
+      if (!str) return false;
+      if (/^\d{10,15}$/.test(str)) return true;
+      if (/^[0-9a-f]{32,64}$/i.test(str)) return true;
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) return true;
+      return false;
+    }
+
     // ✅ [Phase 26-0A] id 파라미터 감지 및 스냅샷 로드 (기존 Share 초기화 전에 실행)
     (function () {
       const params = new URLSearchParams(location.search);
@@ -1325,6 +1342,13 @@
 
       // id 없으면 기존 동작 유지
       if (!id) return;
+
+      // ✅ [Phase 29-1] invalid id면 snapshot fetch 자체를 수행하지 않음 (404 리소스 에러 원천 차단)
+      if (!isValidShareId(id)) {
+        // UI는 기존 EXPIRED 플로우로 떨어지도록, 플래그만 남기고 조용히 종료
+        window.__shareInvalidShareId = { source: 'id', value: String(id) };
+        return;
+      }
 
       const isLocalhost =
         location.hostname === "localhost" ||
@@ -1426,7 +1450,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
-    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR } from './core/ui/pricingPolicyKR.js';
+    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, buildProUpgradeNoticeCopyKR } from './core/ui/pricingPolicyKR.js';
     
     // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
     (function() {
@@ -1931,11 +1955,9 @@
               // 404는 조용히 처리 (다음 엔드포인트 시도 또는 notFound 반환)
               continue;
             }
-            // 404가 아닌 다른 에러(status >= 500 등)는 기존 처리 유지
             // response.ok === false 이면 다음 엔드포인트 시도
             continue;
           } catch (err) {
-            // 네트워크 오류 시 다음 엔드포인트 시도
             continue;
           }
       }
@@ -2314,7 +2336,8 @@
         // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
         const urlParams = new URLSearchParams(window.location.search);
         const rParam = urlParams.get('r');
-        const hasId = Boolean(urlParams.get('id'));
+        const idParam = urlParams.get('id');
+        const hasId = Boolean(idParam);
         const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
         const getOnly = (!forceWrite) && Boolean(rParam);
         
@@ -2350,6 +2373,35 @@
         // ✅ [Phase22] r 파라미터가 테스트 상태('EXPIRED' | 'OTHER_DEVICE' | 'NO_REPORT')면 viewState를 먼저 확정
         const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
         let viewState = null;
+
+        // ✅ [Phase 29-1] invalid r/id면 snapshot fetch 자체를 수행하지 않음 (404 리소스 에러 원천 차단)
+        // - 기존 EXPIRED UI(노란 박스/버튼/안내) 유지: viewState만 EXPIRED로 고정하고 나머지는 기존 렌더링 파이프라인 사용
+        // - inline JSON(r-only) 사용 케이스는 보호: JSON 후보처럼 보이면 여기서 차단하지 않음
+        if (!forcedState || forcedState === 'OK') {
+          const invalidFromHead = window.__shareInvalidShareId;
+          const isInlineJsonCandidate =
+            Boolean(rParam) && (
+              String(rParam).trim().startsWith('{') ||
+              String(rParam).includes('%7B') ||
+              String(rParam).includes('%7b')
+            );
+          let invalid = null;
+          if (invalidFromHead?.source === 'id') {
+            invalid = invalidFromHead;
+          } else if (idParam && !isValidShareId(idParam)) {
+            invalid = { source: 'id', value: String(idParam) };
+          } else if (rParam && !testStates.includes(rParam) && !isInlineJsonCandidate && !isValidShareId(rParam)) {
+            invalid = { source: 'r', value: String(rParam) };
+          }
+          if (invalid) {
+            viewState = 'EXPIRED';
+            window.__shareViewState = viewState;
+            window.__shareInvalidShareId = invalid;
+            // 로그는 최소화 (원하면 무로그로 바꿔도 됨)
+            console.info('[ShareViewState:invalid-id]', { source: invalid.source, note: 'Invalid share id – skipping snapshot fetch' });
+          }
+        }
+
         if (forcedState && forcedState !== 'OK') {
           // force 파라미터가 있고 OK가 아니면 강제 상태 설정 (OK는 정상 플로우 유지)
           // FETCH_FAIL은 NO_REPORT와 동일하게 처리
@@ -2813,13 +2865,23 @@
         const ensureProModal = () => {
           if (document.getElementById('proModalOverlay')) return;
           const proModalCopy = buildProModalCopyKR();
+          const proUpgradeCopy = buildProUpgradeNoticeCopyKR();
           const modalHtml = `
             <div id="proModalOverlay" role="dialog" aria-modal="true" aria-labelledby="proModalTitle" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999;">
               <div id="proModal" style="max-width: 520px; margin: 10vh auto 0 auto; background: #fff; border-radius: 12px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 18px 18px 14px 18px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;">
                   <div>
                     <div id="proModalTitle" style="font-size: 16px; font-weight: 700; color: #222;">${esc(proModalCopy.title)}</div>
-                    <div style="margin-top: 8px; font-size: 13px; color: #555; line-height: 1.6;">${esc(proModalCopy.desc)}</div>
+                    <!-- ✅ [Phase 29-0] PRO 업그레이드 안내 UI (UI-only) -->
+                    <!-- - 결제/로그인/차감/스토리지/서버 로직 절대 추가 금지 -->
+                    <!-- - 가격/문구 하드코딩 금지: core/ui/pricingPolicyKR.js 빌더 결과만 사용 -->
+                    <div style="margin-top: 10px; padding: 10px 12px; background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.06); border-radius: 10px;">
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap: 10px; flex-wrap: wrap;">
+                        <div style="font-size: 14px; font-weight: 700; color: #222;">${esc(proUpgradeCopy.planName)}</div>
+                        <div style="font-size: 13px; font-weight: 600; color: #333;">${esc(proUpgradeCopy.priceText)} · ${esc(proUpgradeCopy.quotaText)}</div>
+                      </div>
+                      <div style="margin-top: 8px; font-size: 13px; color: #555; line-height: 1.6;">${esc(proUpgradeCopy.desc)}</div>
+                    </div>
                   </div>
                   <button type="button" id="proModalCloseX" class="btn" aria-label="닫기" style="padding: 6px 10px;">닫기</button>
                 </div>
