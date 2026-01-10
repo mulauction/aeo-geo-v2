@@ -30,4 +30,17 @@ export function buildProCtaCopyKR() {
   };
 }
 
+export function buildProUpgradeNoticeCopyKR() {
+  const nf = new Intl.NumberFormat('ko-KR');
+  const priceText = `₩${nf.format(PRICING_POLICY_KR.PRO.price)}/월`;
+  const quotaText = `월 ${nf.format(PRICING_POLICY_KR.PRO.monthly)}건`;
+  return {
+    // ✅ [Phase 29-0] PRO upgrade notice copy (KR, UI-only)
+    planName: 'PRO',
+    priceText,
+    quotaText,
+    desc: buildProModalCopyKR().desc, // 기존 설명 문구 유지(단일 소스)
+  };
+}
+
 
