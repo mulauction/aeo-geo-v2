@@ -2729,6 +2729,29 @@
             return '';
           })()}
         `;
+
+        // ✅ [Phase 27-1] Share CTA single-source rule (재발 방지)
+        // - 중복 원인: 서로 다른 섹션에서 Pro/Upgrade CTA를 각각 렌더링하면, 상태/재렌더 타이밍에 따라 2개가 동시에 보일 수 있음
+        // - 원칙: CTA는 오직 `#shareCtaSlot` 1곳에만 렌더/업데이트한다 (다른 위치에는 CTA HTML을 절대 삽입하지 않음)
+        const shareCtaSlotHtml = '<div id="shareCtaSlot"></div>';
+        const getShareCtaHtml = (state) => {
+          if (state !== 'OK') return '';
+          return `
+            <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
+              <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
+              <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">PRO 기능 안내</button>
+            </div>
+          `;
+        };
+        const updateShareCtaSlot = (state) => {
+          const slot = document.getElementById('shareCtaSlot');
+          if (!slot) return;
+          slot.innerHTML = getShareCtaHtml(state);
+          // hardening: 혹시 남아있을 수 있는 과거 CTA 잔여 DOM(동일 마커)을 단일화
+          const ctas = document.querySelectorAll('[data-share-upgrade-cta="1"]');
+          ctas.forEach((el, idx) => { if (idx > 0) el.remove(); });
+        };
         
         // ✅ [Phase 14-1] viewState !== 'OK'일 때는 헤더만 렌더링하고 KPI/WHY/NextActions 건너뛰기
         if (viewState !== 'OK') {
@@ -2741,7 +2764,8 @@
           document.getElementById('reportHeader').innerHTML = reportHeader;
           const shareContentEl = document.getElementById('shareContent');
           // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
-          shareContentEl.innerHTML = scoreExplainerBlock;
+          shareContentEl.innerHTML = scoreExplainerBlock + shareCtaSlotHtml;
+          updateShareCtaSlot(viewState);
           
           
           // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩
@@ -3232,17 +3256,9 @@
         document.getElementById('reportHeader').innerHTML = reportHeader;
         renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
-        // ✅ [Phase 27-0 UI-only] Pro CTA 중복 제거
-        // - 이전: PRO 카드에서 버튼 2개가 동시에 노출되어 "중복 버튼"처럼 보였음
-        // - 현재: Pro CTA는 1개 버튼만 노출 (기능명은 텍스트로만 표시)
-        const proHooksSection = `
-          <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
-            <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
-            <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
-            <button type="button" class="btn" style="opacity: 0.75;" onclick="alert('Pro 기능입니다. 출시 시 알림을 받으려면 홈에서 대기자 등록을 이용하세요.');">PRO 기능 안내</button>
-          </div>
-        `;
-        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + proHooksSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
+        // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
+        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
+        updateShareCtaSlot(viewState);
         
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
