@@ -1,0 +1,6 @@
+
+# dev snapshots
+server/data/snapshots/*.json
+
+# dev snapshot artifacts
+server/data/snapshots/*.json

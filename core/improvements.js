@@ -43,10 +43,10 @@ function parseEvidenceToChecklist(evidenceList) {
 
   // 요약/문단 관련
   if (evidenceText.includes('요약') && (evidenceText.includes('부재') || evidenceText.includes('없음'))) {
-    checklist.push('상단 요약 블록 추가: 첫 5~7줄에 상품 핵심 정보 요약');
+    checklist.push('상단 요약 블록 추가: 첫 5~7줄에 상품 핵심 정보 요약 (Generate "요약" 출력 활용)');
   }
   if (evidenceText.includes('첫 문단') && (evidenceText.includes('부재') || evidenceText.includes('부적절'))) {
-    checklist.push('첫 문단 최적화: 50~200자 길이의 요약성 첫 문단 작성');
+    checklist.push('첫 문단 최적화: 50~200자 길이의 요약성 첫 문단 작성 (Generate "요약" 출력 활용)');
   }
   if (evidenceText.includes('요약성 키워드') && evidenceText.includes('포함') === false) {
     checklist.push('요약성 키워드 추가: "요약", "개요", "특징", "주요" 등 키워드 포함');
@@ -99,10 +99,10 @@ function parseEvidenceToChecklist(evidenceList) {
   if (checklist.length === 0) {
     checklist.push(
       'H1 제목 추가: 상품명을 H1 태그로 명확히 표시',
-      '상단 요약 블록 추가: 첫 5~7줄에 상품 핵심 정보 요약',
+      '상단 요약 블록 추가: 첫 5~7줄에 상품 핵심 정보 요약 (Generate "요약" 출력 활용)',
       '리스트 구조 추가: USP/스펙을 ul/ol 리스트로 구조화',
       'H2 제목 추가: 주요 섹션을 H2로 구분 (최소 2개 이상)',
-      'FAQ 섹션 추가: 자주 묻는 질문 3개 이상 구성',
+      'FAQ 섹션 추가: 자주 묻는 질문 3개 이상 구성 (Generate "FAQ" 출력 활용)',
       '키워드 강조 추가: strong, em 태그로 핵심 키워드 강조',
       'CTA 버튼 추가: 구매/문의 버튼 요소 추가'
     );
@@ -219,6 +219,21 @@ export function buildImprovementsFromReport(report) {
       <ul style="margin: 0 0 16px 0; padding-left: 24px;">
         ${checklist.map(item => `<li style="margin-bottom: 8px;">${esc(item)}</li>`).join('')}
       </ul>
+      
+      <!-- ✅ [Phase 15-3] Generate 4종 연계 안내 -->
+      <div style="margin: 16px 0; padding: 12px; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: var(--radius);">
+        <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #0066cc;">💡 Generate 4종 출력으로 빠르게 생성하기</p>
+        <p style="margin: 0 0 8px 0; font-size: 12px; line-height: 1.6; color: #333;">
+          위 체크리스트 항목 중 일부는 Generate의 4종 출력으로 생성할 수 있습니다:
+        </p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.6; color: #333;">
+          <li><strong>요약:</strong> 상단 요약 블록, 첫 문단 최적화</li>
+          <li><strong>FAQ:</strong> 자주 묻는 질문 섹션</li>
+          <li><strong>비교:</strong> 경쟁상품 대비 강점 정리</li>
+          <li><strong>AI 설명:</strong> AI가 이해하기 쉬운 제품 설명</li>
+        </ul>
+        <a href="./generate/index.html" style="display: inline-block; margin-top: 8px; padding: 6px 12px; font-size: 12px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px;">Generate에서 4종 생성하기</a>
+      </div>
       
       <h3 style="margin: 16px 0 8px 0;">복붙용 HTML Skeleton</h3>
       <pre style="background: var(--background); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); overflow-x: auto; font-size: 12px; line-height: 1.5;"><code>${esc(htmlSkeleton)}</code></pre>

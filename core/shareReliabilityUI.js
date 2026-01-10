@@ -107,6 +107,25 @@ export function renderReliabilityBadge(el, rel) {
     ? reliability.reasons 
     : ['측정 데이터가 없습니다'];
 
+  // ✅ [Phase 17-0B] reason 문자열을 분석하여 스크롤 앵커 결정
+  function getScrollAnchorForReason(reason) {
+    if (!reason || typeof reason !== 'string') {
+      return null;
+    }
+    const reasonUpper = reason.toUpperCase();
+    if (reasonUpper.includes('BRAND')) {
+      return '#anchor-brand';
+    } else if (reasonUpper.includes('CONTENT')) {
+      return '#anchor-content';
+    } else if (reasonUpper.includes('URL')) {
+      return '#anchor-url';
+    } else if (reasonUpper.includes('EVIDENCE') || reasonUpper.includes('근거')) {
+      return '#anchor-evidence';
+    }
+    // 기본값: 신뢰도 영역
+    return '#anchor-reliability';
+  }
+
   // 배지 HTML 생성 (배지 + 자세히 버튼)
   const badgeHtml = `
     <div class="reliability-badge-container">
@@ -119,7 +138,14 @@ export function renderReliabilityBadge(el, rel) {
     </div>
     <div class="reliability-details" style="display: none;">
       <ul class="reliability-reasons-list">
-        ${reasons.map(reason => `<li>${esc(reason)}</li>`).join('')}
+        ${reasons.map(reason => {
+          const scrollAnchor = getScrollAnchorForReason(reason);
+          const reasonText = esc(reason);
+          if (scrollAnchor) {
+            return `<li data-scroll="${scrollAnchor}" style="cursor: pointer; color: #0066cc; text-decoration: underline;">${reasonText}</li>`;
+          }
+          return `<li>${reasonText}</li>`;
+        }).join('')}
       </ul>
     </div>
   `;
@@ -147,6 +173,28 @@ export function renderReliabilityBadge(el, rel) {
         detailsBtn.textContent = '접기';
       }
     });
+  }
+  
+  // ✅ [Phase 17-0B] reason 클릭 시 스크롤 이동 이벤트 위임
+  try {
+    el.addEventListener('click', (e) => {
+      try {
+        const item = e.target.closest('[data-scroll]');
+        if (!item) return;
+        
+        const sel = item.dataset.scroll;
+        if (!sel || typeof sel !== 'string') return;
+        
+        const target = document.querySelector(sel);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } catch (err) {
+        // 스크롤 실패 시 조용히 무시 (콘솔 에러 방지)
+      }
+    });
+  } catch (err) {
+    // 이벤트 등록 실패 시 조용히 무시 (콘솔 에러 방지)
   }
 }
 

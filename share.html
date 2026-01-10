@@ -823,6 +823,12 @@
       .reliability-details-btn {
         display: none !important;
       }
+      
+      /* ✅ [Phase25-0] OTHER_DEVICE 토스트 메시지 인쇄 시 숨김 */
+      #helper-link-feedback {
+        display: none !important;
+      }
+      
       /* 인쇄 시 신뢰도 사유는 항상 표시 */
       .reliability-details {
         display: block !important;
@@ -1304,6 +1310,118 @@
       }
     }
   </style>
+  <script>
+    // ✅ [Phase 29-1] Invalid share id guard (UI-only)
+    // - 목적: 유효하지 않은 r/id 값에 대해 snapshot fetch 자체를 막아 "Failed to load resource: 404"를 원천 차단
+    // - 허용 포맷:
+    //   (a) 숫자만 10~15자리
+    //   (b) 32~64 길이 hex
+    //   (c) uuid (8-4-4-4-12)
+    // - 금지: 점수/분석/스키마/스토리지(__lastV2) 로직 변경, 서버/결제/차감/로그인 로직 추가
+    function isValidShareId(s) {
+      if (!s) return false;
+      const str = String(s).trim();
+      if (!str) return false;
+      if (/^\d{10,15}$/.test(str)) return true;
+      if (/^[0-9a-f]{32,64}$/i.test(str)) return true;
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) return true;
+      return false;
+    }
+
+    // ✅ [Phase 26-0A] id 파라미터 감지 및 스냅샷 로드 (기존 Share 초기화 전에 실행)
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const id = params.get("id");
+      
+      // ✅ [Phase 26-0B] id 파라미터가 있으면 POST 스냅샷 생성 비활성화 (GET-only 모드)
+      const hasId = Boolean(id);
+      if (hasId) {
+        // POST 관련 함수를 오버라이드하여 실행 방지
+        window.__SHARE_READ_ONLY_MODE__ = true;
+      }
+
+      // id 없으면 기존 동작 유지
+      if (!id) return;
+
+      // ✅ [Phase 29-1] invalid id면 snapshot fetch 자체를 수행하지 않음 (404 리소스 에러 원천 차단)
+      if (!isValidShareId(id)) {
+        // UI는 기존 EXPIRED 플로우로 떨어지도록, 플래그만 남기고 조용히 종료
+        window.__shareInvalidShareId = { source: 'id', value: String(id) };
+        return;
+      }
+
+      const isLocalhost =
+        location.hostname === "localhost" ||
+        location.hostname === "127.0.0.1";
+
+      // dev-only 로그
+      const dlog = (...args) => { if (isLocalhost) console.log(...args); };
+
+      // ✅ [Phase 26-1] Snapshot API fetch with dev fallback
+      async function fetchSnapshotApi(path, options = {}) {
+        const isDevStaticServer = 
+          (location.hostname === "localhost" || location.hostname === "127.0.0.1") &&
+          /^550[0-9]$/.test(location.port || "");
+
+        // 정적 서버(5500~5509)면 무조건 localhost:3001로 바로 실행 (same-origin 시도 금지)
+        if (isDevStaticServer) {
+          try {
+            const fallbackUrl = `http://localhost:3001${path}`;
+            return await fetch(fallbackUrl, options);
+          } catch (e) {
+            // 3001도 실패하면 조용히 return하여 기존 empty UX로 떨어지게 유지
+            dlog("[share] snapshot API fetch failed (3001)");
+            return null;
+          }
+        }
+
+        // 정적 서버가 아닐 때는 same-origin으로 시도
+        try {
+          return await fetch(path, options);
+        } catch (e) {
+          // 실패 시 조용히 return
+          return null;
+        }
+      }
+
+      // ✅ window.__shareIdBoot Promise 생성 (bootstrap에서 await)
+      window.__shareIdBoot = (async function bootFromSnapshot() {
+        try {
+          dlog("[share] fetching snapshot for id:", id);
+
+          const res = await fetchSnapshotApi(`/api/snapshot/${encodeURIComponent(id)}`, {
+            method: "GET",
+            headers: { "Accept": "application/json" }
+          });
+
+          // fetchSnapshotApi가 null을 반환하거나 응답이 없으면 조용히 return
+          if (!res || !res.ok) {
+            dlog("[share] snapshot not found or fetch failed");
+            return; // 실패 시 조용히 무시, 기존 empty-state UX로 처리
+          }
+
+          const snapshot = await res.json();
+          if (!snapshot || !snapshot.reportModel) {
+            dlog("[share] invalid snapshot payload");
+            return;
+          }
+
+          // ✅ 기존 파이프라인 "그대로" 쓰기 위해 주입
+          localStorage.setItem("__lastV2", JSON.stringify(snapshot.reportModel));
+          // __currentReportId는 r 파라미터(숫자 timestamp)로 유지 (snapshot.id 해시 사용 안 함)
+          const rParam = params.get("r");
+          if (rParam) {
+            localStorage.setItem("__currentReportId", rParam);
+          }
+
+          dlog("[share] snapshot injected into localStorage (__lastV2)");
+        } catch (e) {
+          // 조용히 무시 (콘솔 에러 0)
+          dlog("[share] snapshot load failed, using empty-state UX");
+        }
+      })();
+    })();
+  </script>
 </head>
 <body>
   <div class="app">
@@ -1332,12 +1450,306 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
+    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, buildProUpgradeNoticeCopyKR } from './core/ui/pricingPolicyKR.js';
+    
+    // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
+    (function() {
+      if (window.__shareCtaCaptureBound) return;
+      
+      // scrollToTarget: 타겟 요소로 스크롤
+      function scrollToTarget(selector) {
+        if (!selector || !selector.startsWith('#')) return false;
+        try {
+          const el = document.querySelector(selector);
+          if (!el) return false;
+          const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+      
+      // ✅ [Phase24-3] document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
+      document.addEventListener('click', function(e) {
+        try {
+          // ✅ [Phase24-3] NO_REPORT에서 details/summary 클릭은 허용 (아코디언 토글)
+          const state = window.__ShareViewState?.state || window.__shareViewState;
+          
+          // NO_REPORT의 .no-report-why details/summary는 helper-link intercept 대상 제외
+          const isNoReportWhy = e.target.closest('.no-report-why');
+          if (isNoReportWhy) {
+            // NO_REPORT 카드의 아코디언은 자연스러운 토글 동작 허용 (스크롤/해시 변경 없음)
+            return;
+          }
+          
+          if (state === 'NO_REPORT') {
+            const isSummary = e.target.tagName === 'SUMMARY' || e.target.closest('summary');
+            const isDetails = e.target.closest('details');
+            if (isSummary || isDetails) {
+              // NO_REPORT의 다른 details/summary도 자연스러운 토글 동작 허용
+              return;
+            }
+          }
+          
+          // Helper link 식별: data-target 또는 data-cta 또는 텍스트 내용으로 판단
+          const el = e.target.closest('[data-target]') || 
+                     e.target.closest('[data-cta]') ||
+                     (e.target.closest('a') && (
+                       e.target.textContent?.includes('왜 리포트를 못 여나요') ||
+                       e.target.textContent?.includes('신뢰도 사유 보기')
+                     ) ? e.target.closest('a') : null);
+          
+          if (!el) return;
+          
+          // Primary nav buttons는 제외 (홈으로, 최신 리포트 보기 등)
+          if (el.classList.contains('btn-home') || 
+              el.classList.contains('btn-latest') ||
+              el.getAttribute('href') === './home.html' ||
+              el.getAttribute('href') === './share.html') {
+            return;
+          }
+          
+          const selector = el.dataset.target;
+          const ctaType = el.dataset.cta;
+          const linkText = el.textContent?.trim() || '';
+          
+          // ✅ [Phase24-3] Helper link 정책 적용 (viewState별 분리)
+          let shouldScroll = false;
+          let shouldPrevent = false;
+          let targetSelector = null;
+          
+          if (state === 'OK') {
+            // OK: 신뢰도 사유 보기 → #obs-lite로 스크롤
+            if (selector === '#obs-lite' || (ctaType === 'reliability' && linkText.includes('신뢰도 사유 보기'))) {
+              shouldScroll = true;
+              targetSelector = '#obs-lite';
+            } else if (selector && selector.startsWith('#')) {
+              // 다른 data-target이 있으면 스크롤
+              shouldScroll = true;
+              targetSelector = selector;
+            }
+          } else if (state === 'EXPIRED') {
+            // EXPIRED: "왜 리포트를 못 여나요?" → #expired-banner로 스크롤
+            if (selector === '#expired-banner' || 
+                ctaType === 'why-report' || 
+                linkText.includes('왜 리포트를 못 여나요')) {
+              shouldScroll = true;
+              targetSelector = '#expired-banner';
+            } else if (selector && selector.startsWith('#')) {
+              // 다른 data-target이 있으면 스크롤
+              shouldScroll = true;
+              targetSelector = selector;
+            }
+          } else if (state === 'OTHER_DEVICE' || state === 'NO_REPORT') {
+            // OTHER_DEVICE/NO_REPORT: helper link는 no-op (스크롤/해시 변경/URL 변경 금지)
+            shouldPrevent = true;
+            shouldScroll = false;
+          }
+          
+          // ✅ [Phase24-2] 디버그 로그 (dev-only: localhost에서만 출력)
+          const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          if (isDev) {
+            console.debug('[helper-link]', { state, ctaType, linkText: linkText.substring(0, 20), shouldScroll, shouldPrevent, targetSelector });
+          }
+          
+          // 스크롤 또는 prevent 처리
+          if (shouldPrevent) {
+            // OTHER_DEVICE/NO_REPORT: 클릭 무동작 (스크롤/해시/URL 변경 없음)
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            // ✅ [Phase25-0] OTHER_DEVICE에서만 피드백 토스트 표시
+            if (state === 'OTHER_DEVICE') {
+              const feedbackEl = document.getElementById('helper-link-feedback');
+              if (feedbackEl) {
+                // 기존 타이머가 있으면 취소 (중복 클릭 방지)
+                if (feedbackEl._hideTimer) {
+                  clearTimeout(feedbackEl._hideTimer);
+                }
+                feedbackEl.textContent = '이 기기/브라우저에서는 리포트를 열 수 없어요. 홈에서 다시 분석해 주세요.';
+                feedbackEl.style.display = 'block';
+                // 2.5초 후 자동 숨김
+                feedbackEl._hideTimer = setTimeout(() => {
+                  if (feedbackEl) {
+                    feedbackEl.style.display = 'none';
+                    feedbackEl.textContent = '';
+                    feedbackEl._hideTimer = null;
+                  }
+                }, 2500);
+              }
+            }
+            return;
+          }
+          
+          if (!shouldScroll || !targetSelector) return;
+          
+          // 이벤트 차단 (유효한 helper link 클릭만)
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          // 스크롤 실행 (smooth scroll)
+          scrollToTarget(targetSelector);
+        } catch (err) {
+          // 조용히 무시
+        }
+      }, { capture: true });
+      
+      // 가드 설정 (리스너가 실제로 바인딩된 후에만)
+      window.__shareCtaCaptureBound = true;
+    })();
+    
+    // ✅ [Phase 19-1A] 단일 스크롤 엔진 (scroll intent latch)
+    window.__sharePendingScrollTarget = null;
+    
+    // scrollToSel: 기본 스크롤 실행
+    function scrollToSel(sel) {
+      if (!sel || !sel.startsWith('#')) return false;
+      try {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    
+    // reinforceScroll: 즉시 스크롤 + reinforce
+    function reinforceScroll(sel) {
+      if (!sel) return;
+      scrollToSel(sel);
+      requestAnimationFrame(() => scrollToSel(sel));
+      setTimeout(() => scrollToSel(sel), 80);
+      setTimeout(() => scrollToSel(sel), 220);
+    }
+    
+    // setPending: scroll intent 저장 및 즉시 reinforce
+    function setPending(sel) {
+      window.__sharePendingScrollTarget = sel;
+      reinforceScroll(sel);
+    }
+    
+    // ✅ [Phase 16-1] 참고 관측(Observation Lite) 섹션 렌더링 함수
+    // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 읽어서 표시합니다.
+    // ✅ [Phase 16-2] r 파라미터가 있을 때만 해당 reportId 사용 (fallback 금지)
+    function renderObservationLiteSection() {
+      const LS_KEY_OBS_LITE = '__obsLiteV1';
+      const MAX_DISPLAY_ITEMS = 3;
+      
+      // ✅ [Phase 16-2] URL의 r 파라미터만 사용 (fallback 절대 금지)
+      const urlParams = new URLSearchParams(location.search);
+      const currentReportId = urlParams.get('r');
+      
+      // r 파라미터가 없으면 Observation 섹션을 표시하지 않음
+      if (!currentReportId) {
+        return null;
+      }
+      
+      // Observation Lite 데이터 로드
+      let items = [];
+      try {
+        const stored = localStorage.getItem(LS_KEY_OBS_LITE);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object' && parsed[currentReportId]) {
+            items = parsed[currentReportId] || [];
+          }
+        }
+      } catch (e) {
+        console.warn('[Observation Lite] 로드 실패:', e);
+        return null;
+      }
+      
+      // 최신 3개까지만 표시
+      const displayItems = items.slice(0, MAX_DISPLAY_ITEMS);
+      
+      // HTML 이스케이프 함수
+      function esc(v) {
+        if (v === null || v === undefined) return '';
+        return String(v)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+      
+      // 텍스트 줄임 처리 (최대 2-3줄)
+      function truncateText(text, maxLength = 150) {
+        if (!text) return '';
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+      }
+      
+      let itemsHtml = '';
+      if (displayItems.length === 0) {
+        itemsHtml = '<p style="font-size: 12px; color: var(--muted); text-align: center; padding: 12px; margin: 0;">저장된 관측 데이터가 없습니다.</p>';
+      } else {
+        itemsHtml = displayItems.map((item) => {
+          const dateText = item.createdAt 
+            ? new Date(item.createdAt).toLocaleString('ko-KR', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              }) 
+            : '';
+          
+          const question = esc(item.question || '질문 없음');
+          const prompt = esc(truncateText(item.prompt || '', 120));
+          const response = esc(truncateText(item.response || '', 150));
+          
+          return `
+            <div style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                <div style="font-size: 11px; font-weight: 600; color: var(--text); flex: 1;">${question}</div>
+                <div style="font-size: 10px; color: var(--muted); margin-left: 8px; white-space: nowrap;">${esc(dateText)}</div>
+              </div>
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 10px; color: var(--muted); margin-bottom: 2px;">Prompt:</div>
+                <div style="font-size: 11px; color: var(--text); padding: 4px 6px; background: var(--background); border-radius: 3px; line-height: 1.4;">${prompt}</div>
+              </div>
+              <div>
+                <div style="font-size: 10px; color: var(--muted); margin-bottom: 2px;">Response:</div>
+                <div style="font-size: 11px; color: var(--text); padding: 4px 6px; background: var(--background); border-radius: 3px; line-height: 1.4; white-space: pre-wrap;">${response}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      return `
+        <div id="obs-lite" class="observation-lite-section" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+          <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">참고 관측(Observation Lite)</div>
+          <div style="font-size: 11px; color: #666; line-height: 1.5; margin-bottom: 12px;">
+            AI와의 Q&A를 기록한 참고 로그입니다. 점수에 영향을 주지 않습니다.
+            <br>
+            <span style="color: #888;">이 관측 기록은 현재 브라우저(동일 기기)에서 공통으로 유지되는 참고 메모입니다. 리포트 ID(r=)가 달라도 동일 기기에서는 이전에 기록한 관측이 표시될 수 있습니다.</span>
+          </div>
+          <div style="display: grid; gap: 8px;">
+            ${itemsHtml}
+          </div>
+        </div>
+      `;
+    }
     
     // === [Phase 10-0] Share reportId 고정 로직 ===
+    // ✅ [Phase24-1] NO_REPORT 상태 체크: replaceState 호출 금지
     const params = new URLSearchParams(location.search);
     let r = params.get('r');
+    
+    // ✅ [Phase24-1] NO_REPORT 상태 감지: ?r이 없고 localStorage도 비어있으면 replaceState 건너뛰기
+    const checkLastV2Str = localStorage.getItem('__lastV2');
+    const checkCurrentReportId = localStorage.getItem('__currentReportId');
+    const checkHasLastV2 = checkLastV2Str && checkLastV2Str.length > 10;
+    const checkHasCurrentReportId = checkCurrentReportId && checkCurrentReportId.length > 0;
+    const isNoReportState = !r && !checkHasLastV2 && !checkHasCurrentReportId;
 
-    if (!r) {
+    if (!r && !isNoReportState) {
       r = localStorage.getItem('__currentReportId') || '';
 
       if (!r) {
@@ -1358,29 +1770,81 @@
 
       if (r) {
         localStorage.setItem('__currentReportId', r);
-        history.replaceState(
-          null,
-          '',
-          `${location.pathname}?r=${encodeURIComponent(r)}`
-        );
+        // ✅ [Phase24-1] Safe URL construction for replaceState
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('r', r);
+          history.replaceState(null, '', url.toString());
+        } catch (err) {
+          // Fallback: use pathname if URL constructor fails
+          history.replaceState(
+            null,
+            '',
+            `${location.pathname}?r=${encodeURIComponent(r)}`
+          );
+        }
       }
     }
     
     /**
-     * ✅ [Phase 11-2C] 포트 5502 체크 헬퍼
-     * @returns {boolean} localhost:5502 여부
+     * ✅ [Phase 11-2C] 포트 5500~5509 정적 서버 체크 헬퍼
+     * @returns {boolean} localhost:5500~5509 여부
      */
-    function isStaticLocal() {
-      return location.hostname === 'localhost' && String(location.port) === '5502';
+    function isDevStaticServer() {
+      return (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+             /^550[0-9]$/.test(location.port || '');
     }
 
     /**
      * ✅ [Phase 11-2C] API 베이스 URL 배열 반환
+     * 정적 서버(5500~5509)에서는 무조건 localhost:3001만 사용 (same-origin 시도 없음)
      * @returns {string[]} API 베이스 URL 배열
      */
     function apiBases() {
-      if (isStaticLocal()) return ['http://localhost:3001'];
+      if (isDevStaticServer()) return ['http://localhost:3001'];
       return ['', 'http://localhost:3001'];
+    }
+
+    /**
+     * ✅ [Phase 26-0B] Snapshot POST API 호출 헬퍼
+     * 정적 서버(5500~5509)에서는 무조건 localhost:3001로만 요청
+     * id 파라미터가 있으면 POST 실행 차단 (GET-only 모드)
+     * @param {Object} reportModel - 리포트 모델
+     * @returns {Promise<string|null>} snapshot ID 또는 null
+     */
+    async function postSnapshotApi(reportModel) {
+      // ✅ [Phase 26-0B] id 파라미터가 있으면 POST 실행 차단 (읽기 전용 모드)
+      if (window.__SHARE_READ_ONLY_MODE__) {
+        return null;
+      }
+      
+      // ✅ [Phase 26-0B] URL 파라미터에서 id 확인 (이중 체크)
+      const urlParams = new URLSearchParams(location.search);
+      if (urlParams.has('id')) {
+        return null;
+      }
+      
+      // 정적 서버(5500~5509)에서는 무조건 localhost:3001로만 요청
+      const baseUrl = isDevStaticServer() ? 'http://localhost:3001' : '';
+      const endpoint = `${baseUrl}/api/snapshot`;
+      
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ reportModel })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          return data?.id || null;
+        }
+      } catch (err) {
+        // 조용히 실패 처리
+      }
+      return null;
     }
 
     /**
@@ -1491,11 +1955,9 @@
               // 404는 조용히 처리 (다음 엔드포인트 시도 또는 notFound 반환)
               continue;
             }
-            // 404가 아닌 다른 에러(status >= 500 등)는 기존 처리 유지
             // response.ok === false 이면 다음 엔드포인트 시도
             continue;
           } catch (err) {
-            // 네트워크 오류 시 다음 엔드포인트 시도
             continue;
           }
       }
@@ -1551,17 +2013,34 @@
     
     /**
      * ✅ [Share 복원 로직] reportModel 복원 함수
+     * ✅ [Phase 26-2C-2] r-only(r 있고 id 없음)일 때만 해당 reportId 사용 (fallback 절대 금지)
      * 우선순위: (1) URL 파라미터 r → (2) window.__lastV2 / localStorage '__lastV2' → (3) localStorage 'aeo_state_v2'
      * ✅ [Phase 13-1B] r이 snapshot ID인 경우 localStorage 확인 후 없으면 fetch 없이 즉시 fallback
      * @returns {Promise<Object|null>} reportModel 객체 또는 null
      */
     async function loadReportModel() {
       const urlParams = new URLSearchParams(window.location.search);
+      const hasId = Boolean(urlParams.get('id'));
       const rParam = urlParams.get('r');
+      const rOnly = Boolean(rParam) && !hasId;
       
-      // ✅ [Phase 13-1B] r 파라미터를 읽은 직후 localStorage 확인
-      // 조건을 만족하지 않으면 fetch 호출 지점에 도달하지 않도록 early return
-      if (rParam) {
+      // ✅ [Phase22] viewState가 OK가 아니면 snapshot fetch 금지
+      const currentViewState = window.__shareViewState;
+      if (currentViewState && currentViewState !== 'OK') {
+        console.log('[loadReportModel] viewState is not OK, skipping fetch:', currentViewState);
+        return null;
+      }
+      
+      // ✅ [Phase22] r 파라미터가 테스트 상태면 fetch 금지
+      const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
+      if (rParam && testStates.includes(rParam)) {
+        console.log('[loadReportModel] r is test state, skipping fetch:', rParam);
+        return null;
+      }
+      
+      // ✅ [Phase 26-2C-2] r-only(r 있고 id 없음)일 때만 fallback 절대 금지
+      // id가 있으면 snapshot boot가 __lastV2를 주입하므로, 정상 OK 플로우를 위해 fallback 허용
+      if (rOnly) {
         try {
           const decoded = decodeURIComponent(rParam);
           const parsed = JSON.parse(decoded);
@@ -1573,13 +2052,40 @@
           // ✅ [Phase 13-1B] URL 파라미터 파싱 실패 시 snapshot ID로 간주
           // localStorage에서 해당 r이 존재하는지 확인
           if (!shouldFetchSnapshot(rParam)) {
-            // 조건 불만족: fetch 없이 즉시 fallback (404 방지)
+            // 조건 불만족: fetch 없이 즉시 null 반환 (NO_REPORT 화면 표시)
             return null;
           }
-          // 조건 만족: 기존 로직 계속 진행 (fetch 시도 가능)
+          // 조건 만족: fetch 시도
+          try {
+            setShareStatus('리포트를 불러오는 중…');
+            const data = await fetchSnapshotWithFallback(rParam);
+            
+            if (data?.notFound) {
+              setShareStatus('리포트 데이터를 찾을 수 없습니다.');
+              return null;
+            }
+            
+            if (data?.payload) {
+              const v2 = data.payload;
+              window.__lastV2 = v2;
+              setShareStatus('');
+              return v2;
+            }
+            
+            // fetch 성공했지만 payload가 없는 경우 null 반환 (NO_REPORT 화면 표시)
+            return null;
+          } catch (fetchErr) {
+            // fetch 실패 시 null 반환 (NO_REPORT 화면 표시)
+            console.warn('[share] snapshot fetch failed:', fetchErr);
+            setShareStatus('리포트를 불러오지 못했습니다.');
+            return null;
+          }
         }
+        // r 파라미터가 있지만 데이터를 찾지 못한 경우 null 반환 (NO_REPORT 화면 표시)
+        return null;
       }
       
+      // ✅ [Phase 26-2C-2] r-only가 아닐 때만 fallback 로직 사용
       // (2) window.__lastV2 또는 localStorage '__lastV2'
       if (window.__lastV2) {
         return window.__lastV2;
@@ -1598,12 +2104,13 @@
       }
       
       // (3) localStorage 'aeo_state_v2' 기반 복원 (신규)
+      // ✅ [Phase 16-2] r 파라미터가 없을 때만 이 로직 사용
       try {
         const stStr = localStorage.getItem('aeo_state_v2');
         if (!stStr) {
           // ✅ [Phase 11-2] localStorage 복원 실패 시 서버 스냅샷 fallback
-          // ✅ [Phase 13-1B] r이 localStorage에 있을 때만 fetch 시도
-          if (rParam && shouldFetchSnapshot(rParam)) {
+          // ✅ [Phase 16-2] r 파라미터가 없을 때만 fetch 시도 (r이 있으면 이미 위에서 처리됨)
+          if (!rParam) {
             try {
               setShareStatus('리포트를 불러오는 중…');
               const data = await fetchSnapshotWithFallback(rParam);
@@ -1632,32 +2139,7 @@
         
         const st = JSON.parse(stStr);
         if (!st || typeof st !== 'object') {
-          // ✅ [Phase 11-2] localStorage 복원 실패 시 서버 스냅샷 fallback
-          // ✅ [Phase 13-1B] r이 localStorage에 있을 때만 fetch 시도
-          if (rParam && shouldFetchSnapshot(rParam)) {
-            try {
-              setShareStatus('리포트를 불러오는 중…');
-              const data = await fetchSnapshotWithFallback(rParam);
-              
-              if (data?.notFound) {
-                setShareStatus('리포트 데이터를 찾을 수 없습니다.');
-                return null;
-              }
-              
-              if (data?.payload) {
-                const v2 = data.payload;
-                window.__lastV2 = v2;
-                if (!localStorage.getItem('__currentReportId')) {
-                  localStorage.setItem('__currentReportId', rParam);
-                }
-                setShareStatus('');
-                return v2;
-              }
-            } catch (e) {
-              console.warn('[share] snapshot fallback failed:', e);
-              setShareStatus('리포트를 불러오지 못했습니다.');
-            }
-          }
+          // ✅ [Phase 16-2] r 파라미터가 없을 때만 이 로직 사용 (r이 있으면 이미 위에서 처리됨)
           return null;
         }
         
@@ -1703,32 +2185,7 @@
         
         return reportModel;
       } catch (e) {
-        // localStorage 'aeo_state_v2' 파싱 실패 시 서버 스냅샷 fallback
-        // ✅ [Phase 13-1B] r이 localStorage에 있을 때만 fetch 시도
-        if (rParam && shouldFetchSnapshot(rParam)) {
-          try {
-            setShareStatus('서버에서 불러오는 중…');
-            const data = await fetchSnapshotWithFallback(rParam);
-            
-            if (data?.notFound) {
-              setShareStatus('스냅샷을 찾을 수 없습니다. (404)');
-              return null;
-            }
-            
-            if (data?.payload) {
-              const v2 = data.payload;
-              window.__lastV2 = v2;
-              if (!localStorage.getItem('__currentReportId')) {
-                localStorage.setItem('__currentReportId', rParam);
-              }
-              setShareStatus('');
-              return v2;
-            }
-          } catch (err) {
-            console.warn('[share] snapshot fallback failed:', err);
-            setShareStatus('서버에서 불러오지 못했습니다.');
-          }
-        }
+        // ✅ [Phase 16-2] r 파라미터가 없을 때만 이 로직 사용 (r이 있으면 이미 위에서 처리됨)
         return null;
       }
     }
@@ -1761,9 +2218,20 @@
       return reportPayload;
     }
     
+    // ✅ [Phase24-1] NO_REPORT 상태 체크: 로그인 게이트보다 먼저 실행
+    // ?r이 없고 localStorage도 비어있으면 NO_REPORT로 처리 (로그인 게이트 우회)
+    const urlParamsCheck = new URLSearchParams(window.location.search);
+    const rParamCheck = urlParamsCheck.get('r');
+    const lastV2StrCheck = localStorage.getItem('__lastV2');
+    const currentReportIdCheck = localStorage.getItem('__currentReportId');
+    const hasLastV2Check = lastV2StrCheck && lastV2StrCheck.length > 10;
+    const hasCurrentReportIdCheck = currentReportIdCheck && currentReportIdCheck.length > 0;
+    const isNoReportStateCheck = !rParamCheck && !hasLastV2Check && !hasCurrentReportIdCheck;
+    
     // ✅ [Phase 4-2 Gate] share.html 진입 즉시 로그인 체크
     // 리포트 렌더/복원 로직을 절대 실행하지 않도록 가장 먼저 체크
-    if (!isLoggedIn()) {
+    // 단, NO_REPORT 상태일 때는 로그인 게이트를 우회하여 빈 상태 UX 표시
+    if (!isLoggedIn() && !isNoReportStateCheck) {
       // document.title 변경
       document.title = "Login required";
       
@@ -1815,10 +2283,61 @@
           .replaceAll(">", "&gt;");
       }
       
+      // ✅ [Hotfix] Share 초기화 함수 (bootstrapShare)
+      // 최초 로드, pageshow, visibilitychange에서 동일 함수 호출
+      let __shareInitialized = false;
+      async function bootstrapShare() {
+        // ✅ [Phase 26-0A] id boot가 있으면 먼저 완료 대기
+        if (window.__shareIdBoot) {
+          await window.__shareIdBoot;
+        }
+
+        // ✅ [Phase 26-2B] force 파라미터 체크 (개발자용 테스트 하네스)
+        const urlParams = new URLSearchParams(location.search);
+        const forceParam = urlParams.get('force');
+        let forcedState = null;
+        if (forceParam) {
+          const normalizedForce = forceParam.toUpperCase().replace(/_/g, '');
+          const validStates = ['OK', 'EXPIRED', 'OTHERDEVICE', 'FETCHFAIL'];
+          const stateMap = {
+            'OK': 'OK',
+            'EXPIRED': 'EXPIRED',
+            'OTHERDEVICE': 'OTHER_DEVICE',
+            'FETCHFAIL': 'FETCH_FAIL'
+          };
+          
+          if (validStates.includes(normalizedForce)) {
+            forcedState = stateMap[normalizedForce];
+            console.log('[share][dev] forced state:', forcedState);
+          }
+        }
+
+        if (__shareInitialized) {
+          console.log('[ShareViewState:bootstrap] Re-initializing Share page');
+        } else {
+          console.log('[ShareViewState:bootstrap] Initializing Share page');
+          __shareInitialized = true;
+        }
+        
+        // renderShareContent 호출
+        await renderShareContent();
+        
+        // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용
+        if (window.__sharePendingScrollTarget) {
+          const target = window.__sharePendingScrollTarget;
+          reinforceScroll(target);
+          setTimeout(() => {
+            window.__sharePendingScrollTarget = null;
+          }, 300);
+        }
+      }
+      
       async function renderShareContent() {
         // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
         const urlParams = new URLSearchParams(window.location.search);
         const rParam = urlParams.get('r');
+        const idParam = urlParams.get('id');
+        const hasId = Boolean(idParam);
         const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
         const getOnly = (!forceWrite) && Boolean(rParam);
         
@@ -1826,9 +2345,94 @@
           console.log('[share] view mode: GET only');
         }
         
+        // ✅ [Phase 26-2C-2] id 파라미터가 있으면 snapshot 플로우 허용 (r-only 규칙 적용 금지)
+        if (hasId && !window.__shareIdParamFlowLogged) {
+          window.__shareIdParamFlowLogged = true;
+          console.log('[share] id param present – allowing snapshot flow');
+        }
+        
+        // ✅ [Phase 26-2B] force 파라미터 체크 (개발자용 테스트 하네스)
+        const forceParam = urlParams.get('force');
+        let forcedState = null;
+        if (forceParam) {
+          const normalizedForce = forceParam.toUpperCase().replace(/_/g, '');
+          const validStates = ['OK', 'EXPIRED', 'OTHERDEVICE', 'FETCHFAIL'];
+          const stateMap = {
+            'OK': 'OK',
+            'EXPIRED': 'EXPIRED',
+            'OTHERDEVICE': 'OTHER_DEVICE',
+            'FETCHFAIL': 'FETCH_FAIL'
+          };
+          
+          if (validStates.includes(normalizedForce)) {
+            forcedState = stateMap[normalizedForce];
+            console.log('[share][dev] forced state:', forcedState);
+          }
+        }
+        
+        // ✅ [Phase22] r 파라미터가 테스트 상태('EXPIRED' | 'OTHER_DEVICE' | 'NO_REPORT')면 viewState를 먼저 확정
+        const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
+        let viewState = null;
+
+        // ✅ [Phase 29-1] invalid r/id면 snapshot fetch 자체를 수행하지 않음 (404 리소스 에러 원천 차단)
+        // - 기존 EXPIRED UI(노란 박스/버튼/안내) 유지: viewState만 EXPIRED로 고정하고 나머지는 기존 렌더링 파이프라인 사용
+        // - inline JSON(r-only) 사용 케이스는 보호: JSON 후보처럼 보이면 여기서 차단하지 않음
+        if (!forcedState || forcedState === 'OK') {
+          const invalidFromHead = window.__shareInvalidShareId;
+          const isInlineJsonCandidate =
+            Boolean(rParam) && (
+              String(rParam).trim().startsWith('{') ||
+              String(rParam).includes('%7B') ||
+              String(rParam).includes('%7b')
+            );
+          let invalid = null;
+          if (invalidFromHead?.source === 'id') {
+            invalid = invalidFromHead;
+          } else if (idParam && !isValidShareId(idParam)) {
+            invalid = { source: 'id', value: String(idParam) };
+          } else if (rParam && !testStates.includes(rParam) && !isInlineJsonCandidate && !isValidShareId(rParam)) {
+            invalid = { source: 'r', value: String(rParam) };
+          }
+          if (invalid) {
+            viewState = 'EXPIRED';
+            window.__shareViewState = viewState;
+            window.__shareInvalidShareId = invalid;
+            // 로그는 최소화 (원하면 무로그로 바꿔도 됨)
+            console.info('[ShareViewState:invalid-id]', { source: invalid.source, note: 'Invalid share id – skipping snapshot fetch' });
+          }
+        }
+
+        if (forcedState && forcedState !== 'OK') {
+          // force 파라미터가 있고 OK가 아니면 강제 상태 설정 (OK는 정상 플로우 유지)
+          // FETCH_FAIL은 NO_REPORT와 동일하게 처리
+          viewState = forcedState === 'FETCH_FAIL' ? 'NO_REPORT' : forcedState;
+          window.__shareViewState = viewState;
+          console.warn('[ShareViewState:force]', { forcedState, viewState, note: 'Forced state - skipping loadReportModel and fetch' });
+        } else if (rParam && testStates.includes(rParam)) {
+          viewState = rParam;
+          window.__shareViewState = viewState;
+          console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
+        }
+        
+        // ✅ [Phase24-1] NO_REPORT 상태 감지: ?r이 없고 localStorage도 비어있으면 NO_REPORT
+        if (!viewState && !rParam) {
+          const lastV2Str = localStorage.getItem('__lastV2');
+          const currentReportId = localStorage.getItem('__currentReportId');
+          const hasLastV2 = lastV2Str && lastV2Str.length > 10;
+          const hasCurrentReportId = currentReportId && currentReportId.length > 0;
+          
+          if (!hasLastV2 && !hasCurrentReportId) {
+            viewState = 'NO_REPORT';
+            window.__shareViewState = viewState;
+            console.log('[ShareViewState:no-report]', { r: null, hasLastV2: false, hasCurrentReportId: false, viewState: 'NO_REPORT' });
+          }
+        }
+        
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
         // 기존 localStorage 복원 우선 (회귀 금지)
-        const reportModel = await loadReportModel();
+        // 테스트 상태나 NO_REPORT, 또는 force로 OK가 아닌 상태가 아닐 때만 loadReportModel 호출
+        // force=OK인 경우는 정상 플로우 유지 (에러 분기만 우회)
+        const reportModel = (viewState && viewState !== 'OK') ? null : await loadReportModel();
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
@@ -1841,17 +2445,107 @@
           reportModel.analysis &&
           reportModel.analysis.scores &&
           Object.keys(reportModel.analysis.scores).length > 0;
-        let hasLastV2 = false;
-        try {
-          const lastV2Str = localStorage.getItem('__lastV2');
-          if (lastV2Str) {
-            JSON.parse(lastV2Str);
-            hasLastV2 = true;
-          }
-        } catch (e) {
-          hasLastV2 = false;
+        
+        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때만 localStorage fallback 비활성화
+        const hasR = Boolean(rParam);
+        const isROnly = hasR && !hasId;
+        // ✅ [Phase 26-2C-LogPolish] force=<state>일 때는 r-only 감지 로그를 출력하지 않음 (동작은 동일)
+        if (!forcedState && isROnly) {
+          console.log('[share] r-only param detected – disabling localStorage fallback');
         }
-        const viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
+        
+        let hasLastV2 = false;
+        let lastV2Str = null;
+        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때만 hasLastV2를 false로 강제 (localStorage fallback 방지)
+        if (!isROnly) {
+          try {
+            lastV2Str = localStorage.getItem('__lastV2');
+            if (lastV2Str) {
+              JSON.parse(lastV2Str);
+              hasLastV2 = true;
+            }
+          } catch (e) {
+            hasLastV2 = false;
+          }
+        }
+        
+        // ✅ [Hotfix] r 파라미터가 있고 __lastV2가 존재하면 __currentReportId를 r로 동기화
+        // 단, r 파라미터가 있을 때는 localStorage fallback을 사용하지 않으므로 동기화만 수행
+        if (rParam && rParam.length > 0) {
+          try {
+            lastV2Str = localStorage.getItem('__lastV2');
+            if (lastV2Str && lastV2Str.length > 10) {
+              const currentReportId = localStorage.getItem('__currentReportId');
+              if (currentReportId !== rParam) {
+                localStorage.setItem('__currentReportId', rParam);
+                console.log('[ShareViewState:sync] __currentReportId synchronized to r:', rParam);
+              }
+            }
+          } catch (e) {
+            // 동기화 실패 시 무시
+          }
+        }
+        
+        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없으며 reportModel이 null이면 EXPIRED로 강제 설정
+        if (isROnly && !reportModel && !viewState) {
+          viewState = 'EXPIRED';
+          window.__shareViewState = viewState;
+          console.warn('[ShareViewState:r-param]', { r: rParam, hasId, reportModel: null, viewState: 'EXPIRED', note: 'r-only param exists but reportModel is null - forcing EXPIRED' });
+        }
+        
+        // ✅ [Hotfix] r === __currentReportId && __lastV2 존재 시 무조건 OK 판정
+        // ✅ [Phase22] 테스트 상태가 이미 설정된 경우 viewState 결정 로직 건너뛰기
+        // ✅ [Phase 26-2B] force 파라미터가 OK가 아닌 경우 이미 설정되었으므로 건너뛰기
+        // ✅ [Phase 26-2C] r 파라미터가 있고 reportModel이 null이면 이미 EXPIRED로 설정되었으므로 건너뛰기
+        // force=OK인 경우는 정상 플로우 유지하되, 최종적으로 OK로 강제 설정
+        if (!viewState || forcedState === 'OK') {
+          // force=OK인 경우 기존 계산 로직을 실행하되, 최종적으로 OK로 강제 설정
+          if (forcedState === 'OK' && viewState) {
+            // 이미 viewState가 설정된 경우 (예: 테스트 상태)는 유지하지 않고 재계산
+            viewState = null;
+          }
+          // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
+          window.__shareViewState = null;
+          if (rParam && rParam.length > 0) {
+          const currentReportId = localStorage.getItem('__currentReportId');
+          // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때는 localStorage fallback 사용 안 함
+          // id가 있으면 정상 snapshot share이므로 OK flow 허용
+          // reportModel이 로드되었을 때만 OK 판정
+          if (requestedLoaded) {
+            // reportModel이 성공적으로 로드된 경우에만 OK
+            viewState = 'OK';
+            console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId, requestedLoaded: true, viewState: 'OK' });
+          } else {
+            // reportModel이 없으면 EXPIRED (이미 위에서 설정되었을 수 있음)
+            if (!viewState) {
+              viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2: false });
+              console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId || null, requestedLoaded: false, hasLastV2: false });
+            }
+          }
+          } else {
+            // r이 없으면 기존 로직 사용 (localStorage fallback 허용)
+            viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
+            console.log('[ShareViewState:debug]', { r: null, current: localStorage.getItem('__currentReportId') || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
+          }
+          
+          // ✅ [Phase22] Dev-only viewState override (URL 파라미터로 강제 설정)
+          const vsOverride = urlParams.get('vs');
+          const allowedStates = ['OK', 'EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
+          if (vsOverride && allowedStates.includes(vsOverride)) {
+            const originalViewState = viewState;
+            viewState = vsOverride;
+            console.warn('[ShareViewState:override]', { from: originalViewState, to: viewState, vs: vsOverride });
+          }
+        }
+        
+        // ✅ [Phase 26-2B] force=OK인 경우 최종적으로 OK로 강제 설정 (에러 분기 우회)
+        if (forcedState === 'OK' && viewState !== 'OK') {
+          viewState = 'OK';
+          console.warn('[ShareViewState:force]', { forcedState: 'OK', note: 'Forced OK - bypassing error branches' });
+        }
+        
+        // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
+        window.__shareViewState = viewState;
         console.info('[ShareViewState]', viewState);
         
         // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
@@ -1884,6 +2578,26 @@
         const brandingScore = scores.branding;
         const contentStructureV2Score = scores.contentStructureV2;
         const urlStructureV1Score = scores.urlStructureV1;
+        
+        // ✅ [Phase 18-B] AI 추천 준비도 리포트 신뢰 카피 블록 (모든 상태에서 표시)
+        // ✅ [Phase24-3] Helper link UX: viewState별 렌더링 조건 분리
+        const ctaLink = viewState === 'OK' 
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
+          : viewState === 'EXPIRED'
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
+          : viewState === 'OTHER_DEVICE'
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report-disabled" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a><div id="helper-link-feedback" style="display: none; margin-top: 8px; padding: 8px 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 12px; color: #333; max-width: 400px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>'
+          : ''; // NO_REPORT: Readiness 카드의 helper link 숨김 (NO_REPORT 카드의 details/summary 사용)
+        
+        const scoreExplainerBlock = `
+          <div id="anchor-score-explainer" class="notice-card" style="margin-top: 0; margin-bottom: 24px;">
+            <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">AI 추천 준비도(Readiness) 리포트</h4>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #666; line-height: 1.6;"><strong>측정하는 것:</strong> 공개된 구조 신호(브랜드/콘텐츠 구조/URL 구조)와 관찰 가능한 패턴</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #666; line-height: 1.6;"><strong>측정하지 않는 것:</strong> 실제 AI 답변 노출량/랭킹/매출</p>
+            <p style="margin: 0 0 12px 0; font-size: 12px; color: #888; line-height: 1.6; font-style: italic;">점수는 준비도(readiness) 추정치이며 결과를 보장하지 않습니다.</p>
+            ${ctaLink}
+          </div>
+        `;
         
         // ✅ [Phase 5-8] 리포트 헤더 렌더링
         let analysisTarget = '분석 대상 없음';
@@ -1922,16 +2636,63 @@
           let buttons = '';
           
           if (viewState === 'NO_REPORT') {
-            title = '공유할 리포트가 없습니다';
-            message = '현재 기기에는 공유할 리포트가 없습니다. 홈에서 분석을 실행해 주세요.';
+            // ✅ [Phase24-2] NO_REPORT UI polish
+            title = '리포트 데이터를 찾을 수 없습니다';
+            message = '홈에서 다시 분석을 시작해 주세요.';
             buttons = `
-              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로</a>
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈으로 이동</a>
+            `;
+            // ✅ [Phase24-3] NO_REPORT 아코디언 추가
+            buttons += `
+              <details class="no-report-why" style="margin-top: 16px; font-size: 13px;">
+                <summary style="cursor: pointer; color: #0066cc; text-decoration: none; font-weight: 500; display: inline-block; padding: 4px 0;">왜 리포트를 못 여나요? →</summary>
+                <div style="margin-top: 12px; padding-left: 8px; border-left: 2px solid #ffc107;">
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">이 공유 링크는 동일 브라우저/기기에서만 리포트 데이터를 찾을 수 있습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">다른 브라우저/시크릿 모드에서는 접근할 수 없습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">해결: 홈에서 다시 분석해 이 브라우저에 최신 리포트를 생성하세요.</p>
+                </div>
+              </details>
             `;
           } else if (viewState === 'EXPIRED') {
             title = '이 링크로는 리포트를 열 수 없습니다';
             message = '이 링크에 연결된 리포트 데이터가 현재 브라우저에 없습니다. 홈에서 다시 분석하시면 최신 리포트를 확인할 수 있습니다.';
+            
+            // ✅ [Phase 17-1] EXPIRED 상태 복구 UX 보강
+            let canRestore = false;
+            let restoreButtonHtml = '';
+            let restoreNoticeHtml = '';
+            
+            try {
+              const lastV2Str = localStorage.getItem('__lastV2');
+              if (lastV2Str && lastV2Str.length > 10) {
+                const parsed = JSON.parse(lastV2Str);
+                if (parsed?.analysis) {
+                  canRestore = true;
+                }
+              }
+            } catch (e) {
+              // 파싱 실패 시 canRestore는 false로 유지
+            }
+            
+            if (canRestore) {
+              // 가능하면 버튼 활성화
+              restoreButtonHtml = `
+                <button id="btnRestoreLastReport" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+              `;
+            } else {
+              // 불가능하면 버튼 disabled + 안내 문구
+              restoreButtonHtml = `
+                <button id="btnRestoreLastReport" class="btn-restore" disabled style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #999; background: #e0e0e0; border: none; border-radius: 4px; text-decoration: none; cursor: not-allowed; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+              `;
+              restoreNoticeHtml = `
+                <p style="margin: 8px 0 0 0; font-size: 12px; color: #666; font-style: italic;">이 브라우저에 저장된 리포트가 없습니다.</p>
+              `;
+            }
+            
             buttons = `
-              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">홈에서 다시 분석</a>
+              ${restoreButtonHtml}
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">다시 분석하러 가기</a>
+              ${restoreNoticeHtml}
             `;
           } else if (viewState === 'OTHER_DEVICE') {
             title = '다른 기기에서 생성된 최신 리포트가 있습니다';
@@ -1943,7 +2704,7 @@
           }
           
           statusPanel = `
-            <div class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
+            <div id="expired-banner" class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
               <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">${esc(title)}</h3>
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${esc(message)}</p>
               <div style="margin-bottom: 16px;">
@@ -1959,13 +2720,40 @@
           `;
         }
         
+        // ✅ [Phase 29-2] KR pricing/quota copy single-source freeze (UI-only)
+        // - 절대 금지: 결제/로그인/차감/잔여 계산/스토리지 로직 추가
+        // - 목표: 가격/플랜/잔여(Quota badge) 문구를 단일 소스(모듈+빌더)로만 관리
+        function applyQuotaBadgeCopyKR() {
+          const planEl = document.getElementById('quotaBadgePlan');
+          const remainingEl = document.getElementById('quotaBadgeRemaining');
+          if (!planEl || !remainingEl) return;
+          const copy = buildQuotaBadgeCopyKR();
+          planEl.textContent = copy.planText;
+          remainingEl.textContent = copy.remainingText;
+        }
+
+        const setReportHeaderHtml = (html) => {
+          const el = document.getElementById('reportHeader');
+          if (!el) return;
+          el.innerHTML = html;
+          // Quota badge copy는 reportHeader DOM 주입 이후에만 적용한다 (호출 위치 단일화)
+          applyQuotaBadgeCopyKR();
+        };
+
         const reportHeader = `
           <h1>AEO/GEO 분석 리포트</h1>
           <div id="share-status"></div>
           ${statusPanel}
           ${getOnlyNotice}
+          ${viewState === 'OK' ? '<div id="recentReportsMount"></div>' : ''}
           <div class="report-header-summary">
             리포트가 준비되었습니다. AI 검색·추천 환경에서의 인식 가능성을 구조적 기준으로 분석한 결과입니다.
+          </div>
+          <!-- ✅ [Phase 29-1] Quota badge placeholders (UI-only, KR pricing/quota policy) -->
+          <!-- - 표시용 자리만 제공: 실제 잔여 계산/차감/결제/로그인/스토리지 로직 절대 추가 금지 -->
+          <div style="margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--muted, #444); background: rgba(0,0,0,0.03); padding: 8px 10px; border-radius: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <span id="quotaBadgePlan">—</span>
+            <span id="quotaBadgeRemaining">—</span>
           </div>
           <section class="share-policy" role="note" aria-label="공유 링크 안내">
             <div class="share-policy__title">공유 링크 안내</div>
@@ -2020,12 +2808,193 @@
             return '';
           })()}
         `;
+
+        // ✅ [Phase 27-1] Share CTA single-source rule (재발 방지)
+        // - 중복 원인: 서로 다른 섹션에서 Pro/Upgrade CTA를 각각 렌더링하면, 상태/재렌더 타이밍에 따라 2개가 동시에 보일 수 있음
+        // - 원칙: CTA는 오직 `#shareCtaSlot` 1곳에만 렌더/업데이트한다 (다른 위치에는 CTA HTML을 절대 삽입하지 않음)
+        const shareCtaSlotHtml = '<div id="shareCtaSlot"></div>';
+
+        // ✅ [Phase 28-1] Waitlist real link + UTM + click feedback (UI-only)
+        // - 한 줄만 수정해서 실제 대기자 등록 폼 링크로 교체 가능해야 함
+        // - 기본값은 "임시 실링크 형태"로 둔다 (운영 링크 확정 시 아래 한 줄만 교체)
+        const WAITLIST_URL = 'https://example.com/waitlist';
+
+        const getWaitlistUtmContent = () => {
+          // utm_content = 현재 viewState 문자열 (가능하면 강제 파라미터(force)도 반영)
+          try {
+            const sp = new URLSearchParams(location.search);
+            const force = (sp.get('force') || '').toLowerCase();
+            const forceMap = {
+              ok: 'OK',
+              expired: 'EXPIRED',
+              other_device: 'OTHER_DEVICE',
+              fetch_fail: 'FETCH_FAIL',
+            };
+            if (force && forceMap[force]) return forceMap[force];
+          } catch {}
+          return String(window.__shareViewState || viewState || 'UNKNOWN');
+        };
+
+        const buildWaitlistUrlWithUtm = () => {
+          const base = String(WAITLIST_URL || '').trim();
+          if (!base || base === '#') return base;
+
+          const utm = {
+            utm_source: 'share',
+            utm_medium: 'pro_modal',
+            utm_campaign: 'waitlist',
+            utm_content: getWaitlistUtmContent(),
+          };
+
+          // Prefer URL API (handles existing query/hash). Fallback to manual concat if parsing fails.
+          try {
+            const u = new URL(base, location.origin);
+            Object.entries(utm).forEach(([k, v]) => u.searchParams.set(k, v));
+            return u.toString();
+          } catch {
+            const qs = Object.entries(utm)
+              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+              .join('&');
+            const hashIdx = base.indexOf('#');
+            const beforeHash = hashIdx >= 0 ? base.slice(0, hashIdx) : base;
+            const hash = hashIdx >= 0 ? base.slice(hashIdx) : '';
+            const sep = beforeHash.includes('?') ? '&' : '?';
+            return `${beforeHash}${sep}${qs}${hash}`;
+          }
+        };
+        const ensureProModal = () => {
+          if (document.getElementById('proModalOverlay')) return;
+          const proModalCopy = buildProModalCopyKR();
+          const proUpgradeCopy = buildProUpgradeNoticeCopyKR();
+          const modalHtml = `
+            <div id="proModalOverlay" role="dialog" aria-modal="true" aria-labelledby="proModalTitle" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999;">
+              <div id="proModal" style="max-width: 520px; margin: 10vh auto 0 auto; background: #fff; border-radius: 12px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 18px 18px 14px 18px;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;">
+                  <div>
+                    <div id="proModalTitle" style="font-size: 16px; font-weight: 700; color: #222;">${esc(proModalCopy.title)}</div>
+                    <!-- ✅ [Phase 29-0] PRO 업그레이드 안내 UI (UI-only) -->
+                    <!-- - 결제/로그인/차감/스토리지/서버 로직 절대 추가 금지 -->
+                    <!-- - 가격/문구 하드코딩 금지: core/ui/pricingPolicyKR.js 빌더 결과만 사용 -->
+                    <div style="margin-top: 10px; padding: 10px 12px; background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.06); border-radius: 10px;">
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap: 10px; flex-wrap: wrap;">
+                        <div style="font-size: 14px; font-weight: 700; color: #222;">${esc(proUpgradeCopy.planName)}</div>
+                        <div style="font-size: 13px; font-weight: 600; color: #333;">${esc(proUpgradeCopy.priceText)} · ${esc(proUpgradeCopy.quotaText)}</div>
+                      </div>
+                      <div style="margin-top: 8px; font-size: 13px; color: #555; line-height: 1.6;">${esc(proUpgradeCopy.desc)}</div>
+                    </div>
+                  </div>
+                  <button type="button" id="proModalCloseX" class="btn" aria-label="닫기" style="padding: 6px 10px;">닫기</button>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap: 10px; margin-top: 16px;">
+                  <a href="${esc(WAITLIST_URL)}" id="proModalWaitlist" class="btn btn-primary" style="text-decoration:none; display:inline-block;">대기자 등록</a>
+                </div>
+              </div>
+            </div>
+          `;
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+          const overlay = document.getElementById('proModalOverlay');
+          const close = () => {
+            overlay.style.display = 'none';
+          };
+          document.getElementById('proModalCloseX')?.addEventListener('click', close);
+
+          // ✅ [Phase 28-1] WAITLIST_URL 정책
+          // - WAITLIST_URL이 '#' 또는 빈 값이면 기본 동작 방지(스크롤 방지) + alert 안내
+          // - 실제 URL이면 새 탭으로 열기 + 상태별 UTM 자동 부착 + 클릭 직후 1초 토스트(중복 방지)
+          const waitlistEl = document.getElementById('proModalWaitlist');
+          if (waitlistEl) {
+            const url = String(WAITLIST_URL || '').trim();
+            const isPlaceholder = !url || url === '#';
+            if (!isPlaceholder) {
+              waitlistEl.setAttribute('target', '_blank');
+              waitlistEl.setAttribute('rel', 'noopener');
+              // 상태별 UTM 포함 href로 업데이트 (우클릭/링크복사에도 반영)
+              waitlistEl.setAttribute('href', buildWaitlistUrlWithUtm());
+            }
+            waitlistEl.addEventListener('click', (e) => {
+              if (isPlaceholder) {
+                e.preventDefault();
+                alert('준비 중입니다. 곧 대기자 등록 링크를 연결할게요.');
+                return;
+              }
+              e.preventDefault();
+              e.stopPropagation();
+
+              const finalUrl = buildWaitlistUrlWithUtm();
+              // 새 탭 열기 (target=_blank, rel=noopener 정책 준수)
+              const win = window.open(finalUrl, '_blank', 'noopener');
+              if (win) win.opener = null;
+
+              // 1초 토스트(중복 방지)
+              const now = Date.now();
+              const lastAt = Number(window.__waitlistToastLastAt || 0);
+              if (now - lastAt >= 1000) {
+                window.__waitlistToastLastAt = now;
+                if (typeof showToast === 'function') {
+                  showToast('새 탭에서 열립니다', 1000);
+                }
+              }
+            });
+          }
+          overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+          });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && overlay.style.display !== 'none') close();
+          });
+        };
+        const openProModal = () => {
+          ensureProModal();
+          const overlay = document.getElementById('proModalOverlay');
+          if (overlay) overlay.style.display = 'block';
+        };
+        // 클릭 동작 단일화: 어떤 상태에서도 동일 모달
+        if (!window.__shareProCtaBound) {
+          window.__shareProCtaBound = true;
+          document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-share-upgrade-cta="1"]');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openProModal();
+          });
+        }
+
+        const getShareCtaHtml = (state) => {
+          // 어떤 상태에서도 CTA는 1곳에서만 렌더되며, 클릭은 동일 모달로 통일됨
+          const proCtaCopy = buildProCtaCopyKR();
+          return `
+            <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
+              <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
+              <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;">${esc(proCtaCopy.ctaText)}</button>
+            </div>
+          `;
+        };
+        const updateShareCtaSlot = (state) => {
+          const slot = document.getElementById('shareCtaSlot');
+          if (!slot) return;
+          slot.innerHTML = getShareCtaHtml(state);
+          // hardening: 혹시 남아있을 수 있는 과거 CTA 잔여 DOM(동일 마커)을 단일화
+          const ctas = document.querySelectorAll('[data-share-upgrade-cta="1"]');
+          ctas.forEach((el, idx) => { if (idx > 0) el.remove(); });
+        };
         
         // ✅ [Phase 14-1] viewState !== 'OK'일 때는 헤더만 렌더링하고 KPI/WHY/NextActions 건너뛰기
         if (viewState !== 'OK') {
-          document.getElementById('reportHeader').innerHTML = reportHeader;
+          // ✅ [Phase22-UX] WHY 패널 숨김 처리 (비-OK 상태에서 WHY 표시 방지)
+          const okWhyPanel = document.querySelector('.why-panel[data-why="ok"]');
+          if (okWhyPanel) {
+            okWhyPanel.style.display = 'none';
+            okWhyPanel.innerHTML = '';
+          }
+          setReportHeaderHtml(reportHeader);
           const shareContentEl = document.getElementById('shareContent');
-          shareContentEl.innerHTML = '';
+          // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
+          shareContentEl.innerHTML = scoreExplainerBlock + shareCtaSlotHtml;
+          updateShareCtaSlot(viewState);
+          
           
           // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩
           const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
@@ -2052,14 +3021,180 @@
           
           return;
         }
+
+        // ✅ [Phase 27-0] Recent Reports 저장/표시 (OK 상태에서만)
+        // - 저장 키: __recentReportsV1 (최대 10, id 기준 dedupe)
+        // - viewState/스코어링/기존 저장 키(__lastV2/__currentReportId)에는 영향 없음
+        const RECENT_KEY = '__recentReportsV1';
+        const RECENT_CLEARED_KEY = '__recentReportsClearedV1';
+        const RECENT_CLEARED_FOR_ID_KEY = '__recentReportsClearedForIdV1';
+        const parseJsonSafe = (str, fallback) => {
+          try { return JSON.parse(str); } catch { return fallback; }
+        };
+        const loadRecentReports = () => {
+          try {
+            const raw = localStorage.getItem(RECENT_KEY);
+            const arr = parseJsonSafe(raw || '[]', []);
+            return Array.isArray(arr) ? arr : [];
+          } catch {
+            return [];
+          }
+        };
+        const saveRecentReports = (items) => {
+          try {
+            localStorage.setItem(RECENT_KEY, JSON.stringify(items));
+          } catch {
+            // 저장 실패는 조용히 무시 (UX 영향 최소화)
+          }
+        };
+        const formatRecentDate = (ts) => {
+          try {
+            return new Date(ts).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          } catch {
+            return '';
+          }
+        };
+        const getBestKpiScore = () => {
+          const candidates = [
+            brandingScore?.score,
+            contentStructureV2Score?.score,
+            urlStructureV1Score?.score
+          ].filter(v => typeof v === 'number' && Number.isFinite(v));
+          if (!candidates.length) return null;
+          return Math.max(...candidates);
+        };
+
+        const snapshotId = urlParams.get('id');
+        const currentReportIdForRecent = localStorage.getItem('__currentReportId') || '';
+        const recentId = snapshotId || currentReportIdForRecent || null;
+
+        // ✅ [Phase 27-0 Hotfix] 최근 목록 "목록 비우기" 이후 새로고침 시 재등장 방지
+        // - __recentReportsClearedV1 === "1" 이고, 현재 리포트 id가 __recentReportsClearedForIdV1 와 같으면
+        //   이번 렌더에서 recent 자동 저장을 스킵한다.
+        const recentClearedFlag = (() => {
+          try { return localStorage.getItem(RECENT_CLEARED_KEY) === '1'; } catch { return false; }
+        })();
+        const recentClearedForId = (() => {
+          try { return localStorage.getItem(RECENT_CLEARED_FOR_ID_KEY) || ''; } catch { return ''; }
+        })();
+        const shouldSkipRecentAutoSave = Boolean(recentClearedFlag && recentId && (recentClearedForId === '' || recentClearedForId === recentId));
+
+        if (reportModel && recentId && !shouldSkipRecentAutoSave) {
+          const now = Date.now();
+          const recentUrl = snapshotId
+            ? (location.origin + location.pathname + `?id=${encodeURIComponent(snapshotId)}&r=${encodeURIComponent(String(now))}`)
+            : (location.origin + location.pathname);
+
+          const entry = {
+            id: recentId,
+            target: analysisTarget || '분석 대상 없음',
+            createdAt: now,
+            score: getBestKpiScore(),
+            url: recentUrl
+          };
+
+          const existing = loadRecentReports();
+          const deduped = existing.filter(it => it && typeof it === 'object' && it.id !== entry.id);
+          const next = [entry, ...deduped].slice(0, 10);
+          saveRecentReports(next);
+          
+          // 새 항목 저장 시에는 cleared 플래그 해제 (정상 동작 복구)
+          try { localStorage.removeItem(RECENT_CLEARED_KEY); } catch {}
+          try { localStorage.removeItem(RECENT_CLEARED_FOR_ID_KEY); } catch {}
+        }
+
+        const renderRecentReportsSection = () => {
+          const mount = document.getElementById('recentReportsMount');
+          if (!mount) return;
+          const items = loadRecentReports();
+          if (!items.length) {
+            mount.innerHTML = '';
+            return;
+          }
+
+          const expanded = window.__recentReportsExpandedV1 === true;
+          const visible = expanded ? items.slice(0, 10) : items.slice(0, 3);
+
+          const rows = visible.map((it) => {
+            const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
+            const when = (it && typeof it === 'object' && it.createdAt) ? formatRecentDate(it.createdAt) : '';
+            const score = (it && typeof it === 'object' && typeof it.score === 'number') ? `${it.score}점` : '';
+            const url = (it && typeof it === 'object' && it.url) ? String(it.url) : '';
+            return `
+              <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border);">
+                <div style="min-width: 0;">
+                  <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}</div>
+                  <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
+                </div>
+                <button type="button" class="btn btn-primary" data-recent-open="${esc(url)}" style="padding: 8px 12px; font-size: 13px;">열기</button>
+              </div>
+            `;
+          }).join('');
+
+          mount.innerHTML = `
+            <div class="content-section" style="margin: 12px 0 0 0; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px;">최근 리포트</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button type="button" class="btn" id="btnRecentToggle" style="padding: 8px 10px; font-size: 13px;">${expanded ? '접기' : '전체 보기'}</button>
+                  <button type="button" class="btn" id="btnRecentClear" style="padding: 8px 10px; font-size: 13px;">목록 비우기</button>
+                </div>
+              </div>
+              <div style="border-bottom: 1px solid var(--border);"></div>
+              <div>${rows}</div>
+            </div>
+          `;
+
+          // 이벤트 바인딩 (OK 상태 전용 섹션)
+          const toggleBtn = document.getElementById('btnRecentToggle');
+          if (toggleBtn) {
+            toggleBtn.onclick = () => {
+              window.__recentReportsExpandedV1 = !(window.__recentReportsExpandedV1 === true);
+              renderRecentReportsSection();
+            };
+          }
+          const clearBtn = document.getElementById('btnRecentClear');
+          if (clearBtn) {
+            clearBtn.onclick = () => {
+              // ✅ [Phase 27-0] "목록 비우기" 정책:
+              // - recent 목록만 삭제 (key: __recentReportsV1)
+              // - 재초기화/리로드/페이지 이동/ShareViewState bootstrap 호출 금지
+              // - 새로고침 시 재등장 방지 플래그 설정 (key: __recentReportsClearedV1)
+              try { localStorage.removeItem(RECENT_KEY); } catch {}
+              try { localStorage.setItem(RECENT_CLEARED_KEY, '1'); } catch {}
+              try { localStorage.setItem(RECENT_CLEARED_FOR_ID_KEY, String(recentId || '')); } catch {}
+              console.log('[share][recent] cleared:', RECENT_KEY, 'flagged:', RECENT_CLEARED_KEY);
+
+              window.__recentReportsExpandedV1 = false;
+              renderRecentReportsSection();
+            };
+          }
+          mount.querySelectorAll('[data-recent-open]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const url = btn.getAttribute('data-recent-open') || '';
+              if (!url) return;
+              // 저장된 URL로 이동 (우리 코드가 만든 same-site URL만 저장)
+              location.href = url;
+            });
+          });
+        };
         
         // ✅ [Phase 8-0] KPI Bar 그래프 (3종 시각화)
         const kpiBar = (label, value) => {
+          // ✅ [Phase 18-B] KPI별 micro hint 텍스트 매핑
+          const microHintMap = {
+            'Brand': 'ⓘ 공개된 브랜드/엔티티 신호 기반 준비도',
+            'Content Structure': 'ⓘ 구조(헤딩/리스트 등) 신호 기반 준비도',
+            'URL Structure': 'ⓘ URL 형태·연결 상태 기반 준비도'
+          };
+          const microHint = microHintMap[label] || '';
+          const microHintHtml = microHint ? `<span data-scroll-score-explainer="1" style="margin-left: 8px; font-size: 11px; color: #888; text-decoration: underline; cursor: pointer; font-weight: normal;">${esc(microHint)}</span>` : '';
+          
           if (value === null || value === undefined || value.score === null || value.score === undefined) {
             return `
               <div class="kpi-bar-item muted">
                 <div class="kpi-bar-header">
-                  <span class="kpi-bar-label">${esc(label)}</span>
+                  <span class="kpi-bar-label">${esc(label)}</span>${microHintHtml}
                 </div>
                 <div class="kpi-bar-container"></div>
               </div>
@@ -2071,7 +3206,7 @@
           return `
             <div class="kpi-bar-item">
               <div class="kpi-bar-header">
-                <span class="kpi-bar-label">${esc(label)}</span>
+                <span class="kpi-bar-label">${esc(label)}</span>${microHintHtml}
                 <span class="kpi-bar-value">${esc(score)}${grade ? ' / ' + esc(grade) : ''}</span>
               </div>
               <div class="kpi-bar-container">
@@ -2111,14 +3246,19 @@
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
           kpiBars = `
-            <div class="kpi-bars">
+            <div class="kpi-bars" id="anchor-reliability">
               ${reliabilityHtml}
-              ${kpiBar('Brand', brandingScore)}
-              ${kpiBar('Content Structure', contentStructureV2Score)}
-              ${kpiBar('URL Structure', urlStructureV1Score)}
+              <div id="anchor-brand">${kpiBar('Brand', brandingScore)}</div>
+              <div id="anchor-content-kpi">${kpiBar('Content Structure', contentStructureV2Score)}</div>
+              <div id="anchor-url">${kpiBar('URL Structure', urlStructureV1Score)}</div>
             </div>
             <div id="reliability-badge-slot"></div>
-            <div id="why-panel"></div>
+            <div id="anchor-why"></div>
+            <div id="why-panel" class="why-panel" data-why="fallback"></div>
+            <div class="why-panel" data-why="ok" style="display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+              <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">WHY</div>
+              <div style="font-size: 12px; color: #555; line-height: 1.6;">이 리포트는 구조 기준으로 분석한 결과입니다. '신뢰도' 사유를 클릭하면 측정이 필요한 항목 위치로 이동합니다.</div>
+            </div>
           `;
         
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
@@ -2158,7 +3298,7 @@
         let contentStructureEvidenceSection = '';
         if (contentStructureV2Score && contentStructureV2Score.evidence && Array.isArray(contentStructureV2Score.evidence) && contentStructureV2Score.evidence.length > 0) {
           contentStructureEvidenceSection = `
-            <div class="content-section">
+            <div class="content-section" id="anchor-content">
               <h3>콘텐츠 구조 점수 근거</h3>
               <ul>
                 ${contentStructureV2Score.evidence.map(e => `<li>${esc(e)}</li>`).join("")}
@@ -2207,6 +3347,20 @@
               <h3>액션</h3>
               ${actionCards}
             </div>
+            <!-- ✅ [Phase 15-3] Generate 연계 카드 -->
+            <div class="content-section" style="margin-top: 24px; padding: 20px; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: 8px;">
+              <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #0066cc;">콘텐츠 생성으로 점수 개선하기</h3>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">
+                점수 분석 결과를 바탕으로 AI 검색 최적화 콘텐츠를 생성할 수 있습니다. 4종 출력(AI 설명/FAQ/비교/요약)을 생성하여 상세페이지에 추가하세요.
+              </p>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; font-size: 13px;">
+                <div><strong>AI 설명:</strong> 모델이 답변에 인용하기 좋게</div>
+                <div><strong>FAQ:</strong> 대화형 검색/AI 쇼핑 질의 대응</div>
+                <div><strong>비교:</strong> 추천/비교질의 대응</div>
+                <div><strong>요약:</strong> 인용/스니펫 대응</div>
+              </div>
+              <a href="./generate/index.html" class="btn btn-primary" style="display: inline-block; padding: 10px 20px; text-decoration: none; text-align: center;">Generate에서 4종 생성하기</a>
+            </div>
           `;
           
           resultSection = `
@@ -2245,7 +3399,7 @@
         ];
         
         const evidenceSection = `
-          <div class="notice-card">
+          <div class="notice-card" id="anchor-evidence">
             <h4>Evidence</h4>
             ${loggedIn ? `
               <div class="notice-card-grid">
@@ -2277,17 +3431,186 @@
           <p>Report v3 · AEO/GEO 분석 도구 · ${new Date().getFullYear()}</p>
         `;
         
-        document.getElementById('reportHeader').innerHTML = reportHeader;
+        // ✅ [Phase 16-0] Observation Lite 섹션 생성
+        // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 저장합니다.
+        let observationLiteSection = '';
+        if (viewState === 'OK') {
+          // reportId 가져오기
+          const urlParams = new URLSearchParams(location.search);
+          let currentReportId = urlParams.get('r');
+          if (!currentReportId) {
+            currentReportId = localStorage.getItem('__currentReportId') || '';
+          }
+          
+          observationLiteSection = `
+            <div class="content-section" style="margin-top: 32px;">
+              <h2>Observation (Lite)</h2>
+              <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
+                AI 모델과의 대화를 기록하여 점수 개선에 참고할 수 있습니다. 점수에는 영향을 주지 않습니다.
+              </p>
+              
+              <!-- 입력 폼 -->
+              <div style="padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px;">
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600;">질문 선택</label>
+                  <select id="obsLiteQuestion" style="width: 100%; padding: 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 4px; background: var(--background);">
+                    <option value="">질문을 선택하세요</option>
+                    <option value="이 제품의 주요 특징은 무엇인가요?">이 제품의 주요 특징은 무엇인가요?</option>
+                    <option value="이 제품은 어떤 상황에서 사용하나요?">이 제품은 어떤 상황에서 사용하나요?</option>
+                    <option value="이 제품의 경쟁 제품 대비 장점은 무엇인가요?">이 제품의 경쟁 제품 대비 장점은 무엇인가요?</option>
+                    <option value="이 제품을 구매할 때 주의할 점은 무엇인가요?">이 제품을 구매할 때 주의할 점은 무엇인가요?</option>
+                    <option value="이 제품의 가격대는 어느 정도인가요?">이 제품의 가격대는 어느 정도인가요?</option>
+                  </select>
+                </div>
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600;">Prompt (사용자가 입력한 질문)</label>
+                  <input type="text" id="obsLitePrompt" placeholder="실제로 AI에게 입력한 질문을 입력하세요" style="width: 100%; padding: 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;" />
+                </div>
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600;">Response (AI가 답변한 내용)</label>
+                  <textarea id="obsLiteResponse" placeholder="AI가 답변한 내용을 입력하세요" rows="4" style="width: 100%; padding: 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+                <button id="obsLiteSaveBtn" class="btn btn-primary" style="width: 100%;">저장</button>
+              </div>
+              
+              <!-- 저장된 관측 데이터 리스트 -->
+              <div id="obsLiteList" style="display: grid; gap: 12px;">
+                <!-- 동적으로 로드됨 -->
+              </div>
+            </div>
+          `;
+        }
+        
+        setReportHeaderHtml(reportHeader);
+        renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
-        shareContentEl.innerHTML = measurementCta + kpiBars + actionCardsSection + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection;
+        // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
+        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
+        updateShareCtaSlot(viewState);
+        
         document.getElementById('reportFooter').innerHTML = reportFooter;
+        
+        // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용 (pageshow/visibilitychange 리스너, 한 번만 바인딩)
+        if (!window.__sharePendingScrollBound) {
+          window.__sharePendingScrollBound = true;
+          const applyPendingScroll = () => {
+            if (window.__sharePendingScrollTarget) {
+              const target = window.__sharePendingScrollTarget;
+              reinforceScroll(target);
+              setTimeout(() => {
+                window.__sharePendingScrollTarget = null;
+              }, 300);
+            }
+          };
+          
+          window.addEventListener('pageshow', applyPendingScroll);
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              applyPendingScroll();
+            }
+          });
+        }
+        
+        // ✅ [Phase 18-B] KPI micro hint 클릭 시 score explainer로 스크롤 (event delegation)
+        // 변경하지 않은 것: 점수 계산/저장(localStorage __lastV2)/ShareViewState init 로직, KPI 렌더링 함수 시그니처
+        // 추가한 것: kpiBar() 내부에 micro hint HTML 생성, event delegation으로 클릭 핸들러 등록
+        if (!window.__shareHintBound) {
+          window.__shareHintBound = true;
+          document.addEventListener('click', (e) => {
+            try {
+              const hintEl = e.target.closest('[data-scroll-score-explainer]');
+              if (!hintEl) return;
+              
+              const targetEl = document.getElementById('anchor-score-explainer');
+              if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            } catch (err) {
+              // 스크롤 실패 시 조용히 무시
+            }
+          });
+        }
+        
+        // ✅ [Phase 17-1] EXPIRED 상태 복구 버튼 이벤트 바인딩
+        const btnRestoreLastReport = document.getElementById('btnRestoreLastReport');
+        if (btnRestoreLastReport) {
+          btnRestoreLastReport.addEventListener('click', () => {
+            // disabled 상태면 클릭 무시
+            if (btnRestoreLastReport.disabled) {
+              return;
+            }
+            
+            try {
+              // __lastV2에서 reportId 추출
+              const lastV2Str = localStorage.getItem('__lastV2');
+              if (!lastV2Str || lastV2Str.length <= 10) {
+                console.warn('[ShareViewState:restore] __lastV2 not found or invalid');
+                return;
+              }
+              
+              const lastV2 = JSON.parse(lastV2Str);
+              
+              // parsed?.analysis 존재 여부 재확인
+              if (!lastV2?.analysis) {
+                console.warn('[ShareViewState:restore] __lastV2.analysis not found');
+                return;
+              }
+              
+              const reportId = lastV2.reportId || 
+                lastV2.meta?.reportId || 
+                lastV2.meta?.id || 
+                lastV2.id || 
+                String(lastV2.generatedAt || Date.now());
+              
+              // __currentReportId를 reportId로 설정
+              localStorage.setItem('__currentReportId', reportId);
+              
+              // share.html?r=reportId로 이동하여 재렌더링 트리거
+              window.location.href = `./share.html?r=${encodeURIComponent(reportId)}`;
+            } catch (e) {
+              console.error('[ShareViewState:restore] Failed to restore last report:', e);
+            }
+          });
+        }
         
         // ✅ [Phase 11-2A] 재열람 링크 복사 버튼 이벤트 바인딩 (서버 스냅샷 생성)
         const copyBtn = document.querySelector('.report-header-fixed-copy-btn');
         if (copyBtn) {
           copyBtn.addEventListener('click', async () => {
-            // ✅ [Phase 11-2C] 공유 링크 진입 시 POST 차단 (forceWrite 제외)
+            // ✅ [Phase 26-0B] id 파라미터가 있으면 POST 실행 스킵 (읽기 전용 공유 리포트)
             const currentUrlParams = new URLSearchParams(location.search);
+            const currentIdParam = currentUrlParams.get('id');
+            if (currentIdParam) {
+              // id 파라미터가 있으면 읽기 전용이므로 POST 없이 로컬 복사만
+              const shareUrl = location.href;
+              const originalText = copyBtn.textContent;
+              
+              try {
+                await navigator.clipboard.writeText(shareUrl);
+                copyBtn.textContent = '복사됨';
+                setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                showToast('공유 링크가 복사되었습니다');
+              } catch (err) {
+                try {
+                  const textarea = document.createElement('textarea');
+                  textarea.value = shareUrl;
+                  textarea.style.position = 'fixed';
+                  textarea.style.left = '-9999px';
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textarea);
+                  copyBtn.textContent = '복사됨';
+                  setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+                  showToast('공유 링크가 복사되었습니다');
+                } catch (fallbackErr) {
+                  showToast('복사 실패: 브라우저 권한을 확인해주세요', 2000, true);
+                }
+              }
+              return;
+            }
+            
+            // ✅ [Phase 11-2C] 공유 링크 진입 시 POST 차단 (forceWrite 제외)
             const currentRParam = currentUrlParams.get('r');
             const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
             const getOnly = (!forceWrite) && Boolean(currentRParam);
@@ -2393,36 +3716,8 @@
               // c) 서버 저장 시작
               setShareStatus('서버에 저장 중…');
               
-              // d) POST 요청 (포트 5502일 때는 http://localhost:3001만 사용)
-              const endpoints = makeSnapshotPostUrls();
-              
-              let snapshotId = null;
-              for (const endpoint of endpoints) {
-                try {
-                  // 검증 로그 (개발용)
-                  console.log('[share] POST snapshot ->', endpoint);
-                  
-                  const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ reportModel: v2Summary })
-                  });
-                  
-                  if (response.ok) {
-                    const data = await response.json();
-                    snapshotId = data.id;
-                    break;
-                  } else if (response.status !== 404) {
-                    // 404가 아니면 다음 엔드포인트 시도
-                    continue;
-                  }
-                } catch (err) {
-                  // 네트워크 오류 시 다음 엔드포인트 시도
-                  continue;
-                }
-              }
+              // d) POST 요청 (정적 서버에서는 무조건 localhost:3001로만 요청)
+              const snapshotId = await postSnapshotApi(v2Summary);
               
               if (!snapshotId) {
                 throw new Error('서버 저장 실패');
@@ -2515,8 +3810,45 @@
           const whyPanelEl = document.getElementById('why-panel');
           if (whyPanelEl) {
             renderWhyPanel(whyPanelEl, reportModel || { analysis: { scores: {} } });
+            
+            // ✅ [Phase 16-1] 참고 관측(Observation Lite) 섹션 렌더링
+            // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 읽어서 표시합니다.
+            const obsLiteSection = renderObservationLiteSection();
+            if (obsLiteSection) {
+              whyPanelEl.insertAdjacentHTML('afterend', obsLiteSection);
+            }
           }
           
+        }
+        
+        // ✅ [Phase 17-0C-2] OK 상태에서 WHY 블록 표시/숨김 처리
+        try {
+          const isOK = document.querySelector('.kpi-bars') || 
+                       document.querySelector('.content-section') || 
+                       document.querySelector('[data-report-id]');
+          
+          const fallbackWhy = document.querySelector('[data-why="fallback"]');
+          const okWhy = document.querySelector('[data-why="ok"]');
+          
+          if (isOK) {
+            // OK 상태: fallback 숨김 + ok 표시
+            if (fallbackWhy) {
+              fallbackWhy.style.display = 'none';
+            }
+            if (okWhy) {
+              okWhy.style.display = 'block';
+            }
+          } else {
+            // OK가 아닌 상태: ok 숨김 + fallback 표시
+            if (okWhy) {
+              okWhy.style.display = 'none';
+            }
+            if (fallbackWhy) {
+              fallbackWhy.style.display = '';
+            }
+          }
+        } catch (e) {
+          // 예외 발생 시 조용히 무시 (콘솔 에러 방지)
         }
         
         // ✅ [Phase 8-1] 측정 기준 토글 기능
@@ -2542,6 +3874,174 @@
           btnExportPDF.disabled = false;
           btnExportPDF.removeAttribute('aria-disabled');
         }
+        
+        // ✅ [Phase 16-0] Observation Lite 저장/복원 로직
+        // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 저장합니다.
+        // ✅ [Phase 16-2] r 파라미터가 있을 때만 해당 reportId 사용 (fallback 금지)
+        if (viewState === 'OK') {
+          const LS_KEY_OBS_LITE = '__obsLiteV1';
+          const MAX_ITEMS_PER_REPORT = 5;
+          
+          // ✅ [Phase 16-2] URL의 r 파라미터만 사용 (fallback 절대 금지)
+          const urlParams = new URLSearchParams(location.search);
+          const currentReportId = urlParams.get('r');
+          
+          // r 파라미터가 없으면 Observation 저장 기능 비활성화
+          if (!currentReportId) {
+            return;
+          }
+          
+          /**
+           * Observation Lite 데이터 로드
+           */
+          function loadObservationLite() {
+            try {
+              const stored = localStorage.getItem(LS_KEY_OBS_LITE);
+              if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed && typeof parsed === 'object' && parsed[currentReportId]) {
+                  return parsed[currentReportId] || [];
+                }
+              }
+            } catch (e) {
+              console.warn('[Observation Lite] 로드 실패:', e);
+            }
+            return [];
+          }
+          
+          /**
+           * Observation Lite 데이터 저장
+           */
+          function saveObservationLite(items) {
+            try {
+              const stored = localStorage.getItem(LS_KEY_OBS_LITE);
+              let allData = {};
+              if (stored) {
+                try {
+                  allData = JSON.parse(stored);
+                } catch (e) {
+                  allData = {};
+                }
+              }
+              
+              // 현재 reportId에 대한 항목만 업데이트
+              allData[currentReportId] = items;
+              
+              localStorage.setItem(LS_KEY_OBS_LITE, JSON.stringify(allData));
+            } catch (e) {
+              console.warn('[Observation Lite] 저장 실패:', e);
+            }
+          }
+          
+          /**
+           * Observation Lite 리스트 렌더링
+           */
+          function renderObservationLiteList(items) {
+            const listEl = document.getElementById('obsLiteList');
+            if (!listEl) return;
+            
+            if (items.length === 0) {
+              listEl.innerHTML = '<p style="font-size: 13px; color: var(--muted); text-align: center; padding: 20px;">저장된 관측 데이터가 없습니다.</p>';
+              return;
+            }
+            
+            listEl.innerHTML = items.map((item, index) => {
+              const dateText = item.createdAt ? new Date(item.createdAt).toLocaleString('ko-KR', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              }) : '';
+              
+              return `
+                <div style="padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+                  <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--text);">${esc(item.question || '질문 없음')}</div>
+                    <div style="font-size: 11px; color: var(--muted);">${esc(dateText)}</div>
+                  </div>
+                  <div style="margin-bottom: 8px;">
+                    <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">Prompt:</div>
+                    <div style="font-size: 12px; color: var(--text); padding: 6px; background: var(--background); border-radius: 4px;">${esc(item.prompt || '')}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">Response:</div>
+                    <div style="font-size: 12px; color: var(--text); padding: 6px; background: var(--background); border-radius: 4px; white-space: pre-wrap;">${esc(item.response || '')}</div>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          }
+          
+          // 페이지 로드 시 복원
+          const savedItems = loadObservationLite();
+          renderObservationLiteList(savedItems);
+          
+          // 저장 버튼 이벤트 바인딩
+          const saveBtn = document.getElementById('obsLiteSaveBtn');
+          const questionSelect = document.getElementById('obsLiteQuestion');
+          const promptInput = document.getElementById('obsLitePrompt');
+          const responseTextarea = document.getElementById('obsLiteResponse');
+          
+          if (saveBtn && questionSelect && promptInput && responseTextarea) {
+            saveBtn.addEventListener('click', () => {
+              const question = questionSelect.value.trim();
+              const prompt = promptInput.value.trim();
+              const response = responseTextarea.value.trim();
+              
+              if (!question) {
+                alert('질문을 선택해주세요.');
+                return;
+              }
+              
+              if (!prompt || !response) {
+                alert('Prompt와 Response를 모두 입력해주세요.');
+                return;
+              }
+              
+              // 현재 항목 로드
+              const currentItems = loadObservationLite();
+              
+              // 새 항목 추가 (최신 순으로 앞에 추가)
+              const newItem = {
+                question,
+                prompt,
+                response,
+                createdAt: Date.now()
+              };
+              
+              const updatedItems = [newItem, ...currentItems].slice(0, MAX_ITEMS_PER_REPORT);
+              
+              // 저장
+              saveObservationLite(updatedItems);
+              
+              // 리스트 업데이트
+              renderObservationLiteList(updatedItems);
+              
+              // 입력 필드 초기화
+              questionSelect.value = '';
+              promptInput.value = '';
+              responseTextarea.value = '';
+              
+              // 토스트 메시지 (간단한 알림)
+              const toast = document.createElement('div');
+              toast.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 12px 16px; background: #4caf50; color: white; border-radius: 4px; font-size: 13px; z-index: 10000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+              toast.textContent = '저장되었습니다';
+              document.body.appendChild(toast);
+              setTimeout(() => {
+                if (toast.parentNode) {
+                  toast.parentNode.removeChild(toast);
+                }
+              }, 2000);
+            });
+            
+            // 질문 선택 시 Prompt 자동 채우기
+            questionSelect.addEventListener('change', () => {
+              if (questionSelect.value) {
+                promptInput.value = questionSelect.value;
+              }
+            });
+          }
+        }
       }
       
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
@@ -2556,7 +4056,23 @@
       }
       
       // 로그인 상태일 때만 리포트 렌더링 실행
-      renderShareContent();
+      // ✅ [Hotfix] 최초 로드 시 bootstrapShare 호출
+      bootstrapShare();
+      
+      // ✅ [Hotfix] pageshow 이벤트 처리 (bfcache/뒤로가기 대응)
+      window.addEventListener('pageshow', (event) => {
+        // persisted 여부와 관계없이 항상 재렌더 (bfcache 복원 및 일반 페이지 전환 모두 대응)
+        console.log('[ShareViewState:pageshow] Page shown, re-initializing', { persisted: event.persisted });
+        bootstrapShare();
+      });
+      
+      // ✅ [Hotfix] visibilitychange 이벤트 처리 (탭 전환/복귀 대응)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          console.log('[ShareViewState:visibilitychange] Page became visible, re-initializing');
+          bootstrapShare();
+        }
+      });
     }
   </script>
 </body>
