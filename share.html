@@ -1450,7 +1450,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
-    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR } from './core/ui/pricingPolicyKR.js';
+    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     
     // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
     (function() {
@@ -2814,10 +2814,10 @@
         // - 원칙: CTA는 오직 `#shareCtaSlot` 1곳에만 렌더/업데이트한다 (다른 위치에는 CTA HTML을 절대 삽입하지 않음)
         const shareCtaSlotHtml = '<div id="shareCtaSlot"></div>';
 
-        // ✅ [Phase 28-1] Waitlist real link + UTM + click feedback (UI-only)
-        // - 한 줄만 수정해서 실제 대기자 등록 폼 링크로 교체 가능해야 함
-        // - 기본값은 "임시 실링크 형태"로 둔다 (운영 링크 확정 시 아래 한 줄만 교체)
-        const WAITLIST_URL = 'https://example.com/waitlist';
+        // ✅ [Phase A-2] Waitlist URL from SSOT (KR, MVP)
+        // - waitlist URL/UTM 규칙은 반드시 SSOT에서만 관리
+        // - share.html에 waitlist URL 하드코딩 금지
+        const WAITLIST_URL = getWaitlistUrlKR();
 
         const getWaitlistUtmContent = () => {
           // utm_content = 현재 viewState 문자열 (가능하면 강제 파라미터(force)도 반영)

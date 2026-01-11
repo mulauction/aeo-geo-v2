@@ -10,6 +10,16 @@ export const PRICING_POLICY_KR = {
   rules: { noUnlimited: true, noTokenWord: true },
 };
 
+// ✅ [Phase A-2] Waitlist URL (KR, MVP, external form) — SSOT
+// - UI/서버/DB 연동 금지: 새 탭 외부 폼으로 이동하는 URL만 관리
+// - share.html에는 URL 하드코딩 금지
+// - 운영 링크 확정 시 아래 한 줄만 교체
+export const WAITLIST_URL_KR = 'https://example.com/waitlist';
+
+export function getWaitlistUrlKR() {
+  return WAITLIST_URL_KR;
+}
+
 export function buildQuotaBadgeCopyKR() {
   return {
     planText: `FREE · 체험 ${PRICING_POLICY_KR.FREE.trial}건 제공`,
