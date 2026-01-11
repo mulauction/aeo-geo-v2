@@ -43,4 +43,24 @@ export function buildProUpgradeNoticeCopyKR() {
   };
 }
 
+// ✅ [Phase C] PRO copy switch layer (SSOT-only)
+// - 목표: PRO 활성화 시에도 동일 모달 UI를 재사용할 수 있도록 "카피 선택" 레이어만 도입
+// - 기본 동작(비활성)은 100% 동일: select 기본값은 buildProUpgradeNoticeCopyKR()와 동일해야 함
+// - 금지: 결제/로그인/차감/잔여 계산/스토리지/서버 로직 추가
+export function buildProActiveUpgradeNoticeCopyKR() {
+  const base = buildProUpgradeNoticeCopyKR();
+  return {
+    ...base,
+    // PRO 활성 카피는 추후 확정. 현재는 UI 스키마 유지 + 최소 문구만.
+    desc: 'PRO 이용 중',
+  };
+}
+
+export function selectProUpgradeNoticeCopyKR(args = {}) {
+  const entitlement = args?.entitlement || { isProActive: false, reason: null };
+  // default: existing behavior (must remain identical)
+  if (!entitlement?.isProActive) return buildProUpgradeNoticeCopyKR();
+  return buildProActiveUpgradeNoticeCopyKR();
+}
+
 

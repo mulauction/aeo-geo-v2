@@ -1450,7 +1450,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
-    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, buildProUpgradeNoticeCopyKR } from './core/ui/pricingPolicyKR.js';
+    import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR } from './core/ui/pricingPolicyKR.js';
     
     // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
     (function() {
@@ -2865,7 +2865,7 @@
         const ensureProModal = () => {
           if (document.getElementById('proModalOverlay')) return;
           const proModalCopy = buildProModalCopyKR();
-          const proUpgradeCopy = buildProUpgradeNoticeCopyKR();
+          const proUpgradeCopy = selectProUpgradeNoticeCopyKR({ entitlement: { isProActive: false, reason: null }, viewState, source: 'share_pro_modal' });
           const modalHtml = `
             <style>
               /* ✅ [Phase30-A-1] PRO modal visual polish (UI-only)
