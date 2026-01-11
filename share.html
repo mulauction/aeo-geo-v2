@@ -2973,21 +2973,58 @@
               waitlistEl.setAttribute('href', buildWaitlistUrlWithUtm());
             }
             waitlistEl.addEventListener('click', (e) => {
+              // ✅ [Phase30-A-2] "대기자 등록" UX polish (UI-only)
+              // - 기존 UTM 부착/새 탭 열기 정책을 그대로 재사용
+              // - 1초 내 연속 클릭은 무시(중복 방지)
+              const now = Date.now();
+              const lastClickAt = Number(window.__waitlistClickLastAt || 0);
+              if (now - lastClickAt < 1000) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              window.__waitlistClickLastAt = now;
+
               if (isPlaceholder) {
                 e.preventDefault();
-                alert('준비 중입니다. 곧 대기자 등록 링크를 연결할게요.');
+                if (!window.__waitlistWarned) {
+                  window.__waitlistWarned = true;
+                  console.warn('[share] waitlist link unavailable (placeholder)');
+                }
+                if (typeof showToast === 'function') {
+                  showToast('잠시 후 다시 시도', 1000);
+                }
                 return;
               }
               e.preventDefault();
               e.stopPropagation();
 
               const finalUrl = buildWaitlistUrlWithUtm();
+              if (!finalUrl || finalUrl === '#') {
+                if (!window.__waitlistWarned) {
+                  window.__waitlistWarned = true;
+                  console.warn('[share] waitlist url build failed');
+                }
+                if (typeof showToast === 'function') {
+                  showToast('잠시 후 다시 시도', 1000);
+                }
+                return;
+              }
               // 새 탭 열기 (target=_blank, rel=noopener 정책 준수)
               const win = window.open(finalUrl, '_blank', 'noopener');
               if (win) win.opener = null;
+              if (!win) {
+                if (!window.__waitlistWarned) {
+                  window.__waitlistWarned = true;
+                  console.warn('[share] waitlist popup blocked');
+                }
+                if (typeof showToast === 'function') {
+                  showToast('잠시 후 다시 시도', 1000);
+                }
+                return;
+              }
 
               // 1초 토스트(중복 방지)
-              const now = Date.now();
               const lastAt = Number(window.__waitlistToastLastAt || 0);
               if (now - lastAt >= 1000) {
                 window.__waitlistToastLastAt = now;
