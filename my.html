@@ -45,9 +45,26 @@
 <body>
   <div class="app">
     <a href="./home.html" class="home-link">Home</a>
+
+    <div id="header"></div>
     
-    <h1>My - 계정/히스토리(준비중)</h1>
-    <p class="description">Phase 3에서 로그인/히스토리/요금제를 연결합니다.</p>
+    <h1>My - 계정/사용량</h1>
+    <p class="description">Phase 1-B (UI-only): 사용량 표시는 표시용이며 차감/결제 로직은 아직 없습니다.</p>
+
+    <!-- ✅ [Phase 1-B] Usage card (UI-only; no deduction logic) -->
+    <section style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+      <h2 style="margin: 0 0 10px 0;">사용량</h2>
+      <div style="font-size: 13px; font-weight: 600; color: var(--text);">
+        BASIC · 이번 달 30회 중 0회 사용 · 30회 남음
+      </div>
+      <div style="margin-top: 4px; font-size: 12px; color: var(--muted);">
+        매월 1일 00:00(KST) 초기화
+      </div>
+      <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+        <button id="btnUpgradePlus" type="button" class="btn btn-primary">PLUS로 업그레이드</button>
+        <span style="font-size: 12px; color: var(--muted);">PLUS에서 더 많은 사용량/자동 변환 제공</span>
+      </div>
+    </section>
     
     <section>
       <h2>A. 예정 기능</h2>
@@ -68,6 +85,74 @@
       </ul>
     </section>
   </div>
+
+  <div id="modalOverlay"></div>
+  
+  <div id="loginModal" class="modal">
+    <h3>로그인 필요</h3>
+    <p id="modalReason" style="display: none;"></p>
+    <div class="modal-buttons">
+      <button id="btnModalClose" class="btn-secondary">취소</button>
+      <button id="btnModalLogin" class="btn-primary">로그인</button>
+    </div>
+  </div>
+
+  <div id="creditModal" class="modal">
+    <h3>크레딧 부족</h3>
+    <p>필요 크레딧: <strong id="creditModalCost"></strong></p>
+    <p id="creditModalReason" style="display: none;"></p>
+    <div class="modal-buttons">
+      <button id="btnCreditModalClose" class="btn-secondary">확인</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { renderHeader } from './core/header.js';
+    import { createLoginModal, createCreditModal } from './core/modal.js';
+    import { setModals } from './core/gate.js';
+
+    function showToast(message, durationMs = 1400) {
+      try {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          padding: 10px 12px;
+          background: rgba(0,0,0,0.85);
+          color: #fff;
+          border-radius: 10px;
+          font-size: 12px;
+          z-index: 10000;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          try { toast.remove(); } catch {}
+        }, durationMs);
+      } catch {
+        // no-op
+      }
+    }
+
+    // Header 초기화
+    const headerEl = document.getElementById("header");
+    if (headerEl) {
+      renderHeader(headerEl);
+    }
+
+    // 모달 초기화 (header login 버튼 동작을 위해)
+    const loginModal = createLoginModal();
+    const creditModal = createCreditModal();
+    setModals(loginModal, creditModal);
+    window.loginModalInstance = loginModal;
+
+    // Usage CTA (UI-only)
+    document.getElementById('btnUpgradePlus')?.addEventListener('click', () => {
+      showToast('PLUS에서 더 많은 사용량/자동 변환 제공', 1600);
+    });
+  </script>
 </body>
 </html>
 
