@@ -2964,6 +2964,40 @@
           // - 실제 URL이면 새 탭으로 열기 + 상태별 UTM 자동 부착 + 클릭 직후 1초 토스트(중복 방지)
           const waitlistEl = document.getElementById('proModalWaitlist');
           if (waitlistEl) {
+            // ✅ [Phase B-1] Waitlist CTA UI state machine (UI-only)
+            // - 서버/결제/로그인/차감/스토리지/스냅샷/상태 로직 금지
+            // - 목적: 중복 클릭/중복 토스트/중복 window.open 방지 + 명확한 버튼 상태
+            const WaitlistCtaState = Object.freeze({
+              idle: 'idle',
+              submitting: 'submitting',
+              opened: 'opened',
+              done: 'done',
+              failed: 'failed',
+            });
+
+            const getWaitlistState = () => String(window.__waitlistCtaState || WaitlistCtaState.idle);
+            const setWaitlistState = (next) => { window.__waitlistCtaState = next; };
+
+            const setWaitlistCtaUi = (state) => {
+              const originalLabel = waitlistEl.getAttribute('data-original-label') || waitlistEl.textContent || '대기자 등록';
+              if (!waitlistEl.getAttribute('data-original-label')) {
+                waitlistEl.setAttribute('data-original-label', originalLabel);
+              }
+
+              const disabled = (state === WaitlistCtaState.submitting || state === WaitlistCtaState.opened);
+              waitlistEl.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+              waitlistEl.style.pointerEvents = disabled ? 'none' : '';
+              waitlistEl.style.opacity = disabled ? '0.85' : '';
+              waitlistEl.style.filter = disabled ? 'grayscale(0.05)' : '';
+
+              const label =
+                state === WaitlistCtaState.submitting ? '열는 중…'
+                : state === WaitlistCtaState.opened ? '열렸습니다'
+                : state === WaitlistCtaState.failed ? '다시 시도'
+                : originalLabel;
+              waitlistEl.textContent = label;
+            };
+
             const url = String(WAITLIST_URL || '').trim();
             const isPlaceholder = !url || url === '#';
             if (!isPlaceholder) {
@@ -2975,15 +3009,13 @@
             waitlistEl.addEventListener('click', (e) => {
               // ✅ [Phase30-A-2] "대기자 등록" UX polish (UI-only)
               // - 기존 UTM 부착/새 탭 열기 정책을 그대로 재사용
-              // - 1초 내 연속 클릭은 무시(중복 방지)
-              const now = Date.now();
-              const lastClickAt = Number(window.__waitlistClickLastAt || 0);
-              if (now - lastClickAt < 1000) {
+              // - 상태 머신 기반으로 중복 클릭 방지
+              const curState = getWaitlistState();
+              if (curState === WaitlistCtaState.submitting || curState === WaitlistCtaState.opened) {
                 e.preventDefault();
                 e.stopPropagation();
                 return;
               }
-              window.__waitlistClickLastAt = now;
 
               if (isPlaceholder) {
                 e.preventDefault();
@@ -2994,10 +3026,16 @@
                 if (typeof showToast === 'function') {
                   showToast('잠시 후 다시 시도', 1000);
                 }
+                setWaitlistState(WaitlistCtaState.failed);
+                setWaitlistCtaUi(WaitlistCtaState.failed);
                 return;
               }
               e.preventDefault();
               e.stopPropagation();
+
+              // idle/failed/done -> submitting
+              setWaitlistState(WaitlistCtaState.submitting);
+              setWaitlistCtaUi(WaitlistCtaState.submitting);
 
               const finalUrl = buildWaitlistUrlWithUtm();
               if (!finalUrl || finalUrl === '#') {
@@ -3008,8 +3046,11 @@
                 if (typeof showToast === 'function') {
                   showToast('잠시 후 다시 시도', 1000);
                 }
+                setWaitlistState(WaitlistCtaState.failed);
+                setWaitlistCtaUi(WaitlistCtaState.failed);
                 return;
               }
+
               // 새 탭 열기 (target=_blank, rel=noopener 정책 준수)
               const win = window.open(finalUrl, '_blank', 'noopener');
               if (win) win.opener = null;
@@ -3021,18 +3062,36 @@
                 if (typeof showToast === 'function') {
                   showToast('잠시 후 다시 시도', 1000);
                 }
+                setWaitlistState(WaitlistCtaState.failed);
+                setWaitlistCtaUi(WaitlistCtaState.failed);
                 return;
               }
 
               // 1초 토스트(중복 방지)
+              // submitting -> opened
+              setWaitlistState(WaitlistCtaState.opened);
+              setWaitlistCtaUi(WaitlistCtaState.opened);
+
+              const now = Date.now();
               const lastAt = Number(window.__waitlistToastLastAt || 0);
               if (now - lastAt >= 1000) {
                 window.__waitlistToastLastAt = now;
-                if (typeof showToast === 'function') {
-                  showToast('새 탭에서 열립니다', 1000);
-                }
+                if (typeof showToast === 'function') showToast('새 탭에서 열립니다', 1000);
               }
+
+              // opened -> done (자동 복귀)
+              setTimeout(() => {
+                try {
+                  // 중간에 다른 상태로 바뀌었으면 건드리지 않음
+                  if (getWaitlistState() !== WaitlistCtaState.opened) return;
+                  setWaitlistState(WaitlistCtaState.done);
+                  setWaitlistCtaUi(WaitlistCtaState.done);
+                } catch {}
+              }, 1100);
             });
+
+            // 초기 UI
+            setWaitlistCtaUi(getWaitlistState());
           }
           overlay.addEventListener('click', (e) => {
             if (e.target === overlay) close();
