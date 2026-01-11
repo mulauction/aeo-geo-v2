@@ -16,6 +16,15 @@ export const PRICING_POLICY_KR = {
 // - 운영 링크 확정 시 아래 한 줄만 교체
 export const WAITLIST_URL_KR = 'https://example.com/waitlist';
 
+// ✅ [Phase 30-5A] Usage unit definition (KR, UI-only) — SSOT
+// - 금지: 결제/차감/로그인/usage 저장/스토리지/서버 로직 추가
+export const usageUnitKR = {
+  id: "usage-unit-v1",
+  title: "1회 사용 정의",
+  definition: "1회 사용 = 상품/URL 1개 전체 결과 세트(Analyze + Generate + 채널변환 1종 포함)",
+  noteShort: "결과 1세트 생성 시 1회 사용"
+};
+
 export function getWaitlistUrlKR() {
   return WAITLIST_URL_KR;
 }
