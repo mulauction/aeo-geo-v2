@@ -19,8 +19,8 @@ export function buildQuotaBadgeCopyKR() {
 
 export function buildProModalCopyKR() {
   return {
-    title: 'PRO 기능은 준비 중입니다',
-    desc: '대량 분석/자동 개선/브랜드 관리 등 PRO 기능을 곧 제공합니다.',
+    title: 'PRO 기능 안내 (준비 중)',
+    desc: '대량 분석, 자동 개선, 브랜드/상품 관리, 리포트 비교·공유 고도화 기능을 준비 중입니다. 출시 전까지는 대기자 등록으로 순차 안내드립니다.',
   };
 }
 
