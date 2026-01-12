@@ -11,6 +11,8 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs/promises');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
 const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
@@ -170,6 +172,99 @@ app.get('/api/share-snapshots/:id', async (req, res) => {
       error: 'INTERNAL_ERROR',
       message: 'Snapshot 조회 중 오류가 발생했습니다.'
     });
+  }
+});
+
+// ✅ [Phase 30-7A-1] Append-only usage events (dev JSONL, log-only)
+// Hard rules:
+// - Only log (no quota enforcement / plan checks / deduction)
+// - Append-only storage
+// - Do not touch Share/Analyze scoring or __lastV2 schema
+function isNonEmptyString(v) {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+function isPlainObject(v) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function getBestEffortIp(req) {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.trim().length > 0) {
+    // may contain multiple comma-separated IPs
+    return xf.split(',')[0].trim() || null;
+  }
+  if (typeof req.ip === 'string' && req.ip.trim().length > 0) return req.ip;
+  return null;
+}
+
+app.post('/api/usage-events', async (req, res) => {
+  try {
+    const body = req.body;
+    if (!isPlainObject(body)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_JSON_BODY' });
+    }
+
+    const reportIdRaw = Object.prototype.hasOwnProperty.call(body, 'reportId') ? body.reportId : null;
+    const reportId =
+      reportIdRaw === null || typeof reportIdRaw === 'undefined'
+        ? null
+        : (typeof reportIdRaw === 'string' && reportIdRaw.trim().length > 0 ? reportIdRaw : '__INVALID__');
+
+    const source = body.source;
+    const action = body.action;
+    const ts = body.ts;
+
+    const metaRaw = Object.prototype.hasOwnProperty.call(body, 'meta') ? body.meta : null;
+    const meta =
+      metaRaw === null || typeof metaRaw === 'undefined'
+        ? null
+        : (isPlainObject(metaRaw) ? metaRaw : '__INVALID__');
+
+    if (reportId === '__INVALID__') {
+      return res.status(400).json({ ok: false, error: 'INVALID_REPORT_ID' });
+    }
+    if (!isNonEmptyString(source)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_SOURCE' });
+    }
+    if (!isNonEmptyString(action)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_ACTION' });
+    }
+    if (typeof ts !== 'number' || !Number.isFinite(ts)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_TS' });
+    }
+    if (meta === '__INVALID__') {
+      return res.status(400).json({ ok: false, error: 'INVALID_META' });
+    }
+
+    const receivedAt = Date.now();
+    const id = `${ts}_${Math.random().toString(16).slice(2, 10)}`;
+    const ua = (typeof req.headers['user-agent'] === 'string' && req.headers['user-agent'].trim().length > 0)
+      ? req.headers['user-agent']
+      : null;
+    const ip = getBestEffortIp(req);
+
+    const event = {
+      id,
+      receivedAt,
+      reportId,
+      source,
+      action,
+      ts,
+      meta,
+      ua,
+      ip
+    };
+
+    const dataDir = path.join(__dirname, 'data');
+    const filePath = path.join(dataDir, 'usage-events.jsonl');
+    await fs.mkdir(dataDir, { recursive: true });
+    await fs.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf8');
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[POST /api/usage-events] Error:', error);
+    return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR' });
   }
 });
 
