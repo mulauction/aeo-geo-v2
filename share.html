@@ -1457,6 +1457,7 @@
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
+    import { getSessionId, hashId, track } from './core/telemetry.js';
 
     const SHARE_UI_COPY = {
       HOME_LABEL: "홈으로 이동"
@@ -2378,6 +2379,11 @@
         const hasLastV2Pre = lastV2StrPre && lastV2StrPre.length > 10;
         const hasCurrentReportIdPre = currentReportIdPre && currentReportIdPre.length > 0;
 
+        // ✅ [Phase 31-1][telemetry] common fields (PII 금지: reportId 원문 저장 금지, 해시만)
+        const sid = getSessionId();
+        const reportIdHash = hashId(String(rParam || idParam || ''));
+        const common = { sid, reportIdHash };
+
         // ✅ [SSOT] ShareViewState 결정: deriveShareViewState 호출은 여기 1회만
         const derivation = deriveShareViewState({
           rParam,
@@ -2396,6 +2402,17 @@
         const pre = derivation && derivation.pre ? derivation.pre : { state: null, needsLoad: true, reportIdToLoad: null, reason: null };
         let viewState = pre.state;
             window.__shareViewState = viewState;
+
+        // ✅ [Phase 31-1][telemetry] pre state
+        try {
+          track('share_pre_state', {
+            ...common,
+            preState: pre.state,
+            reason: pre.reason || '',
+            hasLastV2: !!hasLastV2Pre,
+            requestedLoaded: false
+          });
+        } catch (_) {}
 
         // ✅ [Phase 29-1] invalid-id side effects (판정은 derive 결과에만 따름)
         if (pre.reason === 'INVALID_ID') {
@@ -2474,6 +2491,18 @@
         viewState = finalized.state;
         window.__shareViewState = viewState;
         console.info('[ShareViewState]', viewState);
+
+        // ✅ [Phase 31-1][telemetry] final state
+        try {
+          track('share_final_state', {
+            ...common,
+            preState: pre.state,
+            finalState: finalized.state,
+            reason: finalized.reason || '',
+            hasLastV2: !!hasLastV2,
+            requestedLoaded: !!requestedLoaded
+          });
+        } catch (_) {}
         
         // ✅ [Phase 10-2] 리포트를 그릴 수 없을 때 경고 표시
         if (!reportModel) {
@@ -3664,6 +3693,17 @@
         // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
         shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         updateShareCtaSlot(viewState);
+
+        // ✅ [Phase 31-2][telemetry] exit (OK render complete)
+        if (viewState === 'OK') {
+          try {
+            track('share_exit', {
+              ...common,
+              finalState: finalized && finalized.state,
+              reason: (finalized && finalized.reason) || '',
+            });
+          } catch (_) {}
+        }
         
         document.getElementById('reportFooter').innerHTML = reportFooter;
         
@@ -4048,9 +4088,9 @@
         const btnExportPDF = document.getElementById('btnExportPDF');
         if (btnExportPDF) {
           if (viewState === 'OK') {
-            btnExportPDF.style.display = '';
-            btnExportPDF.disabled = false;
-            btnExportPDF.removeAttribute('aria-disabled');
+          btnExportPDF.style.display = '';
+          btnExportPDF.disabled = false;
+          btnExportPDF.removeAttribute('aria-disabled');
           } else {
             btnExportPDF.style.display = 'none';
             btnExportPDF.disabled = true;
