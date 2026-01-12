@@ -153,6 +153,13 @@ export function downloadTelemetryJSON() {
       dropOffTopToFetchFail: s.dropOffTopToFetchFail,
       dropOffTopOverall: s.dropOffTopOverall,
     };
+    // ✅ [Phase 32-0] debug=1에서만 meta를 localStorage에 캐시 (read-only UI를 위한 보조 저장; 기존 키/스키마 영향 없음)
+    try {
+      const isDebug = (typeof location !== 'undefined') && (new URLSearchParams(location.search).get('debug') === '1');
+      if (isDebug && typeof localStorage !== 'undefined') {
+        localStorage.setItem('__telemetry_meta_v1', JSON.stringify(meta));
+      }
+    } catch (_) {}
     downloadText(
       `share-telemetry-${Date.now()}.json`,
       JSON.stringify({ meta, events }, null, 2),
@@ -192,6 +199,24 @@ export function downloadTelemetryCSV() {
     ];
 
     const csvBody = toCsv(events);
+    // ✅ [Phase 32-0] debug=1에서만 meta를 localStorage에 캐시 (read-only UI를 위한 보조 저장; 기존 키/스키마 영향 없음)
+    try {
+      const isDebug = (typeof location !== 'undefined') && (new URLSearchParams(location.search).get('debug') === '1');
+      if (isDebug && typeof localStorage !== 'undefined') {
+        const meta = {
+          generatedAt,
+          total: s.total,
+          okRate: s.okRate,
+          countsByFinalState: s.countsByFinalState,
+          countsByPreState: s.countsByPreState,
+          topReasons: s.topReasons,
+          transitionMatrix: s.transitionMatrix,
+          dropOffTopToFetchFail: s.dropOffTopToFetchFail,
+          dropOffTopOverall: s.dropOffTopOverall,
+        };
+        localStorage.setItem('__telemetry_meta_v1', JSON.stringify(meta));
+      }
+    } catch (_) {}
     downloadText(
       `share-telemetry-${Date.now()}.csv`,
       metaLines.join('\n') + '\n' + csvBody,

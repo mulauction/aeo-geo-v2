@@ -1458,6 +1458,7 @@
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
     import { getSessionId, hashId, track, downloadTelemetryJSON, downloadTelemetryCSV } from './core/telemetry.js';
+    import { renderTelemetrySummaryCard } from './core/shareTelemetryUI.js';
 
     const SHARE_UI_COPY = {
       HOME_LABEL: "홈으로 이동"
@@ -3736,6 +3737,30 @@
         }
         
         document.getElementById('reportFooter').innerHTML = reportFooter;
+
+        // ✅ [Phase 32-0][debug][UI-only] Telemetry 요약 카드 (debug=1에서만 DOM 생성)
+        // - 렌더 조건(명시): debug=1 AND localStorage 접근 가능
+        // - r-only(GET 전용) / EXPIRED 상태에서는 의도적으로 렌더하지 않음
+        // - 이는 Share SSOT/보안/상태결정 가드에 따른 정상 동작임
+        try {
+          const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+          if (isDebug) {
+            let meta = null;
+            try {
+              const raw = localStorage.getItem('__telemetry_meta_v1');
+              meta = raw ? JSON.parse(raw) : null;
+            } catch (_) {
+              meta = null;
+            }
+            const mount = document.createElement('div');
+            mount.id = 'telemetrySummaryCard';
+            const app = document.querySelector('.app');
+            if (app) {
+              app.appendChild(mount);
+              renderTelemetrySummaryCard({ container: mount, meta });
+            }
+          }
+        } catch (_) {}
         
         // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용 (pageshow/visibilitychange 리스너, 한 번만 바인딩)
         if (!window.__sharePendingScrollBound) {
