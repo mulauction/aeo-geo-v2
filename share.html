@@ -1455,6 +1455,7 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
+    import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
 
     const SHARE_UI_COPY = {
@@ -2316,26 +2317,6 @@
           await window.__shareIdBoot;
         }
 
-        // ✅ [Phase 26-2B] force 파라미터 체크 (개발자용 테스트 하네스)
-        const urlParams = new URLSearchParams(location.search);
-        const forceParam = urlParams.get('force');
-        let forcedState = null;
-        if (forceParam) {
-          const normalizedForce = forceParam.toUpperCase().replace(/_/g, '');
-          const validStates = ['OK', 'EXPIRED', 'OTHERDEVICE', 'FETCHFAIL'];
-          const stateMap = {
-            'OK': 'OK',
-            'EXPIRED': 'EXPIRED',
-            'OTHERDEVICE': 'OTHER_DEVICE',
-            'FETCHFAIL': 'FETCH_FAIL'
-          };
-          
-          if (validStates.includes(normalizedForce)) {
-            forcedState = stateMap[normalizedForce];
-            console.log('[share][dev] forced state:', forcedState);
-          }
-        }
-
         if (__shareInitialized) {
           console.log('[ShareViewState:bootstrap] Re-initializing Share page');
         } else {
@@ -2375,32 +2356,11 @@
           console.log('[share] id param present – allowing snapshot flow');
         }
         
-        // ✅ [Phase 26-2B] force 파라미터 체크 (개발자용 테스트 하네스)
+        // ✅ [Phase 26-2B] force 파라미터 (dev harness input only; state 결정은 deriveShareViewState로만)
         const forceParam = urlParams.get('force');
-        let forcedState = null;
-        if (forceParam) {
-          const normalizedForce = forceParam.toUpperCase().replace(/_/g, '');
-          const validStates = ['OK', 'EXPIRED', 'OTHERDEVICE', 'FETCHFAIL'];
-          const stateMap = {
-            'OK': 'OK',
-            'EXPIRED': 'EXPIRED',
-            'OTHERDEVICE': 'OTHER_DEVICE',
-            'FETCHFAIL': 'FETCH_FAIL'
-          };
-          
-          if (validStates.includes(normalizedForce)) {
-            forcedState = stateMap[normalizedForce];
-          }
-        }
-        
-        // ✅ [Phase22] r 파라미터가 테스트 상태('EXPIRED' | 'OTHER_DEVICE' | 'NO_REPORT')면 viewState를 먼저 확정
-        const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
-        let viewState = null;
+        const vsOverride = urlParams.get('vs');
 
-        // ✅ [Phase 29-1] invalid r/id면 snapshot fetch 자체를 수행하지 않음 (404 리소스 에러 원천 차단)
-        // - 기존 EXPIRED UI(노란 박스/버튼/안내) 유지: viewState만 EXPIRED로 고정하고 나머지는 기존 렌더링 파이프라인 사용
-        // - inline JSON(r-only) 사용 케이스는 보호: JSON 후보처럼 보이면 여기서 차단하지 않음
-        if (!forcedState || forcedState === 'OK') {
+        // ✅ [Phase 29-1] invalid r/id pre-check input (판정/상태결정은 deriveShareViewState로만)
           const invalidFromHead = window.__shareInvalidShareId;
           const isInlineJsonCandidate =
             Boolean(rParam) && (
@@ -2408,54 +2368,51 @@
               String(rParam).includes('%7B') ||
               String(rParam).includes('%7b')
             );
-          let invalid = null;
-          if (invalidFromHead?.source === 'id') {
-            invalid = invalidFromHead;
-          } else if (idParam && !isValidShareId(idParam)) {
-            invalid = { source: 'id', value: String(idParam) };
-          } else if (rParam && !testStates.includes(rParam) && !isInlineJsonCandidate && !isValidShareId(rParam)) {
-            invalid = { source: 'r', value: String(rParam) };
-          }
-          if (invalid) {
-            viewState = 'EXPIRED';
+        const isValidIdParam = !idParam || isValidShareId(idParam);
+        const isValidRParam = !rParam || isValidShareId(rParam);
+
+        // ✅ [Phase24-1] NO_REPORT pre-check input (localStorage read는 기존과 동일)
+        const lastV2StrPre = localStorage.getItem('__lastV2');
+        const currentReportIdPre = localStorage.getItem('__currentReportId');
+        const hasLastV2Pre = lastV2StrPre && lastV2StrPre.length > 10;
+        const hasCurrentReportIdPre = currentReportIdPre && currentReportIdPre.length > 0;
+
+        // ✅ [SSOT] ShareViewState 결정: deriveShareViewState 호출은 여기 1회만
+        const derivation = deriveShareViewState({
+          rParam,
+          idParam,
+          hasId,
+          forceParam,
+          vsOverride,
+          invalidFromHead,
+          isValidIdParam,
+          isValidRParam,
+          isInlineJsonCandidate,
+          hasLastV2: Boolean(hasLastV2Pre),
+          hasCurrentReportId: Boolean(hasCurrentReportIdPre),
+        });
+
+        const pre = derivation && derivation.pre ? derivation.pre : { state: null, needsLoad: true, reportIdToLoad: null, reason: null };
+        let viewState = pre.state;
             window.__shareViewState = viewState;
-            window.__shareInvalidShareId = invalid;
-            // 로그는 최소화 (원하면 무로그로 바꿔도 됨)
-            console.info('[ShareViewState:invalid-id]', { source: invalid.source, note: 'Invalid share id – skipping snapshot fetch' });
-          }
+
+        // ✅ [Phase 29-1] invalid-id side effects (판정은 derive 결과에만 따름)
+        if (pre.reason === 'INVALID_ID') {
+          const invalid =
+            (invalidFromHead && invalidFromHead.source === 'id') ? invalidFromHead :
+            (!isValidIdParam ? { source: 'id', value: String(idParam) } : { source: 'r', value: String(rParam) });
+          window.__shareInvalidShareId = invalid;
+          console.info('[ShareViewState:invalid-id]', { source: invalid.source, note: 'Invalid share id – skipping snapshot fetch' });
+        } else if (pre.reason === 'FORCED') {
+          console.warn('[ShareViewState:force]', { force: forceParam, viewState, note: 'Forced state - skipping loadReportModel and fetch' });
+        } else if (pre.reason === 'TEST_STATE') {
+          console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
+        } else if (pre.reason === 'NO_REPORT') {
+            console.log('[ShareViewState:no-report]', { r: null, hasLastV2: false, hasCurrentReportId: false, viewState: 'NO_REPORT' });
         }
 
-        if (forcedState && forcedState !== 'OK') {
-          // force 파라미터가 있고 OK가 아니면 강제 상태 설정 (OK는 정상 플로우 유지)
-          // FETCH_FAIL은 NO_REPORT와 동일하게 처리
-          viewState = forcedState === 'FETCH_FAIL' ? 'NO_REPORT' : forcedState;
-          window.__shareViewState = viewState;
-          console.warn('[ShareViewState:force]', { forcedState, viewState, note: 'Forced state - skipping loadReportModel and fetch' });
-        } else if (rParam && testStates.includes(rParam)) {
-          viewState = rParam;
-          window.__shareViewState = viewState;
-          console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
-        }
-        
-        // ✅ [Phase24-1] NO_REPORT 상태 감지: ?r이 없고 localStorage도 비어있으면 NO_REPORT
-        if (!viewState && !rParam) {
-          const lastV2Str = localStorage.getItem('__lastV2');
-          const currentReportId = localStorage.getItem('__currentReportId');
-          const hasLastV2 = lastV2Str && lastV2Str.length > 10;
-          const hasCurrentReportId = currentReportId && currentReportId.length > 0;
-          
-          if (!hasLastV2 && !hasCurrentReportId) {
-            viewState = 'NO_REPORT';
-            window.__shareViewState = viewState;
-            console.log('[ShareViewState:no-report]', { r: null, hasLastV2: false, hasCurrentReportId: false, viewState: 'NO_REPORT' });
-          }
-        }
-        
-        // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성
-        // 기존 localStorage 복원 우선 (회귀 금지)
-        // 테스트 상태나 NO_REPORT, 또는 force로 OK가 아닌 상태가 아닐 때만 loadReportModel 호출
-        // force=OK인 경우는 정상 플로우 유지 (에러 분기만 우회)
-        const reportModel = (viewState && viewState !== 'OK') ? null : await loadReportModel();
+        // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성 (2단계 흐름 유지)
+        const reportModel = pre.needsLoad ? await loadReportModel() : null;
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
@@ -2473,7 +2430,7 @@
         const hasR = Boolean(rParam);
         const isROnly = hasR && !hasId;
         // ✅ [Phase 26-2C-LogPolish] force=<state>일 때는 r-only 감지 로그를 출력하지 않음 (동작은 동일)
-        if (!forcedState && isROnly) {
+        if (!forceParam && isROnly) {
           console.log('[share] r-only param detected – disabling localStorage fallback');
         }
         
@@ -2509,65 +2466,11 @@
           }
         }
         
-        // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없으며 reportModel이 null이면 EXPIRED로 강제 설정
-        if (isROnly && !reportModel && !viewState) {
-          viewState = 'EXPIRED';
-          window.__shareViewState = viewState;
-          console.warn('[ShareViewState:r-param]', { r: rParam, hasId, reportModel: null, viewState: 'EXPIRED', note: 'r-only param exists but reportModel is null - forcing EXPIRED' });
-        }
-        
-        // ✅ [Hotfix] r === __currentReportId && __lastV2 존재 시 무조건 OK 판정
-        // ✅ [Phase22] 테스트 상태가 이미 설정된 경우 viewState 결정 로직 건너뛰기
-        // ✅ [Phase 26-2B] force 파라미터가 OK가 아닌 경우 이미 설정되었으므로 건너뛰기
-        // ✅ [Phase 26-2C] r 파라미터가 있고 reportModel이 null이면 이미 EXPIRED로 설정되었으므로 건너뛰기
-        // force=OK인 경우는 정상 플로우 유지하되, 최종적으로 OK로 강제 설정
-        if (!viewState || forcedState === 'OK') {
-          // force=OK인 경우 기존 계산 로직을 실행하되, 최종적으로 OK로 강제 설정
-          if (forcedState === 'OK' && viewState) {
-            // 이미 viewState가 설정된 경우 (예: 테스트 상태)는 유지하지 않고 재계산
-            viewState = null;
-          }
-          // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
-          window.__shareViewState = null;
-          if (rParam && rParam.length > 0) {
-          const currentReportId = localStorage.getItem('__currentReportId');
-          // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때는 localStorage fallback 사용 안 함
-          // id가 있으면 정상 snapshot share이므로 OK flow 허용
-          // reportModel이 로드되었을 때만 OK 판정
-          if (requestedLoaded) {
-            // reportModel이 성공적으로 로드된 경우에만 OK
-            viewState = 'OK';
-            console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId, requestedLoaded: true, viewState: 'OK' });
-          } else {
-            // reportModel이 없으면 EXPIRED (이미 위에서 설정되었을 수 있음)
-            if (!viewState) {
-              viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2: false });
-              console.log('[ShareViewState:debug]', { r: rParam, current: currentReportId || null, requestedLoaded: false, hasLastV2: false });
-            }
-          }
-          } else {
-            // r이 없으면 기존 로직 사용 (localStorage fallback 허용)
-            viewState = getShareViewState({ hasParamR, requestedLoaded, hasLastV2 });
-            console.log('[ShareViewState:debug]', { r: null, current: localStorage.getItem('__currentReportId') || null, hasLast: !!lastV2Str, lastLen: lastV2Str ? lastV2Str.length : 0 });
-          }
-          
-          // ✅ [Phase22] Dev-only viewState override (URL 파라미터로 강제 설정)
-          const vsOverride = urlParams.get('vs');
-          const allowedStates = ['OK', 'EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
-          if (vsOverride && allowedStates.includes(vsOverride)) {
-            const originalViewState = viewState;
-            viewState = vsOverride;
-            console.warn('[ShareViewState:override]', { from: originalViewState, to: viewState, vs: vsOverride });
-          }
-        }
-        
-        // ✅ [Phase 26-2B] force=OK인 경우 최종적으로 OK로 강제 설정 (에러 분기 우회)
-        if (forcedState === 'OK' && viewState !== 'OK') {
-          viewState = 'OK';
-          console.warn('[ShareViewState:force]', { forcedState: 'OK', note: 'Forced OK - bypassing error branches' });
-        }
-        
-        // ✅ [Phase 19-1A] viewState를 전역 변수로 저장하여 클릭 핸들러에서 접근 가능하도록 함
+        // ✅ [SSOT] post-load finalize (2단계 흐름 유지: pre → load → finalize)
+        const finalized = derivation && typeof derivation.finalize === 'function'
+          ? derivation.finalize({ reportModel, requestedLoaded, hasLastV2 })
+          : { state: viewState, reason: null, reportModel };
+        viewState = finalized.state;
         window.__shareViewState = viewState;
         console.info('[ShareViewState]', viewState);
         
@@ -2662,7 +2565,7 @@
           let title = s.title;
           let message = s.message;
           let buttons = '';
-
+          
           if (viewState === 'NO_REPORT') {
             // ✅ [Phase24-2] NO_REPORT UI polish
             buttons = `
@@ -2713,9 +2616,9 @@
         // ✅ [Phase 14-1] 상태 패널 생성 (viewState !== 'OK'일 때만 표시)
         let statusPanel = '';
         if (viewState !== 'OK') {
-          // ✅ [Phase 17-1] EXPIRED 상태 복구 UX 보강
-          let restoreButtonHtml = '';
-          let restoreNoticeHtml = '';
+            // ✅ [Phase 17-1] EXPIRED 상태 복구 UX 보강
+            let restoreButtonHtml = '';
+            let restoreNoticeHtml = '';
           if (viewState === 'EXPIRED') {
             let canRestore = false;
             try {
@@ -2729,7 +2632,7 @@
             } catch (e) {
               // 파싱 실패 시 canRestore는 false로 유지
             }
-
+            
             if (canRestore) {
               // 가능하면 버튼 활성화
               restoreButtonHtml = `
