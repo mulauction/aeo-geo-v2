@@ -2671,11 +2671,10 @@
         };
 
         function renderShareEmptyState(viewState, ctx) {
-          const esc = ctx?.esc;
+          const validEsc = (typeof ctx?.esc === 'function') ? ctx.esc : (v) => String(v);
           const expired = ctx?.expired || {};
           const restoreButtonHtml = expired.restoreButtonHtml || '';
           const restoreNoticeHtml = expired.restoreNoticeHtml || '';
-          const validEsc = (typeof esc === 'function') ? esc : (v) => String(v);
 
           let title = '';
           let message = '';
