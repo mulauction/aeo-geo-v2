@@ -2676,10 +2676,10 @@
             }
           },
           INVALID_ID: {
-            title: "",
-            message: "",
+            title: "이 링크로는 리포트를 열 수 없습니다",
+            message: "이 링크에 연결된 리포트 데이터가 현재 브라우저에 없습니다.",
             actions: {
-              primaryLabel: "",
+              primaryLabel: "홈으로 이동",
               secondaryLabel: ""
             }
           }
@@ -2691,15 +2691,13 @@
           const restoreButtonHtml = expired.restoreButtonHtml || '';
           const restoreNoticeHtml = expired.restoreNoticeHtml || '';
 
-          let title = '';
-          let message = '';
+          const s = SHARE_EMPTY_STATE_MAP[viewState] || { title: '', message: '', actions: { primaryLabel: '', secondaryLabel: '' } };
+          let title = s.title;
+          let message = s.message;
           let buttons = '';
 
           if (viewState === 'NO_REPORT') {
             // ✅ [Phase24-2] NO_REPORT UI polish
-            const s = SHARE_EMPTY_STATE_MAP.NO_REPORT;
-            title = s.title;
-            message = s.message;
             buttons = `
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">${s.actions.primaryLabel}</a>
             `;
@@ -2715,18 +2713,12 @@
               </details>
             `;
           } else if (viewState === 'EXPIRED') {
-            const s = SHARE_EMPTY_STATE_MAP.EXPIRED;
-            title = s.title;
-            message = s.message;
             buttons = `
               ${restoreButtonHtml}
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">${s.actions.primaryLabel}</a>
               ${restoreNoticeHtml}
             `;
           } else if (viewState === 'OTHER_DEVICE') {
-            const s = SHARE_EMPTY_STATE_MAP.OTHER_DEVICE;
-            title = s.title;
-            message = s.message;
             buttons = `
               <a href="./share.html" class="btn-latest" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">${s.actions.primaryLabel}</a>
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">${s.actions.secondaryLabel}</a>
