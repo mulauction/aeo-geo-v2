@@ -1,3 +1,11 @@
+# Share Test Cases (manual)
+
+- INVALID_ID: `/share.html?r=not-a-valid-id`
+- NO_REPORT: `localStorage.removeItem('__lastV2'); localStorage.removeItem('__currentReportId'); location.href='/share.html'`
+- OTHER_DEVICE / EXPIRED: existing deterministic rules (force/test harness or legacy behavior)
+- FETCH_FAIL: load failure path (snapshot load fails → empty-state)
+- OK: valid `r` (or normal analyze→share flow)
+
 # Share Page A/B/C Test Cases
 
 ## Preconditions

@@ -92,6 +92,9 @@
     <a href="./home.html" class="home-link">Home</a>
     
     <div id="header"></div>
+
+    <!-- ✅ [Phase 1-A] Usage/Plan header (UI-only; no deduction logic) -->
+    <div id="usagePlanHeader" style="margin: 12px 0 16px 0;"></div>
     
     <h1>Analyze - 콘텐츠 관찰 및 점수 계산</h1>
     <p style="margin: 0 0 24px 0; color: var(--muted); font-size: 14px;">
@@ -103,6 +106,24 @@
     </div>
     
     <button id="btnAnalyze" class="btn btn-primary">Analyze</button>
+    <p style="margin: 6px 0 0 0; font-size: 12px; color: var(--muted);">
+      결과가 생성되면 1회가 사용됩니다.
+    </p>
+
+    <!-- ✅ [Phase 1-A] Channel auto-convert (UI-only; visible but gated by plan) -->
+    <div id="channelAutoConvert" style="margin-top: 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border);">
+      <div style="display:flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text);">채널 자동 변환</div>
+        <div style="font-size: 12px; color: var(--muted);">UI-only</div>
+      </div>
+      <div style="height: 10px;"></div>
+      <div style="display:flex; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-dark" data-channel-auto="1">스마트스토어</button>
+        <button type="button" class="btn btn-dark" data-channel-auto="1">쿠팡</button>
+        <button type="button" class="btn btn-dark" data-channel-auto="1">블로그</button>
+      </div>
+      <div id="channelAutoConvertHint" style="margin-top: 6px; font-size: 12px; color: var(--muted);"></div>
+    </div>
     
     <div id="status"></div>
     <div id="result"></div>

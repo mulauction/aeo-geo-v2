@@ -11,6 +11,9 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs/promises');
+const { pathToFileURL } = require('url');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
 const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
@@ -170,6 +173,214 @@ app.get('/api/share-snapshots/:id', async (req, res) => {
       error: 'INTERNAL_ERROR',
       message: 'Snapshot 조회 중 오류가 발생했습니다.'
     });
+  }
+});
+
+// ✅ [Phase 30-7A-1] Append-only usage events (dev JSONL, log-only)
+// Hard rules:
+// - Only log (no quota enforcement / plan checks / deduction)
+// - Append-only storage
+// - Do not touch Share/Analyze scoring or __lastV2 schema
+function isNonEmptyString(v) {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+function isPlainObject(v) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function getBestEffortIp(req) {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.trim().length > 0) {
+    // may contain multiple comma-separated IPs
+    return xf.split(',')[0].trim() || null;
+  }
+  if (typeof req.ip === 'string' && req.ip.trim().length > 0) return req.ip;
+  return null;
+}
+
+let __pricingPolicyKrModulePromise = null;
+async function loadPricingPolicyKRModule() {
+  if (__pricingPolicyKrModulePromise) return __pricingPolicyKrModulePromise;
+  const policyPath = path.join(__dirname, '..', 'core', 'ui', 'pricingPolicyKR.js');
+  const policyUrl = pathToFileURL(policyPath).href;
+  __pricingPolicyKrModulePromise = import(policyUrl);
+  return __pricingPolicyKrModulePromise;
+}
+
+function toYearMonthLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function isValidYearMonth(v) {
+  if (!isNonEmptyString(v)) return false;
+  if (!/^\d{4}-\d{2}$/.test(v)) return false;
+  const mm = Number(v.slice(5, 7));
+  return Number.isInteger(mm) && mm >= 1 && mm <= 12;
+}
+
+function parseTimeMs(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const t = Date.parse(value);
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+function getEventTimeMs(event) {
+  if (!isPlainObject(event)) return null;
+
+  // Priority: event.ts / event.at / event.createdAt (ISO or epoch)
+  for (const key of ['ts', 'at', 'createdAt']) {
+    if (Object.prototype.hasOwnProperty.call(event, key)) {
+      const t = parseTimeMs(event[key]);
+      if (typeof t === 'number' && Number.isFinite(t)) return t;
+    }
+  }
+
+  // Fallback: event.id "epoch_ms_..." prefix
+  if (typeof event.id === 'string') {
+    const m = event.id.match(/^(\d{10,})_/);
+    if (m && m[1]) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+app.post('/api/usage-events', async (req, res) => {
+  try {
+    const body = req.body;
+    if (!isPlainObject(body)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_JSON_BODY' });
+    }
+
+    const reportIdRaw = Object.prototype.hasOwnProperty.call(body, 'reportId') ? body.reportId : null;
+    const reportId =
+      reportIdRaw === null || typeof reportIdRaw === 'undefined'
+        ? null
+        : (typeof reportIdRaw === 'string' && reportIdRaw.trim().length > 0 ? reportIdRaw : '__INVALID__');
+
+    const source = body.source;
+    const action = body.action;
+    const ts = body.ts;
+
+    const metaRaw = Object.prototype.hasOwnProperty.call(body, 'meta') ? body.meta : null;
+    const meta =
+      metaRaw === null || typeof metaRaw === 'undefined'
+        ? null
+        : (isPlainObject(metaRaw) ? metaRaw : '__INVALID__');
+
+    if (reportId === '__INVALID__') {
+      return res.status(400).json({ ok: false, error: 'INVALID_REPORT_ID' });
+    }
+    if (!isNonEmptyString(source)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_SOURCE' });
+    }
+    if (!isNonEmptyString(action)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_ACTION' });
+    }
+    if (typeof ts !== 'number' || !Number.isFinite(ts)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_TS' });
+    }
+    if (meta === '__INVALID__') {
+      return res.status(400).json({ ok: false, error: 'INVALID_META' });
+    }
+
+    const receivedAt = Date.now();
+    const id = `${ts}_${Math.random().toString(16).slice(2, 10)}`;
+    const ua = (typeof req.headers['user-agent'] === 'string' && req.headers['user-agent'].trim().length > 0)
+      ? req.headers['user-agent']
+      : null;
+    const ip = getBestEffortIp(req);
+
+    const event = {
+      id,
+      receivedAt,
+      reportId,
+      source,
+      action,
+      ts,
+      meta,
+      ua,
+      ip
+    };
+
+    const dataDir = path.join(__dirname, 'data');
+    const filePath = path.join(dataDir, 'usage-events.jsonl');
+    await fs.mkdir(dataDir, { recursive: true });
+    await fs.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf8');
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[POST /api/usage-events] Error:', error);
+    return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR' });
+  }
+});
+
+// ✅ [Phase 30-7B] Monthly usage summary (read-only, derived from append-only JSONL)
+// - 금지: 차감/차단/경고 로직, 추가 dedupe
+app.get('/api/usage-events/summary', async (req, res) => {
+  try {
+    const monthParam = typeof req.query.month === 'string' ? req.query.month : null;
+    const month = monthParam && monthParam.trim().length > 0 ? monthParam.trim() : toYearMonthLocal(new Date());
+    if (!isValidYearMonth(month)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_MONTH' });
+    }
+
+    // SSOT: pricing policy (KR)
+    const mod = await loadPricingPolicyKRModule();
+    const PRICING_POLICY_KR = mod && mod.PRICING_POLICY_KR;
+    if (!PRICING_POLICY_KR || typeof PRICING_POLICY_KR !== 'object') {
+      return res.status(500).json({ ok: false, error: 'PRICING_SSOT_UNAVAILABLE' });
+    }
+
+    const plan = 'BASIC'; // fixed for now (no user/plan branching here)
+    const limit = PRICING_POLICY_KR?.BASIC?.monthly;
+    if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+      return res.status(500).json({ ok: false, error: 'INVALID_PLAN_LIMIT' });
+    }
+
+    const filePath = path.join(__dirname, 'data', 'usage-events.jsonl');
+
+    let used = 0;
+    try {
+      const txt = await fs.readFile(filePath, 'utf8');
+      const lines = txt.split('\n');
+      for (const line of lines) {
+        const s = (line || '').trim();
+        if (!s) continue;
+        let event = null;
+        try {
+          event = JSON.parse(s);
+        } catch (_) {
+          continue; // skip invalid JSON line
+        }
+        const t = getEventTimeMs(event);
+        if (typeof t !== 'number' || !Number.isFinite(t)) continue;
+        const ym = toYearMonthLocal(new Date(t));
+        if (ym === month) used += 1;
+      }
+    } catch (e) {
+      if (!(e && e.code === 'ENOENT')) throw e; // file missing => used=0
+    }
+
+    const remaining = Math.max(limit - used, 0);
+    return res.status(200).json({
+      ok: true,
+      month,
+      used,
+      limit,
+      remaining,
+      plan
+    });
+  } catch (error) {
+    console.error('[GET /api/usage-events/summary] Error:', error);
+    return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR' });
   }
 });
 

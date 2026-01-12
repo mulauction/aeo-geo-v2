@@ -24,6 +24,50 @@ import { getState } from "./state.js";
 let __evidenceOpenV1 = false;
 let __selectedEvidenceId = null;
 
+// ✅ [Phase 1-A] Analyze Usage/Plan header (UI-only; no deduction logic, no storage)
+function renderAnalyzeUsagePlanHeaderUIOnly() {
+  const el = document.getElementById('usagePlanHeader');
+  if (!el) return;
+
+  // UI-only defaults (Phase 1-A)
+  const PLAN = 'BASIC';
+  const LIMIT = 30;
+  const USED = 0;
+  const REMAIN = Math.max(0, LIMIT - USED);
+
+  el.innerHTML = `
+    <div style="padding: 10px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border);">
+      <div style="font-size: 13px; font-weight: 600; color: var(--text);">
+        ${esc(PLAN)} · 이번 달 ${esc(LIMIT)}회 중 ${esc(USED)}회 사용 · ${esc(REMAIN)}회 남음
+      </div>
+      <div style="margin-top: 4px; font-size: 12px; color: var(--muted);">
+        매월 1일 00:00(KST) 초기화
+      </div>
+    </div>
+  `;
+}
+
+// ✅ [Phase 1-A] Channel auto-convert buttons gating (UI-only)
+function applyAnalyzeChannelAutoConvertEntitlementUIOnly() {
+  // UI-only defaults (Phase 1-A)
+  const PLAN = 'BASIC';
+  const enabled = PLAN === 'PLUS' || PLAN === 'TEAM';
+
+  const root = document.getElementById('channelAutoConvert');
+  if (!root) return;
+
+  const btns = root.querySelectorAll('[data-channel-auto="1"]');
+  btns.forEach((btn) => {
+    btn.disabled = !enabled;
+    btn.title = enabled ? '' : 'PLUS에서 자동 변환 제공';
+  });
+
+  const hintEl = document.getElementById('channelAutoConvertHint');
+  if (hintEl) {
+    hintEl.textContent = enabled ? '' : 'PLUS에서 자동 변환 제공';
+  }
+}
+
 // ✅ [Phase 5-8] Evidence history append 가드 (중복 방지)
 let __lastEvidenceSavedId = null;
 
@@ -63,6 +107,14 @@ export function renderKpi({ label, value }) {
 }
 
 export function render(root, state) {
+    // ✅ [Phase 1-A] Analyze UI-only header + channel gating (no scoring/state mutation)
+    try {
+      renderAnalyzeUsagePlanHeaderUIOnly();
+      applyAnalyzeChannelAutoConvertEntitlementUIOnly();
+    } catch {
+      // view-only failure should not break Analyze
+    }
+
     // ✅ [Phase 7-3C] 전역 rerender 콜백 등록 (WHY 시뮬레이터용)
     if (typeof window !== 'undefined') {
       window.__rerenderEvidenceViewV1 = () => render(root, getState());
