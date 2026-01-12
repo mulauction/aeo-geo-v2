@@ -1,3 +1,4 @@
+import { buildTelemetryExportV1 } from './telemetryExport.js';
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -160,9 +161,23 @@ export function downloadTelemetryJSON() {
         localStorage.setItem('__telemetry_meta_v1', JSON.stringify(meta));
       }
     } catch (_) {}
+    // ✅ [Phase 32 Step 1] TelemetryExportV1 wrapper (schema 고정)
+    const url = (typeof location !== 'undefined' && location.href) ? String(location.href) : '';
+    const reportId = (() => {
+      try {
+        if (typeof location === 'undefined') return '';
+        const p = new URLSearchParams(location.search);
+        return String(p.get('r') || p.get('id') || '');
+      } catch (_) {
+        return '';
+      }
+    })();
+    const finalState = (typeof window !== 'undefined' && window.__shareViewState) ? String(window.__shareViewState) : '';
+    const environment = (typeof location !== 'undefined' && location.hostname) ? String(location.hostname) : '';
+    const payload = buildTelemetryExportV1(events, { url, reportId, finalState, environment });
     downloadText(
       `share-telemetry-${Date.now()}.json`,
-      JSON.stringify({ meta, events }, null, 2),
+      JSON.stringify(payload, null, 2),
       'application/json'
     );
   } catch (_) {}
