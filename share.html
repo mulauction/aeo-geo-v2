@@ -2729,8 +2729,66 @@
           if (!planEl || !remainingEl) return;
           const copy = buildQuotaBadgeCopyKR();
           planEl.textContent = copy.planText;
-          remainingEl.textContent = copy.remainingText;
+          const cachedRemaining = window.__usageSummaryRemaining;
+          if (typeof cachedRemaining === 'number' && Number.isFinite(cachedRemaining)) {
+            remainingEl.textContent = copy.remainingText.replace('—', String(cachedRemaining));
+          } else {
+            remainingEl.textContent = copy.remainingText;
+          }
+
+          // ✅ [Phase 30-7B] Replace remaining placeholder from server summary (best-effort, once per page)
+          // - 실패 시 기존 '—' 유지
+          // - Analyze/Share 저장 파이프라인(localStorage __lastV2 등) 변경 금지
+          // - 페이지당 1회만 호출
+          try {
+            if (window.__usageSummaryFetched) return;
+            // placeholder 상태에서만 시도 (문구 하드코딩 금지)
+            if (!copy.remainingText || typeof copy.remainingText !== 'string') return;
+            if (!copy.remainingText.includes('—')) return;
+            if (!remainingEl.textContent.includes('—')) return;
+            window.__usageSummaryFetched = true;
+
+            const now = new Date();
+            const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+            const isFile = (location.protocol === 'file:');
+            const base = (isLocalHost || isFile) ? 'http://localhost:3001' : '';
+
+            fetch(`${base}/api/usage-events/summary?month=${encodeURIComponent(month)}`)
+              .then(res => (res && res.ok) ? res.json() : null)
+              .then(data => {
+                const remaining = data && data.ok === true ? data.remaining : null;
+                if (typeof remaining === 'number' && Number.isFinite(remaining)) {
+                  // DOM만 교체 (재렌더/빌더 변경 금지)
+                  window.__usageSummaryRemaining = remaining;
+                  remainingEl.textContent = copy.remainingText.replace('—', String(remaining));
+                }
+              })
+              .catch(() => {});
+          } catch (_) {
+            // ignore
+          }
         }
+
+        (function ensureQuotaBadgeOnce(){
+          try {
+            if (window.__quotaBadgeApplyWired) return;
+            window.__quotaBadgeApplyWired = true;
+
+            const runOnce = () => {
+              if (window.__quotaBadgeApplied) return;
+              window.__quotaBadgeApplied = true;
+              try { applyQuotaBadgeCopyKR(); } catch (_) {}
+            };
+
+            if (document.readyState === 'loading') {
+              window.addEventListener('DOMContentLoaded', runOnce, { once: true });
+            } else {
+              runOnce();
+            }
+            window.addEventListener('pageshow', runOnce, { once: true });
+          } catch (_) {}
+        })();
 
         const setReportHeaderHtml = (html) => {
           const el = document.getElementById('reportHeader');
