@@ -6,6 +6,7 @@ import { computeBrandingScore } from "./analyzers/branding.js";
 import { buildReportPayload } from "./report.js";
 import { buildImprovementsFromReport } from "./improvements.js";
 import { buildImproveRequestV1, requestImproveV1 } from "./api/improveClient.js";
+import { markUsageWouldConsumeOnce } from "./usage/usageTriggerV1.js";
 
 /**
  * [Phase 26-1] Snapshot API fetch with dev fallback
@@ -31,7 +32,7 @@ async function fetchSnapshotApi(path, options = {}) {
 
 
 export function bindActions(root) {
-  root.btnAnalyze.addEventListener("click", async () => {
+  root.btnAnalyze.addEventListener("click", async (event) => {
     const input = root.inputText.value.trim();
     if (!input) return;
 
@@ -209,6 +210,12 @@ export function bindActions(root) {
         localStorage.setItem('__lastV2', JSON.stringify(v2Summary));
       } catch (e) {
         console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
+      }
+
+      // ✅ [Phase 30-5C] Log-only usage trigger (no deduction, no server)
+      // - Must NOT fire for programmatic .click()
+      if (event && event.isTrusted) {
+        markUsageWouldConsumeOnce({ source: "analyze", action: "result_generated" });
       }
     } finally {
       root.btnAnalyze.disabled = false;

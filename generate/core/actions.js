@@ -21,7 +21,7 @@ import { spendCredit } from "../../core/credit.js";
  * 점수는 Analyze 단계에서만 결정됩니다.
  */
 export function bindActions(root) {
-  root.btnGen.addEventListener("click", () => {
+  root.btnGen.addEventListener("click", (event) => {
     if (!requireLogin({ reason: "HTML 생성 기능을 사용하려면 로그인이 필요합니다." })) {
       return;
     }
