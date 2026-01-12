@@ -17,15 +17,6 @@ function safeObj(v) {
   return v && typeof v === 'object' ? v : null;
 }
 
-function safeNum(v) {
-  try {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  } catch (_) {
-    return null;
-  }
-}
-
 function pickFirst(obj, keys) {
   try {
     if (!obj || typeof obj !== 'object') return '';
@@ -39,6 +30,29 @@ function pickFirst(obj, keys) {
   } catch (_) {
     return '';
   }
+}
+
+function getFinalState(evt) {
+  return pickFirst(evt, ['finalState', 'final_state', 'state']);
+}
+
+function formatRateForCsv(v) {
+  try {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '';
+    // stable, human-readable rounding
+    return String(Math.round(n * 1e6) / 1e6);
+  } catch (_) {
+    return '';
+  }
+}
+
+function csvEscape(v) {
+  const s = (v === null || typeof v === 'undefined') ? '' : String(v);
+  if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replaceAll('"', '""')}"`;
+  }
+  return s;
 }
 
 function buildKpisV1(events, ctx) {
@@ -60,21 +74,89 @@ function buildKpisV1(events, ctx) {
 
     // invalid_id_rate: final_state reason === INVALID_ID (avoid conflating with generic EXPIRED)
     const invalidCount = finals.filter((e) => safeStr(e && e.reason) === 'INVALID_ID').length;
-    const expiredCount = finals.filter((e) => pickFirst(e, ['finalState', 'final_state', 'state']) === 'EXPIRED').length;
+    const expiredCount = finals.filter((e) => getFinalState(e) === 'EXPIRED').length;
+    const otherDeviceCount = finals.filter((e) => getFinalState(e) === 'OTHER_DEVICE').length;
+    const okCount = finals.filter((e) => getFinalState(e) === 'OK').length;
 
     return {
       filter: { type: 'sid', sid: sid || '' },
+      ok_rate: rate(okCount),
       invalid_id_rate: rate(invalidCount),
       expired_entry_rate: rate(expiredCount),
+      other_device_rate: rate(otherDeviceCount),
       snapshot_fetch_success_rate: { value: null, measurable: false },
     };
   } catch (_) {
     return {
       filter: { type: 'sid', sid: '' },
+      ok_rate: { value: null, measurable: false, numerator: 0, denominator: 0 },
       invalid_id_rate: { value: null, measurable: false, numerator: 0, denominator: 0 },
       expired_entry_rate: { value: null, measurable: false, numerator: 0, denominator: 0 },
+      other_device_rate: { value: null, measurable: false, numerator: 0, denominator: 0 },
       snapshot_fetch_success_rate: { value: null, measurable: false },
     };
+  }
+}
+
+export function buildTelemetryExportCsvV1(events, ctx = {}) {
+  try {
+    const payload = buildTelemetryExportV1(events, ctx);
+    const k = (payload && payload.kpis && typeof payload.kpis === 'object') ? payload.kpis : {};
+    const context = (payload && payload.context && typeof payload.context === 'object') ? payload.context : {};
+
+    const schemaVersion = safeStr(payload && payload.schemaVersion);
+    const generatedAt = safeStr(payload && payload.generatedAt);
+    const totalEvents = Array.isArray(payload && payload.events) ? payload.events.length : 0;
+
+    const okRate = (k.ok_rate && typeof k.ok_rate === 'object') ? k.ok_rate.value : null;
+    const invalidIdRate = (k.invalid_id_rate && typeof k.invalid_id_rate === 'object') ? k.invalid_id_rate.value : null;
+    const expiredEntryRate = (k.expired_entry_rate && typeof k.expired_entry_rate === 'object') ? k.expired_entry_rate.value : null;
+    const otherDeviceRate = (k.other_device_rate && typeof k.other_device_rate === 'object') ? k.other_device_rate.value : null;
+    const snapshotFetchSuccessRate = (k.snapshot_fetch_success_rate && typeof k.snapshot_fetch_success_rate === 'object')
+      ? k.snapshot_fetch_success_rate.value
+      : null;
+    const snapshotFetchMeasurable = !!(k.snapshot_fetch_success_rate && typeof k.snapshot_fetch_success_rate === 'object' && k.snapshot_fetch_success_rate.measurable);
+
+    const sid = safeStr(ctx && ctx.sid);
+    const reportId = safeStr(context.reportId || '');
+    const finalState = safeStr(context.finalState || '');
+    const url = safeStr(context.url || '');
+
+    const header = [
+      'schemaVersion',
+      'generatedAt',
+      'totalEvents',
+      'okRate',
+      'invalidIdRate',
+      'expiredEntryRate',
+      'otherDeviceRate',
+      'snapshotFetchSuccessRate',
+      'snapshotFetchMeasurable',
+      'sid',
+      'reportId',
+      'finalState',
+      'url',
+    ].join(',');
+
+    const row = [
+      schemaVersion,
+      generatedAt,
+      String(totalEvents),
+      formatRateForCsv(okRate),
+      formatRateForCsv(invalidIdRate),
+      formatRateForCsv(expiredEntryRate),
+      formatRateForCsv(otherDeviceRate),
+      snapshotFetchMeasurable ? formatRateForCsv(snapshotFetchSuccessRate) : '',
+      snapshotFetchMeasurable ? 'true' : 'false',
+      sid,
+      reportId,
+      finalState,
+      url,
+    ].map(csvEscape).join(',');
+
+    return header + '\n' + row + '\n';
+  } catch (_) {
+    return 'schemaVersion,generatedAt,totalEvents,okRate,invalidIdRate,expiredEntryRate,otherDeviceRate,snapshotFetchSuccessRate,snapshotFetchMeasurable,sid,reportId,finalState,url\n';
   }
 }
 

@@ -1,4 +1,4 @@
-import { buildTelemetryExportV1 } from './telemetryExport.js';
+import { buildTelemetryExportCsvV1, buildTelemetryExportV1 } from './telemetryExport.js';
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -190,31 +190,20 @@ export function downloadTelemetryCSV() {
     const s = summarize();
 
     const generatedAt = new Date().toISOString();
-    const okRateText = (typeof s.okRate === 'number' && Number.isFinite(s.okRate))
-      ? `${(s.okRate * 100).toFixed(1)}%`
-      : '';
-    const totalText = (typeof s.total === 'number' && Number.isFinite(s.total)) ? String(s.total) : '';
-
-    const finalStatePairs = Object.entries(s.countsByFinalState || {})
-      .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-      .map(([k, v]) => `${k}=${v}`);
-
-    const topReasonsText = (Array.isArray(s.topReasons) ? s.topReasons : [])
-      .slice(0, 5)
-      .map((r) => `${r.reason}(${r.count})`)
-      .join(', ');
-
-    const metaLines = [
-      `# top_transition_to_FETCH_FAIL: ${s.dropOffTopToFetchFail ? `${s.dropOffTopToFetchFail.preState} -> FETCH_FAIL = ${s.dropOffTopToFetchFail.count}` : 'none'}`,
-      `# top_transition_overall: ${s.dropOffTopOverall ? `${s.dropOffTopOverall.preState} -> ${s.dropOffTopOverall.finalState} = ${s.dropOffTopOverall.count}` : 'none'}`,
-      `# generatedAt: ${generatedAt}`,
-      `# total: ${totalText}`,
-      `# okRate: ${okRateText}`,
-      `# finalState: ${finalStatePairs.join(' ')}`,
-      `# topReasons: ${topReasonsText}`,
-    ];
-
-    const csvBody = toCsv(events);
+    const url = (typeof location !== 'undefined' && location.href) ? String(location.href) : '';
+    const reportId = (() => {
+      try {
+        if (typeof location === 'undefined') return '';
+        const p = new URLSearchParams(location.search);
+        return String(p.get('r') || p.get('id') || '');
+      } catch (_) {
+        return '';
+      }
+    })();
+    const finalState = (typeof window !== 'undefined' && window.__shareViewState) ? String(window.__shareViewState) : '';
+    const environment = (typeof location !== 'undefined' && location.hostname) ? String(location.hostname) : '';
+    const sid = getSessionId();
+    const csvBody = buildTelemetryExportCsvV1(events, { url, reportId, finalState, environment, sid });
     // ✅ [Phase 32-0] debug=1에서만 meta를 localStorage에 캐시 (read-only UI를 위한 보조 저장; 기존 키/스키마 영향 없음)
     try {
       const isDebug = (typeof location !== 'undefined') && (new URLSearchParams(location.search).get('debug') === '1');
@@ -235,7 +224,7 @@ export function downloadTelemetryCSV() {
     } catch (_) {}
     downloadText(
       `share-telemetry-${Date.now()}.csv`,
-      metaLines.join('\n') + '\n' + csvBody,
+      csvBody,
       'text/csv'
     );
   } catch (_) {}
