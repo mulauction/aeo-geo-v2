@@ -149,6 +149,9 @@ export function downloadTelemetryJSON() {
       countsByFinalState: s.countsByFinalState,
       countsByPreState: s.countsByPreState,
       topReasons: s.topReasons,
+      transitionMatrix: s.transitionMatrix,
+      dropOffTopToFetchFail: s.dropOffTopToFetchFail,
+      dropOffTopOverall: s.dropOffTopOverall,
     };
     downloadText(
       `share-telemetry-${Date.now()}.json`,
@@ -179,6 +182,8 @@ export function downloadTelemetryCSV() {
       .join(', ');
 
     const metaLines = [
+      `# top_transition_to_FETCH_FAIL: ${s.dropOffTopToFetchFail ? `${s.dropOffTopToFetchFail.preState} -> FETCH_FAIL = ${s.dropOffTopToFetchFail.count}` : 'none'}`,
+      `# top_transition_overall: ${s.dropOffTopOverall ? `${s.dropOffTopOverall.preState} -> ${s.dropOffTopOverall.finalState} = ${s.dropOffTopOverall.count}` : 'none'}`,
       `# generatedAt: ${generatedAt}`,
       `# total: ${totalText}`,
       `# okRate: ${okRateText}`,
@@ -198,7 +203,16 @@ export function downloadTelemetryCSV() {
 export function summarize() {
   try {
     if (typeof sessionStorage === 'undefined') {
-      return { countsByFinalState: {}, countsByPreState: {}, topReasons: [], okRate: 0, total: 0 };
+      return {
+        countsByFinalState: {},
+        countsByPreState: {},
+        topReasons: [],
+        okRate: 0,
+        total: 0,
+        transitionMatrix: {},
+        dropOffTopToFetchFail: null,
+        dropOffTopOverall: null,
+      };
     }
     const arr = readStore();
 
@@ -208,6 +222,48 @@ export function summarize() {
 
     let totalFinal = 0;
     let okCount = 0;
+
+    // --- transition tracking (best-effort, schema-tolerant) ---
+    const transitionMatrix = {};
+    function normState(v) {
+      try {
+        if (v === null || typeof v === 'undefined') return '';
+        const s = String(v).trim();
+        if (!s) return '';
+        const low = s.toLowerCase();
+        if (low === 'unknown' || low === 'undefined' || low === 'null') return '';
+        return s;
+      } catch (_) {
+        return '';
+      }
+    }
+    function pickFirst(obj, keys) {
+      try {
+        if (!obj || typeof obj !== 'object') return '';
+        for (const k of keys) {
+          if (Object.prototype.hasOwnProperty.call(obj, k)) {
+            const v = normState(obj[k]);
+            if (v) return v;
+          }
+        }
+        return '';
+      } catch (_) {
+        return '';
+      }
+    }
+    function pickPreFinal(evt) {
+      // A) If both pre and final exist on the same event, prefer that.
+      const pre = pickFirst(evt, ['preState', 'pre_state', 'prevState', 'prev_state', 'from', 'pre', 'initialState', 'initial_state']);
+      const fin = pickFirst(evt, ['finalState', 'final_state', 'nextState', 'next_state', 'to', 'final', 'state']);
+      return { pre, fin };
+    }
+    function incMatrix(pre, fin) {
+      try {
+        if (!pre || !fin) return;
+        if (!transitionMatrix[pre]) transitionMatrix[pre] = {};
+        transitionMatrix[pre][fin] = (transitionMatrix[pre][fin] || 0) + 1;
+      } catch (_) {}
+    }
 
     for (const e of arr) {
       if (!e || typeof e !== 'object') continue;
@@ -223,6 +279,63 @@ export function summarize() {
         const r = e.reason || '';
         if (r) reasonCounts[r] = (reasonCounts[r] || 0) + 1;
       }
+
+      // Transition extraction (A): event-local pre+final pairs
+      const { pre, fin } = pickPreFinal(e);
+      if (pre && fin) incMatrix(pre, fin);
+    }
+
+    // Transition extraction (B): if no pairs were found, use consecutive finalState events
+    const hasAnyTransition = Object.keys(transitionMatrix).length > 0;
+    if (!hasAnyTransition) {
+      const withIdx = arr.map((e, i) => ({ e, i }));
+      withIdx.sort((a, b) => {
+        const ta = (a.e && typeof a.e === 'object' && typeof a.e.ts === 'number') ? a.e.ts : 0;
+        const tb = (b.e && typeof b.e === 'object' && typeof b.e.ts === 'number') ? b.e.ts : 0;
+        if (ta !== tb) return ta - tb;
+        return a.i - b.i;
+      });
+      const finals = [];
+      for (const it of withIdx) {
+        const evt = it.e;
+        if (!evt || typeof evt !== 'object') continue;
+        const fin = pickFirst(evt, ['finalState', 'final_state', 'nextState', 'next_state', 'to', 'final', 'state']);
+        if (fin) finals.push(fin);
+      }
+      for (let i = 1; i < finals.length; i++) {
+        const from = finals[i - 1];
+        const to = finals[i];
+        if (!from || !to) continue;
+        incMatrix(from, to);
+      }
+    }
+
+    // Drop-off summaries
+    let dropOffTopToFetchFail = null;
+    let dropOffTopOverall = null;
+    try {
+      const all = [];
+      for (const pre of Object.keys(transitionMatrix)) {
+        const row = transitionMatrix[pre] || {};
+        for (const fin of Object.keys(row)) {
+          const count = row[fin] || 0;
+          if (!count) continue;
+          all.push({ preState: pre, finalState: fin, count });
+        }
+      }
+      for (const t of all) {
+        if (t.finalState === 'FETCH_FAIL') {
+          if (!dropOffTopToFetchFail || t.count > dropOffTopToFetchFail.count) dropOffTopToFetchFail = t;
+        }
+      }
+      const nonSelf = all.filter((t) => t.preState !== t.finalState);
+      const pool = nonSelf.length > 0 ? nonSelf : all;
+      for (const t of pool) {
+        if (!dropOffTopOverall || t.count > dropOffTopOverall.count) dropOffTopOverall = t;
+      }
+    } catch (_) {
+      dropOffTopToFetchFail = null;
+      dropOffTopOverall = null;
     }
 
     const topReasons = Object.entries(reasonCounts)
@@ -231,9 +344,27 @@ export function summarize() {
       .map(([reason, count]) => ({ reason, count }));
 
     const okRate = totalFinal > 0 ? (okCount / totalFinal) : 0;
-    return { countsByFinalState, countsByPreState, topReasons, okRate, total: totalFinal };
+    return {
+      countsByFinalState,
+      countsByPreState,
+      topReasons,
+      okRate,
+      total: totalFinal,
+      transitionMatrix,
+      dropOffTopToFetchFail,
+      dropOffTopOverall,
+    };
   } catch (_) {
-    return { countsByFinalState: {}, countsByPreState: {}, topReasons: [], okRate: 0, total: 0 };
+    return {
+      countsByFinalState: {},
+      countsByPreState: {},
+      topReasons: [],
+      okRate: 0,
+      total: 0,
+      transitionMatrix: {},
+      dropOffTopToFetchFail: null,
+      dropOffTopOverall: null,
+    };
   }
 }
 
