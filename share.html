@@ -1455,7 +1455,7 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
-    import { getShareEmptyStateCopyKR } from './core/shareEmptyStateCopy.js';
+    import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
 
     const SHARE_UI_COPY = {
       HOME_LABEL: "홈으로 이동"
@@ -1592,7 +1592,7 @@
                 if (feedbackEl._hideTimer) {
                   clearTimeout(feedbackEl._hideTimer);
                 }
-                feedbackEl.textContent = '이 기기/브라우저에서는 리포트를 열 수 없어요. 홈에서 다시 분석해 주세요.';
+                  feedbackEl.textContent = getShareHelperCopyKR('OTHER_DEVICE_TOAST');
                 feedbackEl.style.display = 'block';
                 // 2.5초 후 자동 숨김
                 feedbackEl._hideTimer = setTimeout(() => {
@@ -2081,18 +2081,18 @@
           }
           // 조건 만족: fetch 시도
           try {
-            setShareStatus('리포트를 불러오는 중…');
+            setShareStatus(getShareStatusCopyKR('LOADING'));
             const data = await fetchSnapshotWithFallback(rParam);
             
             if (data?.notFound) {
-              setShareStatus('리포트 데이터를 찾을 수 없습니다.');
+              setShareStatus(getShareStatusCopyKR('NOT_FOUND'));
               return null;
             }
             
             if (data?.payload) {
               const v2 = data.payload;
               window.__lastV2 = v2;
-              setShareStatus('');
+                setShareStatus(getShareStatusCopyKR('CLEAR'));
               return v2;
             }
             
@@ -2101,7 +2101,7 @@
           } catch (fetchErr) {
             // fetch 실패 시 null 반환 (NO_REPORT 화면 표시)
             console.warn('[share] snapshot fetch failed:', fetchErr);
-            setShareStatus('리포트를 불러오지 못했습니다.');
+            setShareStatus(getShareStatusCopyKR('LOAD_FAIL'));
             return null;
           }
         }
@@ -2136,11 +2136,11 @@
           // ✅ [Phase 16-2] r 파라미터가 없을 때만 fetch 시도 (r이 있으면 이미 위에서 처리됨)
           if (!rParam) {
             try {
-              setShareStatus('리포트를 불러오는 중…');
+              setShareStatus(getShareStatusCopyKR('LOADING'));
               const data = await fetchSnapshotWithFallback(rParam);
               
               if (data?.notFound) {
-                setShareStatus('리포트 데이터를 찾을 수 없습니다.');
+                setShareStatus(getShareStatusCopyKR('NOT_FOUND'));
                 return null;
               }
               
@@ -2150,12 +2150,12 @@
                 if (!localStorage.getItem('__currentReportId')) {
                   localStorage.setItem('__currentReportId', rParam);
                 }
-                setShareStatus('');
+                setShareStatus(getShareStatusCopyKR('CLEAR'));
                 return v2;
               }
             } catch (e) {
               console.warn('[share] snapshot fallback failed:', e);
-              setShareStatus('리포트를 불러오지 못했습니다.');
+              setShareStatus(getShareStatusCopyKR('LOAD_FAIL'));
             }
           }
           return null;
@@ -2577,10 +2577,11 @@
           const r = params.get('r') || localStorage.getItem('__currentReportId');
           
           if (!r && !localStorage.getItem('__lastV2')) {
+            const wb = getShareWarningBoxCopyKR('NO_REPORT');
             const warningBox = `
               <div class="report-warning-box">
-                <h3>리포트 데이터를 찾을 수 없습니다</h3>
-                <p>현재 브라우저에 리포트 데이터가 없거나, 다른 브라우저/시크릿 모드에서 접근하셨습니다.<br>새로운 리포트를 생성하려면 홈 화면으로 이동해주세요.</p>
+                <h3>${wb.title}</h3>
+                <p>${wb.messageHtml}</p>
                 <a href="./home.html" class="btn-home">Home으로</a>
               </div>
             `;
@@ -2607,9 +2608,9 @@
         const ctaLink = viewState === 'OK' 
           ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
           : viewState === 'EXPIRED'
-          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a>'
+          ? `<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">${getShareHelperCopyKR('WHY_LABEL')}</a>`
           : viewState === 'OTHER_DEVICE'
-          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report-disabled" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">왜 리포트를 못 여나요? →</a><div id="helper-link-feedback" style="display: none; margin-top: 8px; padding: 8px 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 12px; color: #333; max-width: 400px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>'
+          ? `<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report-disabled" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">${getShareHelperCopyKR('WHY_LABEL')}</a><div id="helper-link-feedback" style="display: none; margin-top: 8px; padding: 8px 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 12px; color: #333; max-width: 400px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>`
           : ''; // NO_REPORT: Readiness 카드의 helper link 숨김 (NO_REPORT 카드의 details/summary 사용)
         
         const scoreExplainerBlock = `
@@ -2670,7 +2671,7 @@
             // ✅ [Phase24-3] NO_REPORT 아코디언 추가
             buttons += `
               <details class="no-report-why" style="margin-top: 16px; font-size: 13px;">
-                <summary style="cursor: pointer; color: #0066cc; text-decoration: none; font-weight: 500; display: inline-block; padding: 4px 0;">왜 리포트를 못 여나요? →</summary>
+                <summary style="cursor: pointer; color: #0066cc; text-decoration: none; font-weight: 500; display: inline-block; padding: 4px 0;">${getShareHelperCopyKR('WHY_LABEL')}</summary>
                 <div style="margin-top: 12px; padding-left: 8px; border-left: 2px solid #ffc107;">
                   <p style="margin: 8px 0; line-height: 1.6; color: #333;">이 공유 링크는 동일 브라우저/기기에서만 리포트 데이터를 찾을 수 있습니다.</p>
                   <p style="margin: 8px 0; line-height: 1.6; color: #333;">다른 브라우저/시크릿 모드에서는 접근할 수 없습니다.</p>
@@ -2895,7 +2896,7 @@
             <div class="share-policy__title">공유 링크 안내</div>
             <div class="share-policy__body">
               <p>이 공유 링크는 현재 브라우저(동일 기기)에서만 리포트를 다시 열 수 있습니다.</p>
-              <p>다른 기기·다른 브라우저·시크릿 모드에서는 리포트 데이터에 접근할 수 없습니다.</p>
+              <p>${getShareHelperCopyKR('SHARE_POLICY_NO_ACCESS')}</p>
               <p class="share-policy__sub">현재 버전(MVP)은 서버 저장 없이 로컬 분석 결과로만 표시됩니다.</p>
             </div>
           </section>
@@ -4006,13 +4007,13 @@
               if (!v2Summary) throw new Error('v2Summary 없음: __lastV2가 필요합니다.');
               
               // c) 서버 저장 시작
-              setShareStatus('서버에 저장 중…');
+              setShareStatus(getShareStatusCopyKR('SERVER_SAVING'));
               
               // d) POST 요청 (정적 서버에서는 무조건 localhost:3001로만 요청)
               const snapshotId = await postSnapshotApi(v2Summary);
               
               if (!snapshotId) {
-                throw new Error('서버 저장 실패');
+                throw new Error(getShareStatusCopyKR('SERVER_SAVE_FAIL'));
               }
               
               // e) 성공: id를 사용해 링크 생성 및 복사
@@ -4046,12 +4047,12 @@
                 copyBtn.textContent = originalText;
               }, 1000);
               
-              setShareStatus('');
+              setShareStatus(getShareStatusCopyKR('CLEAR'));
               
             } catch (e) {
               // f) 에러 처리
               console.warn('[share] snapshot save failed', e);
-              setShareStatus('서버 저장 실패');
+              setShareStatus(getShareStatusCopyKR('SERVER_SAVE_FAIL'));
               
               // 기존 로컬 복사 fallback
               const params = new URLSearchParams(location.search);
