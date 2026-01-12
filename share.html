@@ -1498,6 +1498,7 @@
       // ✅ [Phase24-3] document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
       document.addEventListener('click', function(e) {
         try {
+          const WHY_REPORT_TRIGGER_KEYWORD = '왜 리포트를 못 여나요';
           // ✅ [Phase24-3] NO_REPORT에서 details/summary 클릭은 허용 (아코디언 토글)
           const state = window.__ShareViewState?.state || window.__shareViewState;
           
@@ -1521,7 +1522,7 @@
           const el = e.target.closest('[data-target]') || 
                      e.target.closest('[data-cta]') ||
                      (e.target.closest('a') && (
-                       e.target.textContent?.includes('왜 리포트를 못 여나요') ||
+                       e.target.textContent?.includes(WHY_REPORT_TRIGGER_KEYWORD) ||
                        e.target.textContent?.includes('신뢰도 사유 보기')
                      ) ? e.target.closest('a') : null);
           
@@ -1555,10 +1556,10 @@
               targetSelector = selector;
             }
           } else if (state === 'EXPIRED') {
-            // EXPIRED: "왜 리포트를 못 여나요?" → #expired-banner로 스크롤
+            // EXPIRED: why-report helper link → #expired-banner로 스크롤
             if (selector === '#expired-banner' || 
                 ctaType === 'why-report' || 
-                linkText.includes('왜 리포트를 못 여나요')) {
+                linkText.includes(WHY_REPORT_TRIGGER_KEYWORD)) {
               shouldScroll = true;
               targetSelector = '#expired-banner';
             } else if (selector && selector.startsWith('#')) {
