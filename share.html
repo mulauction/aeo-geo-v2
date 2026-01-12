@@ -1396,6 +1396,8 @@
 
           // fetchSnapshotApi가 null을 반환하거나 응답이 없으면 조용히 return
           if (!res || !res.ok) {
+            // ✅ [Phase30-8A] 404는 "서버 스냅샷 없음" 케이스로 warn 수준만 남긴다 (흐름/return 변경 금지)
+            if (res && res.status === 404) console.warn('[share] snapshot not found (404)');
             dlog("[share] snapshot not found or fetch failed");
             return; // 실패 시 조용히 무시, 기존 empty-state UX로 처리
           }
@@ -2649,6 +2651,7 @@
                 <div style="margin-top: 12px; padding-left: 8px; border-left: 2px solid #ffc107;">
                   <p style="margin: 8px 0; line-height: 1.6; color: #333;">이 공유 링크는 동일 브라우저/기기에서만 리포트 데이터를 찾을 수 있습니다.</p>
                   <p style="margin: 8px 0; line-height: 1.6; color: #333;">다른 브라우저/시크릿 모드에서는 접근할 수 없습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">참고: 서버에 저장된 공유 스냅샷이 없는 링크일 수 있습니다.</p>
                   <p style="margin: 8px 0; line-height: 1.6; color: #333;">해결: 홈에서 다시 분석해 이 브라우저에 최신 리포트를 생성하세요.</p>
                 </div>
               </details>
