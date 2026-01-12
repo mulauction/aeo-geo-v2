@@ -2670,13 +2670,17 @@
           }
         };
 
-        // ✅ [Phase 14-1] 상태 패널 생성 (viewState !== 'OK'일 때만 표시)
-        let statusPanel = '';
-        if (viewState !== 'OK') {
+        function renderShareEmptyState(viewState, ctx) {
+          const esc = ctx?.esc;
+          const expired = ctx?.expired || {};
+          const restoreButtonHtml = expired.restoreButtonHtml || '';
+          const restoreNoticeHtml = expired.restoreNoticeHtml || '';
+          const validEsc = (typeof esc === 'function') ? esc : (v) => String(v);
+
           let title = '';
           let message = '';
           let buttons = '';
-          
+
           if (viewState === 'NO_REPORT') {
             // ✅ [Phase24-2] NO_REPORT UI polish
             const s = SHARE_EMPTY_STATE_MAP.NO_REPORT;
@@ -2700,39 +2704,6 @@
             const s = SHARE_EMPTY_STATE_MAP.EXPIRED;
             title = s.title;
             message = s.message;
-            
-            // ✅ [Phase 17-1] EXPIRED 상태 복구 UX 보강
-            let canRestore = false;
-            let restoreButtonHtml = '';
-            let restoreNoticeHtml = '';
-            
-            try {
-              const lastV2Str = localStorage.getItem('__lastV2');
-              if (lastV2Str && lastV2Str.length > 10) {
-                const parsed = JSON.parse(lastV2Str);
-                if (parsed?.analysis) {
-                  canRestore = true;
-                }
-              }
-            } catch (e) {
-              // 파싱 실패 시 canRestore는 false로 유지
-            }
-            
-            if (canRestore) {
-              // 가능하면 버튼 활성화
-              restoreButtonHtml = `
-                <button id="btnRestoreLastReport" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
-              `;
-            } else {
-              // 불가능하면 버튼 disabled + 안내 문구
-              restoreButtonHtml = `
-                <button id="btnRestoreLastReport" class="btn-restore" disabled style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #999; background: #e0e0e0; border: none; border-radius: 4px; text-decoration: none; cursor: not-allowed; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
-              `;
-              restoreNoticeHtml = `
-                <p style="margin: 8px 0 0 0; font-size: 12px; color: #666; font-style: italic;">이 브라우저에 저장된 리포트가 없습니다.</p>
-              `;
-            }
-            
             buttons = `
               ${restoreButtonHtml}
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">${s.actions.primaryLabel}</a>
@@ -2747,11 +2718,11 @@
               <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">${s.actions.secondaryLabel}</a>
             `;
           }
-          
-          statusPanel = `
+
+          return `
             <div id="expired-banner" class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
-              <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">${esc(title)}</h3>
-              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${esc(message)}</p>
+              <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">${validEsc(title)}</h3>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${validEsc(message)}</p>
               <div style="margin-bottom: 16px;">
                 ${buttons}
               </div>
@@ -2763,6 +2734,45 @@
               </details>
             </div>
           `;
+        }
+
+        // ✅ [Phase 14-1] 상태 패널 생성 (viewState !== 'OK'일 때만 표시)
+        let statusPanel = '';
+        if (viewState !== 'OK') {
+          // ✅ [Phase 17-1] EXPIRED 상태 복구 UX 보강
+          let restoreButtonHtml = '';
+          let restoreNoticeHtml = '';
+          if (viewState === 'EXPIRED') {
+            let canRestore = false;
+            try {
+              const lastV2Str = localStorage.getItem('__lastV2');
+              if (lastV2Str && lastV2Str.length > 10) {
+                const parsed = JSON.parse(lastV2Str);
+                if (parsed?.analysis) {
+                  canRestore = true;
+                }
+              }
+            } catch (e) {
+              // 파싱 실패 시 canRestore는 false로 유지
+            }
+
+            if (canRestore) {
+              // 가능하면 버튼 활성화
+              restoreButtonHtml = `
+                <button id="btnRestoreLastReport" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+              `;
+            } else {
+              // 불가능하면 버튼 disabled + 안내 문구
+              restoreButtonHtml = `
+                <button id="btnRestoreLastReport" class="btn-restore" disabled style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #999; background: #e0e0e0; border: none; border-radius: 4px; text-decoration: none; cursor: not-allowed; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+              `;
+              restoreNoticeHtml = `
+                <p style="margin: 8px 0 0 0; font-size: 12px; color: #666; font-style: italic;">이 브라우저에 저장된 리포트가 없습니다.</p>
+              `;
+            }
+          }
+
+          statusPanel = renderShareEmptyState(viewState, { esc, expired: { restoreButtonHtml, restoreNoticeHtml } });
         }
         
         // ✅ [Phase 29-2] KR pricing/quota copy single-source freeze (UI-only)
