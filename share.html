@@ -1399,8 +1399,8 @@
             // ✅ [Phase30-8A] 404는 "서버 스냅샷 없음" 케이스로 warn 수준만 남긴다 (흐름/return 변경 금지)
             if (res && res.status === 404) console.warn('[share] snapshot not found (404)');
             if (res && res.status === 404) dlog("[share][telemetry] snapshot_404");
-            else dlog("[share][telemetry] snapshot_fetch_fail", { status: res?.status });
             dlog("[share] snapshot not found or fetch failed");
+            dlog("[share][telemetry] snapshot_fetch_fail", { status: res?.status });
             return; // 실패 시 조용히 무시, 기존 empty-state UX로 처리
           }
 
