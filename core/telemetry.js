@@ -140,15 +140,58 @@ export function downloadText(filename, text, mime = 'text/plain') {
 
 export function downloadTelemetryJSON() {
   try {
-    const rows = dumpTelemetry();
-    downloadText(`share-telemetry-${Date.now()}.json`, JSON.stringify(rows, null, 2), 'application/json');
+    const events = dumpTelemetry();
+    const s = summarize();
+    const meta = {
+      generatedAt: new Date().toISOString(),
+      total: s.total,
+      okRate: s.okRate,
+      countsByFinalState: s.countsByFinalState,
+      countsByPreState: s.countsByPreState,
+      topReasons: s.topReasons,
+    };
+    downloadText(
+      `share-telemetry-${Date.now()}.json`,
+      JSON.stringify({ meta, events }, null, 2),
+      'application/json'
+    );
   } catch (_) {}
 }
 
 export function downloadTelemetryCSV() {
   try {
-    const rows = dumpTelemetry();
-    downloadText(`share-telemetry-${Date.now()}.csv`, toCsv(rows), 'text/csv');
+    const events = dumpTelemetry();
+    const s = summarize();
+
+    const generatedAt = new Date().toISOString();
+    const okRateText = (typeof s.okRate === 'number' && Number.isFinite(s.okRate))
+      ? `${(s.okRate * 100).toFixed(1)}%`
+      : '';
+    const totalText = (typeof s.total === 'number' && Number.isFinite(s.total)) ? String(s.total) : '';
+
+    const finalStatePairs = Object.entries(s.countsByFinalState || {})
+      .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+      .map(([k, v]) => `${k}=${v}`);
+
+    const topReasonsText = (Array.isArray(s.topReasons) ? s.topReasons : [])
+      .slice(0, 5)
+      .map((r) => `${r.reason}(${r.count})`)
+      .join(', ');
+
+    const metaLines = [
+      `# generatedAt: ${generatedAt}`,
+      `# total: ${totalText}`,
+      `# okRate: ${okRateText}`,
+      `# finalState: ${finalStatePairs.join(' ')}`,
+      `# topReasons: ${topReasonsText}`,
+    ];
+
+    const csvBody = toCsv(events);
+    downloadText(
+      `share-telemetry-${Date.now()}.csv`,
+      metaLines.join('\n') + '\n' + csvBody,
+      'text/csv'
+    );
   } catch (_) {}
 }
 
