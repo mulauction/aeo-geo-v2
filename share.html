@@ -2726,47 +2726,96 @@
         function applyQuotaBadgeCopyKR() {
           const planEl = document.getElementById('quotaBadgePlan');
           const remainingEl = document.getElementById('quotaBadgeRemaining');
+          const warnEl = document.getElementById('quotaBadgeWarn');
           if (!planEl || !remainingEl) return;
+
+          function updateQuotaWarn() {
+            if (!warnEl) return;
+            const remaining = window.__usageSummaryCacheRemaining;
+            if (typeof remaining === 'number' && Number.isFinite(remaining) && remaining <= 5) {
+              warnEl.style.display = 'inline';
+            } else {
+              warnEl.style.display = 'none';
+            }
+          }
           const copy = buildQuotaBadgeCopyKR();
           planEl.textContent = copy.planText;
-          const cachedRemaining = window.__usageSummaryRemaining;
-          if (typeof cachedRemaining === 'number' && Number.isFinite(cachedRemaining)) {
-            remainingEl.textContent = copy.remainingText.replace('—', String(cachedRemaining));
-          } else {
-            remainingEl.textContent = copy.remainingText;
+          remainingEl.textContent = copy.remainingText;
+          const now = new Date();
+          const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+          // Global cache (single source for this page session)
+          const cache = window.__usageSummaryCache;
+          const cachedRemaining =
+            cache && cache.month === month ? cache.remaining : window.__usageSummaryCacheRemaining;
+          const hasCachedRemaining = typeof cachedRemaining === 'number' && Number.isFinite(cachedRemaining);
+
+          const renderRemaining = (n) => copy.remainingText.replace('—', String(n));
+
+          if (hasCachedRemaining) {
+            remainingEl.textContent = renderRemaining(cachedRemaining);
+            // keep backward-compatible cache mirror
+            window.__usageSummaryCacheRemaining = cachedRemaining;
+            updateQuotaWarn();
+            return; // 캐시가 있으면 여기서 끝 (fetch 불필요)
           }
+
+          // no cached remaining yet
+          updateQuotaWarn();
 
           // ✅ [Phase 30-7B] Replace remaining placeholder from server summary (best-effort, once per page)
           // - 실패 시 기존 '—' 유지
           // - Analyze/Share 저장 파이프라인(localStorage __lastV2 등) 변경 금지
-          // - 페이지당 1회만 호출
+          // - 성공할 때까지 최소 1회 시도(중복 호출은 Promise로 방지)
           try {
-            if (window.__usageSummaryFetched) return;
             // placeholder 상태에서만 시도 (문구 하드코딩 금지)
             if (!copy.remainingText || typeof copy.remainingText !== 'string') return;
             if (!copy.remainingText.includes('—')) return;
             if (!remainingEl.textContent.includes('—')) return;
-            window.__usageSummaryFetched = true;
 
-            const now = new Date();
-            const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
             const isFile = (location.protocol === 'file:');
             const base = (isLocalHost || isFile) ? 'http://localhost:3001' : '';
 
-            fetch(`${base}/api/usage-events/summary?month=${encodeURIComponent(month)}`)
+            // prevent duplicate in-flight fetches; allow retry on failure
+            if (window.__usageSummaryFetchPromise) return;
+            window.__usageSummaryFetchPromise = fetch(`${base}/api/usage-events/summary?month=${encodeURIComponent(month)}`)
               .then(res => (res && res.ok) ? res.json() : null)
               .then(data => {
                 const remaining = data && data.ok === true ? data.remaining : null;
                 if (typeof remaining === 'number' && Number.isFinite(remaining)) {
-                  // DOM만 교체 (재렌더/빌더 변경 금지)
-                  window.__usageSummaryRemaining = remaining;
-                  remainingEl.textContent = copy.remainingText.replace('—', String(remaining));
+                  // Cache (page session)
+                  window.__usageSummaryCache = {
+                    month,
+                    remaining,
+                    plan: data.plan || null,
+                    ts: Date.now()
+                  };
+                  window.__usageSummaryCacheRemaining = remaining; // legacy mirror
+
+                  // Re-select DOM in case of re-render / DOM replacement
+                  const remainingElNow = document.getElementById('quotaBadgeRemaining');
+                  if (remainingElNow) remainingElNow.textContent = renderRemaining(remaining);
+
+                  // Update warn based on cached number
+                  const warnElNow = document.getElementById('quotaBadgeWarn');
+                  if (warnElNow) {
+                    warnElNow.style.display = (remaining <= 5) ? 'inline' : 'none';
+                  }
+
+                  return true;
                 }
+                // invalid / missing data -> allow retry
+                window.__usageSummaryFetchPromise = null;
+                return false;
               })
-              .catch(() => {});
+              .catch(() => {
+                // allow retry
+                window.__usageSummaryFetchPromise = null;
+              });
           } catch (_) {
             // ignore
+            try { window.__usageSummaryFetchPromise = null; } catch (_) {}
           }
         }
 
@@ -2812,6 +2861,7 @@
           <div style="margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--muted, #444); background: rgba(0,0,0,0.03); padding: 8px 10px; border-radius: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
             <span id="quotaBadgePlan">—</span>
             <span id="quotaBadgeRemaining">—</span>
+            <span id="quotaBadgeWarn" style="margin-left:8px; font-size:12px; color:#b45309; display:none;">이번 달 사용량이 거의 소진되었습니다</span>
           </div>
           <section class="share-policy" role="note" aria-label="공유 링크 안내">
             <div class="share-policy__title">공유 링크 안내</div>
