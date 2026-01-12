@@ -1477,6 +1477,21 @@
           return false;
         }
       }
+
+      // ✅ [Phase31 UI-only] <a href="#obs-lite"> 해시 점프를 부드러운 스크롤로 대체 (다른 링크/CTA 영향 금지)
+      document.addEventListener('click', (event) => {
+        try {
+          const a = event && event.target && event.target.closest
+            ? event.target.closest('a[href="#obs-lite"]')
+            : null;
+          if (!a) return;
+          event.preventDefault();
+          const el = document.getElementById('obs-lite');
+          if (!el) return;
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          try { history.replaceState(null, '', '#obs-lite'); } catch (_) {}
+        } catch (_) {}
+      });
       
       // ✅ [Phase24-3] document에 위임된 클릭 핸들러 바인딩 (capture phase, 한 번만)
       document.addEventListener('click', function(e) {
@@ -2729,6 +2744,7 @@
                 <summary style="cursor: pointer; font-weight: 500;">더 알아보기</summary>
                 <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
                   <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 리포트를 브라우저에만 저장합니다. 다른 기기나 브라우저에서는 리포트 데이터에 접근할 수 없습니다. 서버 저장 기능은 준비 중입니다. 해결: 홈에서 다시 분석해 최신 리포트를 생성하세요.</p>
+                  <p style="margin: 8px 0 0 0; line-height: 1.5;"><a href="#obs-lite" style="color: #0066cc; text-decoration: none; font-weight: 500;">신뢰도/사유 보기 →</a></p>
                 </div>
               </details>
             </div>
