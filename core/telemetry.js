@@ -174,7 +174,8 @@ export function downloadTelemetryJSON() {
     })();
     const finalState = (typeof window !== 'undefined' && window.__shareViewState) ? String(window.__shareViewState) : '';
     const environment = (typeof location !== 'undefined' && location.hostname) ? String(location.hostname) : '';
-    const payload = buildTelemetryExportV1(events, { url, reportId, finalState, environment });
+    const sid = getSessionId();
+    const payload = buildTelemetryExportV1(events, { url, reportId, finalState, environment, sid });
     downloadText(
       `share-telemetry-${Date.now()}.json`,
       JSON.stringify(payload, null, 2),
