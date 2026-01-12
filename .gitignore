@@ -7,3 +7,4 @@ server/data/snapshots/*.json
 
 # usage events (dev log)
 server/data/usage-events.jsonl
+data/snapshots/
