@@ -2478,26 +2478,6 @@
         if (!reportModel) {
           const params = new URLSearchParams(location.search);
           const r = params.get('r') || localStorage.getItem('__currentReportId');
-          
-          if (!r && !localStorage.getItem('__lastV2')) {
-            const wb = getShareWarningBoxCopyKR('NO_REPORT');
-            const warningBox = `
-              <div class="report-warning-box">
-                <h3>${wb.title}</h3>
-                <p>${wb.messageHtml}</p>
-                <a href="./home.html" class="btn-home">Home으로</a>
-              </div>
-            `;
-            document.getElementById('shareContent').innerHTML = warningBox;
-            
-            // ✅ [Phase 10-2] 리포트 없음 시 PDF 버튼 숨김/비활성화
-            const btnExportPDF = document.getElementById('btnExportPDF');
-            if (btnExportPDF) {
-              btnExportPDF.style.display = 'none';
-            }
-            
-            return;
-          }
         }
         
         const payload = buildReportPayloadFromModel(reportModel);
@@ -4066,9 +4046,15 @@
         // ✅ [Phase 10-2] 리포트 렌더링 성공 시 PDF 버튼 활성화/노출
         const btnExportPDF = document.getElementById('btnExportPDF');
         if (btnExportPDF) {
-          btnExportPDF.style.display = '';
-          btnExportPDF.disabled = false;
-          btnExportPDF.removeAttribute('aria-disabled');
+          if (viewState === 'OK') {
+            btnExportPDF.style.display = '';
+            btnExportPDF.disabled = false;
+            btnExportPDF.removeAttribute('aria-disabled');
+          } else {
+            btnExportPDF.style.display = 'none';
+            btnExportPDF.disabled = true;
+            btnExportPDF.setAttribute('aria-disabled', 'true');
+          }
         }
         
         // ✅ [Phase 16-0] Observation Lite 저장/복원 로직
