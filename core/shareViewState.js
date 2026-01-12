@@ -105,54 +105,77 @@ export function deriveShareViewState(input = {}) {
 
   // --- finalize phase (after load) ---
   function finalize(loadResult = {}) {
-    if (!needsLoad) {
-      return { state: preState, reason: preReason, reportModel: null };
+    try {
+      if (!needsLoad) {
+        return { state: preState, reason: preReason, reportModel: null };
+      }
+
+      // If finalize is called without a real load result, do not throw—pick a safe fallback.
+      const lr = (loadResult && typeof loadResult === 'object') ? loadResult : null;
+      if (!lr) {
+        return { state: 'FETCH_FAIL', reason: 'FINALIZE_NO_LOAD_RESULT', reportModel: null };
+      }
+
+      const reportModel = Object.prototype.hasOwnProperty.call(lr, 'reportModel') ? (lr.reportModel || null) : null;
+      const hasParamR = Boolean(rParam);
+      const hasLastV2ForCalc = typeof lr.hasLastV2 === 'boolean' ? lr.hasLastV2 : false;
+      const isROnly = Boolean(rParam) && !hasId;
+
+      const requestedLoaded = (typeof lr.requestedLoaded === 'boolean')
+        ? lr.requestedLoaded
+        : (
+            reportModel != null &&
+            typeof reportModel === 'object' &&
+            Object.keys(reportModel).length > 0 &&
+            reportModel.analysis &&
+            reportModel.analysis.scores &&
+            Object.keys(reportModel.analysis.scores).length > 0
+          );
+
+      let state = null;
+      let reason = 'DERIVED';
+
+      // If we have a model, keep OK alive deterministically (caller decided to load; model present means OK).
+      if (reportModel != null) {
+        state = 'OK';
+        reason = 'MODEL_PRESENT';
+      }
+
+      // If we cannot determine anything (e.g. no model and no lastV2 hint), settle to a safe state.
+      // Prefer legacy r-only behavior first.
+      if (!state && isROnly && !reportModel) {
+        state = 'EXPIRED';
+        reason = 'R_ONLY_NO_MODEL';
+      } else if (!state && reportModel == null && !hasLastV2ForCalc && !requestedLoaded) {
+        state = 'FETCH_FAIL';
+        reason = 'FINALIZE_INSUFFICIENT_INPUT';
+      } else if (!state) {
+        state = getShareViewState({ hasParamR, requestedLoaded, hasLastV2: hasLastV2ForCalc });
+      }
+
+      // Dev-only override via vs param (legacy)
+      const allowedStates = ['OK', 'EXPIRED', 'OTHER_DEVICE', 'NO_REPORT', 'FETCH_FAIL'];
+      if (vsOverride && allowedStates.includes(vsOverride)) {
+        state = vsOverride;
+        reason = 'OVERRIDE';
+      }
+
+      // force=OK final override (legacy)
+      if (forcedState === 'OK' && state !== 'OK') {
+        state = 'OK';
+        reason = 'FORCED_OK';
+      }
+
+      // Final guard: never return null/undefined state
+      if (!state) {
+        return { state: 'FETCH_FAIL', reason: 'FINALIZE_EMPTY_STATE', reportModel };
+      }
+
+      return { state, reason, reportModel };
+    } catch (_) {
+      // Absolute last-resort safety: finalize must never throw.
+      return { state: 'FETCH_FAIL', reason: 'FINALIZE_THROWN', reportModel: null };
     }
-
-    const reportModel = loadResult && Object.prototype.hasOwnProperty.call(loadResult, 'reportModel')
-      ? loadResult.reportModel
-      : null;
-
-    const requestedLoaded = typeof loadResult?.requestedLoaded === 'boolean'
-      ? loadResult.requestedLoaded
-      : (
-          reportModel != null &&
-          typeof reportModel === 'object' &&
-          Object.keys(reportModel).length > 0 &&
-          reportModel.analysis &&
-          reportModel.analysis.scores &&
-          Object.keys(reportModel.analysis.scores).length > 0
-        );
-
-    const hasParamR = Boolean(rParam);
-    const hasLastV2ForCalc = Boolean(loadResult?.hasLastV2);
-    const isROnly = Boolean(rParam) && !hasId;
-
-    let state = null;
-    let reason = 'DERIVED';
-
-    // r-only + no model => EXPIRED (legacy)
-    if (isROnly && !reportModel) {
-      state = 'EXPIRED';
-      reason = 'R_ONLY_NO_MODEL';
-    } else {
-      state = getShareViewState({ hasParamR, requestedLoaded, hasLastV2: hasLastV2ForCalc });
-    }
-
-    // Dev-only override via vs param (legacy)
-    const allowedStates = ['OK', 'EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
-    if (vsOverride && allowedStates.includes(vsOverride)) {
-      state = vsOverride;
-      reason = 'OVERRIDE';
-    }
-
-    // force=OK final override (legacy)
-    if (forcedState === 'OK' && state !== 'OK') {
-      state = 'OK';
-      reason = 'FORCED_OK';
-    }
-
-    return { state, reason, reportModel };
   }
 
   return { pre, finalize };
