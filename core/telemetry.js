@@ -59,14 +59,105 @@ export function track(eventName, payload = {}) {
   }
 }
 
+export function readStore() {
+  try {
+    if (typeof sessionStorage === 'undefined') return [];
+    const raw = sessionStorage.getItem(KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+export function dumpTelemetry() {
+  return readStore();
+}
+
+function csvEscape(v) {
+  const s = (v === null || typeof v === 'undefined') ? '' : String(v);
+  if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replaceAll('"', '""')}"`;
+  }
+  return s;
+}
+
+export function toCsv(rows) {
+  try {
+    const arr = Array.isArray(rows) ? rows : [];
+    const header = [
+      'ts',
+      'event',
+      'sid',
+      'reportIdHash',
+      'preState',
+      'finalState',
+      'reason',
+      'hasLastV2',
+      'requestedLoaded',
+    ];
+    const lines = [header.join(',')];
+    for (const r of arr) {
+      const o = (r && typeof r === 'object') ? r : {};
+      const line = [
+        o.ts,
+        o.event,
+        o.sid,
+        o.reportIdHash,
+        o.preState,
+        o.finalState,
+        o.reason,
+        o.hasLastV2,
+        o.requestedLoaded,
+      ].map(csvEscape).join(',');
+      lines.push(line);
+    }
+    return lines.join('\n');
+  } catch (_) {
+    return 'ts,event,sid,reportIdHash,preState,finalState,reason,hasLastV2,requestedLoaded\n';
+  }
+}
+
+export function downloadText(filename, text, mime = 'text/plain') {
+  try {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const blob = new Blob([String(text || '')], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || `download-${Date.now()}.txt`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    }, 0);
+  } catch (_) {
+    // never throw
+  }
+}
+
+export function downloadTelemetryJSON() {
+  try {
+    const rows = dumpTelemetry();
+    downloadText(`share-telemetry-${Date.now()}.json`, JSON.stringify(rows, null, 2), 'application/json');
+  } catch (_) {}
+}
+
+export function downloadTelemetryCSV() {
+  try {
+    const rows = dumpTelemetry();
+    downloadText(`share-telemetry-${Date.now()}.csv`, toCsv(rows), 'text/csv');
+  } catch (_) {}
+}
+
 export function summarize() {
   try {
     if (typeof sessionStorage === 'undefined') {
       return { countsByFinalState: {}, countsByPreState: {}, topReasons: [], okRate: 0, total: 0 };
     }
-    const raw = sessionStorage.getItem(KEY);
-    const events = raw ? JSON.parse(raw) : [];
-    const arr = Array.isArray(events) ? events : [];
+    const arr = readStore();
 
     const countsByFinalState = {};
     const countsByPreState = {};

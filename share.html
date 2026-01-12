@@ -1457,11 +1457,41 @@
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
-    import { getSessionId, hashId, track } from './core/telemetry.js';
+    import { getSessionId, hashId, track, downloadTelemetryJSON, downloadTelemetryCSV } from './core/telemetry.js';
 
     const SHARE_UI_COPY = {
       HOME_LABEL: "홈으로 이동"
     };
+
+    // ✅ [Phase 31-2A][debug] telemetry export buttons (debug=1에서만 노출; 기본 UX 영향 금지)
+    (function() {
+      try {
+        const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+        if (!isDebug) return;
+        const homeLink = document.querySelector('.home-link');
+        if (!homeLink) return;
+        const wrap = document.createElement('span');
+        wrap.style.marginLeft = '10px';
+        wrap.style.display = 'inline-flex';
+        wrap.style.gap = '6px';
+
+        const btnJson = document.createElement('button');
+        btnJson.type = 'button';
+        btnJson.className = 'btn btn-secondary';
+        btnJson.textContent = 'Export JSON';
+        btnJson.addEventListener('click', () => { try { downloadTelemetryJSON(); } catch (_) {} });
+
+        const btnCsv = document.createElement('button');
+        btnCsv.type = 'button';
+        btnCsv.className = 'btn btn-secondary';
+        btnCsv.textContent = 'Export CSV';
+        btnCsv.addEventListener('click', () => { try { downloadTelemetryCSV(); } catch (_) {} });
+
+        wrap.appendChild(btnJson);
+        wrap.appendChild(btnCsv);
+        homeLink.insertAdjacentElement('afterend', wrap);
+      } catch (_) {}
+    })();
     
     // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
     (function() {
