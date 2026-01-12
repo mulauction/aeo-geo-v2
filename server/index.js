@@ -13,6 +13,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs/promises');
+const { pathToFileURL } = require('url');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
 const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
@@ -198,6 +199,59 @@ function getBestEffortIp(req) {
   return null;
 }
 
+let __pricingPolicyKrModulePromise = null;
+async function loadPricingPolicyKRModule() {
+  if (__pricingPolicyKrModulePromise) return __pricingPolicyKrModulePromise;
+  const policyPath = path.join(__dirname, '..', 'core', 'ui', 'pricingPolicyKR.js');
+  const policyUrl = pathToFileURL(policyPath).href;
+  __pricingPolicyKrModulePromise = import(policyUrl);
+  return __pricingPolicyKrModulePromise;
+}
+
+function toYearMonthLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function isValidYearMonth(v) {
+  if (!isNonEmptyString(v)) return false;
+  if (!/^\d{4}-\d{2}$/.test(v)) return false;
+  const mm = Number(v.slice(5, 7));
+  return Number.isInteger(mm) && mm >= 1 && mm <= 12;
+}
+
+function parseTimeMs(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const t = Date.parse(value);
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+function getEventTimeMs(event) {
+  if (!isPlainObject(event)) return null;
+
+  // Priority: event.ts / event.at / event.createdAt (ISO or epoch)
+  for (const key of ['ts', 'at', 'createdAt']) {
+    if (Object.prototype.hasOwnProperty.call(event, key)) {
+      const t = parseTimeMs(event[key]);
+      if (typeof t === 'number' && Number.isFinite(t)) return t;
+    }
+  }
+
+  // Fallback: event.id "epoch_ms_..." prefix
+  if (typeof event.id === 'string') {
+    const m = event.id.match(/^(\d{10,})_/);
+    if (m && m[1]) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
 app.post('/api/usage-events', async (req, res) => {
   try {
     const body = req.body;
@@ -264,6 +318,68 @@ app.post('/api/usage-events', async (req, res) => {
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error('[POST /api/usage-events] Error:', error);
+    return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR' });
+  }
+});
+
+// ✅ [Phase 30-7B] Monthly usage summary (read-only, derived from append-only JSONL)
+// - 금지: 차감/차단/경고 로직, 추가 dedupe
+app.get('/api/usage-events/summary', async (req, res) => {
+  try {
+    const monthParam = typeof req.query.month === 'string' ? req.query.month : null;
+    const month = monthParam && monthParam.trim().length > 0 ? monthParam.trim() : toYearMonthLocal(new Date());
+    if (!isValidYearMonth(month)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_MONTH' });
+    }
+
+    // SSOT: pricing policy (KR)
+    const mod = await loadPricingPolicyKRModule();
+    const PRICING_POLICY_KR = mod && mod.PRICING_POLICY_KR;
+    if (!PRICING_POLICY_KR || typeof PRICING_POLICY_KR !== 'object') {
+      return res.status(500).json({ ok: false, error: 'PRICING_SSOT_UNAVAILABLE' });
+    }
+
+    const plan = 'BASIC'; // fixed for now (no user/plan branching here)
+    const limit = PRICING_POLICY_KR?.BASIC?.monthly;
+    if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+      return res.status(500).json({ ok: false, error: 'INVALID_PLAN_LIMIT' });
+    }
+
+    const filePath = path.join(__dirname, 'data', 'usage-events.jsonl');
+
+    let used = 0;
+    try {
+      const txt = await fs.readFile(filePath, 'utf8');
+      const lines = txt.split('\n');
+      for (const line of lines) {
+        const s = (line || '').trim();
+        if (!s) continue;
+        let event = null;
+        try {
+          event = JSON.parse(s);
+        } catch (_) {
+          continue; // skip invalid JSON line
+        }
+        const t = getEventTimeMs(event);
+        if (typeof t !== 'number' || !Number.isFinite(t)) continue;
+        const ym = toYearMonthLocal(new Date(t));
+        if (ym === month) used += 1;
+      }
+    } catch (e) {
+      if (!(e && e.code === 'ENOENT')) throw e; // file missing => used=0
+    }
+
+    const remaining = Math.max(limit - used, 0);
+    return res.status(200).json({
+      ok: true,
+      month,
+      used,
+      limit,
+      remaining,
+      plan
+    });
+  } catch (error) {
+    console.error('[GET /api/usage-events/summary] Error:', error);
     return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR' });
   }
 });

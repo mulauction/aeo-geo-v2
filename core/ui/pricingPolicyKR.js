@@ -5,7 +5,7 @@
 
 export const PRICING_POLICY_KR = {
   FREE: { trial: 10, reset: 'none' },
-  BASIC: { monthly: 100, price: 19900 },
+  BASIC: { monthly: 30, price: 9900 },
   PRO: { monthly: 1000, price: 99000 },
   rules: { noUnlimited: true, noTokenWord: true },
 };
