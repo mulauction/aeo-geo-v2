@@ -289,6 +289,13 @@ function classifyTelemetryPayload(payload, exportSchema) {
     if (looksLikeSingleEvent) {
       reasons.push("looks_like_single_event");
       reasons.push(isPlainObject(payload.payload) ? "event_wrapped_in_payload" : "event_at_root");
+      try {
+        if (candidate && candidate.type === "export") reasons.push("type_export_event");
+        if (candidate && typeof candidate.finalState === "string" && safeStr(candidate.finalState).trim()) reasons.push("has_finalState");
+        if (candidate && isPlainObject(candidate.reliability)) reasons.push("has_reliability");
+      } catch (_) {
+        // ignore
+      }
       normalized.telemetryExport.meta.generatedAt = safeIso(
         pickFirst(candidate, ["time", "ts", "createdAt", "created_at", "timestamp"]) || outerReceivedAt
       );
@@ -399,13 +406,25 @@ function interpret(rawRecord) {
 
     // Best-effort minimal metadata for debugging / aggregation scaffolding
     try {
+      const teN = (classified.normalized && classified.normalized.telemetryExport) ? classified.normalized.telemetryExport : null;
+      const eventsCountSSOT = teN && Number.isFinite(Number(teN.eventsCount)) ? Number(teN.eventsCount) : 0;
+      const hasEventsSSOT = teN ? Boolean(teN.hasEvents) : false;
       out.meta = {
         exportSchemaVersion: exportSchema,
         exportGeneratedAt: safeStr(classified.normalized && classified.normalized.telemetryExport && classified.normalized.telemetryExport.meta && classified.normalized.telemetryExport.meta.generatedAt).trim() || "",
-        eventsCount: (classified.normalized && classified.normalized.telemetryExport && Number.isFinite(classified.normalized.telemetryExport.eventsCount))
-          ? classified.normalized.telemetryExport.eventsCount
-          : (Array.isArray(telemetryExport.events) ? telemetryExport.events.length : 0),
+        // SSOT: always match normalized.telemetryExport.*
+        eventsCount: eventsCountSSOT,
+        hasEvents: hasEventsSSOT,
       };
+    } catch (_) {
+      // ignore
+    }
+
+    // Ensure meta SSOT fields are never missing (even if the block above failed)
+    try {
+      if (!out.meta || typeof out.meta !== "object") out.meta = { exportSchemaVersion: exportSchema, exportGeneratedAt: "" };
+      if (typeof out.meta.eventsCount !== "number") out.meta.eventsCount = 0;
+      if (typeof out.meta.hasEvents !== "boolean") out.meta.hasEvents = false;
     } catch (_) {
       // ignore
     }
@@ -435,7 +454,7 @@ function interpret(rawRecord) {
           sampleEventKeys: [],
         },
       },
-      meta: { exportSchemaVersion: "", exportGeneratedAt: "", eventsCount: 0 },
+      meta: { exportSchemaVersion: "", exportGeneratedAt: "", eventsCount: 0, hasEvents: false },
     };
   }
 }
