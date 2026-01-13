@@ -8,3 +8,13 @@ server/data/snapshots/*.json
 # usage events (dev log)
 server/data/usage-events.jsonl
 data/snapshots/
+
+# --- telemetry raw logs (never commit) ---
+server/data/telemetry/raw/*.jsonl
+server/data/telemetry/raw/*.ndjson
+server/data/telemetry/raw/*.log
+
+# --- general runtime logs ---
+*.log
+*.jsonl
+*.ndjson
