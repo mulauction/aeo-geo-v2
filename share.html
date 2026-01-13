@@ -1508,13 +1508,15 @@
         const btnJson = document.createElement('button');
         btnJson.type = 'button';
         btnJson.className = 'btn btn-secondary';
-        btnJson.textContent = 'Export JSON';
+        
+        btnJson.setAttribute('data-requires','OK');
         btnJson.addEventListener('click', () => { try { downloadTelemetryJSON(); } catch (_) {} });
 
         const btnCsv = document.createElement('button');
         btnCsv.type = 'button';
         btnCsv.className = 'btn btn-secondary';
-        btnCsv.textContent = 'Export CSV';
+        
+        btnCsv.setAttribute('data-requires','OK');
         btnCsv.addEventListener('click', () => { try { downloadTelemetryCSV(); } catch (_) {} });
 
         wrap.appendChild(btnJson);
@@ -3324,6 +3326,8 @@
           const shareContentEl = document.getElementById('shareContent');
           // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
           shareContentEl.innerHTML = scoreExplainerBlock + shareCtaSlotHtml;
+
+        try { if (window.__applyCtaPolicyV1) window.__applyCtaPolicyV1(viewState); } catch (_) {}
           updateShareCtaSlot(viewState);
           
           
@@ -3457,7 +3461,7 @@
                   <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}</div>
                   <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
                 </div>
-                <button type="button" class="btn btn-primary" data-recent-open="${esc(url)}" style="padding: 8px 12px; font-size: 13px;">열기</button>
+                <button type="button" class="btn btn-primary" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;">열기</button>
               </div>
             `;
           }).join('');
@@ -4466,3 +4470,23 @@
 </body>
 </html>
 
+
+<!-- [phase44-a] CTA gating by viewState (UI-only, fail-quiet) -->
+<script>
+(function(){
+  try {
+    window.__applyCtaPolicyV1 = function(viewState){
+      try {
+        var state = String(viewState || '').trim();
+        var els = document.querySelectorAll('[data-requires]');
+        els.forEach(function(el){
+          var req = String(el.getAttribute('data-requires') || '').trim();
+          if (!req) return;
+          var allowed = req.split('|').map(function(s){ return s.trim(); }).filter(Boolean);
+          if (allowed.indexOf(state) === -1) el.style.display = 'none';
+        });
+      } catch (_) {}
+    };
+  } catch (_) {}
+})();
+</script>
