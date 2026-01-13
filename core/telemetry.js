@@ -1,4 +1,5 @@
 import { buildTelemetryExportCsvV1, buildTelemetryExportV1 } from './telemetryExport.js';
+import { sendTelemetryToIngestOnce } from "./telemetryIngestClient.js";
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -176,6 +177,7 @@ export function downloadTelemetryJSON() {
     const environment = (typeof location !== 'undefined' && location.hostname) ? String(location.hostname) : '';
     const sid = getSessionId();
     const payload = buildTelemetryExportV1(events, { url, reportId, finalState, environment, sid });
+    sendTelemetryToIngestOnce({ source: "export-json", payload });
     downloadText(
       `share-telemetry-${Date.now()}.json`,
       JSON.stringify(payload, null, 2),
