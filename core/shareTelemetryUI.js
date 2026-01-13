@@ -187,6 +187,77 @@ function fmtPctFromRatio(num, den) {
   }
 }
 
+function safeNumber(value) {
+  try {
+    const n = (typeof value === 'number') ? value : Number(value);
+    return Number.isFinite(n) ? n : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getSummaryNums(summary) {
+  try {
+    const s = (summary && typeof summary === 'object') ? summary : null;
+    const meta = (s && s.meta && typeof s.meta === 'object') ? s.meta : null;
+    return {
+      totalEventsN: safeNumber((s && Object.prototype.hasOwnProperty.call(s, 'totalEvents')) ? s.totalEvents : (meta ? meta.totalEvents : null)),
+      exportRecordsSeenN: safeNumber((meta && Object.prototype.hasOwnProperty.call(meta, 'exportRecordsSeen')) ? meta.exportRecordsSeen : (s ? s.exportRecordsSeen : null)),
+      linesSeenN: safeNumber((meta && Object.prototype.hasOwnProperty.call(meta, 'linesSeen')) ? meta.linesSeen : (s ? s.linesSeen : null)),
+    };
+  } catch (_) {
+    return { totalEventsN: null, exportRecordsSeenN: null, linesSeenN: null };
+  }
+}
+
+function computeTelemetryLocalState(summary) {
+  try {
+    if (!summary || typeof summary !== 'object') {
+      return {
+        state: 'UNAVAILABLE',
+        totalEventsN: null,
+        exportRecordsSeenN: null,
+        linesSeenN: null,
+        hasAnyRawRecords: false,
+      };
+    }
+
+    const meta = (summary.meta && typeof summary.meta === 'object') ? summary.meta : null;
+    const hasAnyRawRecords = (meta && meta.hasAnyRawRecords === true) || summary.hasAnyRawRecords === true;
+
+    const { totalEventsN, exportRecordsSeenN, linesSeenN } = getSummaryNums(summary);
+    const hasTotal = totalEventsN !== null;
+    const hasExport = exportRecordsSeenN !== null;
+
+    // OK:
+    // - if summary.totalEvents > 0 => OK
+    // - OR if meta.exportRecordsSeen > 0 => OK
+    if ((hasTotal && totalEventsN > 0) || (hasExport && exportRecordsSeenN > 0)) {
+      return { state: 'OK', totalEventsN, exportRecordsSeenN, linesSeenN, hasAnyRawRecords };
+    }
+
+    // EMPTY:
+    // - fetch+parse success (summary exists)
+    // - AND (hasAnyRawRecords === true OR linesSeen > 0)
+    // - AND totalEvents === 0 AND exportRecordsSeen === 0 (both numerically known)
+    const hasLinesSeen = (linesSeenN !== null && linesSeenN > 0);
+    if ((hasAnyRawRecords || hasLinesSeen) && hasTotal && hasExport && totalEventsN === 0 && exportRecordsSeenN === 0) {
+      return { state: 'EMPTY', totalEventsN, exportRecordsSeenN, linesSeenN, hasAnyRawRecords };
+    }
+
+    // Otherwise, cannot decide safely => UNAVAILABLE
+    return { state: 'UNAVAILABLE', totalEventsN, exportRecordsSeenN, linesSeenN, hasAnyRawRecords };
+  } catch (_) {
+    return {
+      state: 'UNAVAILABLE',
+      totalEventsN: null,
+      exportRecordsSeenN: null,
+      linesSeenN: null,
+      hasAnyRawRecords: false,
+    };
+  }
+}
+
 function renderLocalTelemetrySection(container, summary) {
   try {
     if (!container) return;
@@ -196,48 +267,22 @@ function renderLocalTelemetrySection(container, summary) {
     const meta = (s && s.meta && typeof s.meta === 'object') ? s.meta : null;
 
     const genAt = meta ? safeStr(meta.generatedAt) : '';
-    const exportRecordsSeenNum = meta ? Number(meta.exportRecordsSeen) : NaN;
-    const linesParsedNum = meta ? Number(meta.linesParsed) : NaN;
+    const stateInfo = computeTelemetryLocalState(s);
+    const exportRecordsSeenN = stateInfo.exportRecordsSeenN;
+    const totalEventsN = stateInfo.totalEventsN;
+    const linesSeenN = stateInfo.linesSeenN;
     const reasonCoverage = meta ? safeStr(meta.reasonCoverage) : '';
 
     const countsByFinalState = s ? s.countsByFinalState : null;
-    const totalFromCounts = s ? sumCounts(countsByFinalState) : NaN;
-    const totalEventsNum = s ? Number(s.totalEvents) : NaN;
-    const total = s
-      ? (Number.isFinite(totalEventsNum)
-        ? totalEventsNum
-        : (Number.isFinite(exportRecordsSeenNum) ? exportRecordsSeenNum : totalFromCounts))
-      : NaN;
+    const totalForRate = (totalEventsN !== null) ? totalEventsN : exportRecordsSeenN;
     const okCount = (s && countsByFinalState && typeof countsByFinalState === 'object')
       ? Number(countsByFinalState.OK)
       : NaN;
-    const okRate = (s && Number.isFinite(okCount) && Number.isFinite(total) && total > 0)
-      ? fmtPctFromRatio(okCount, total)
+    const okRate = (s && Number.isFinite(okCount) && typeof totalForRate === 'number' && totalForRate > 0)
+      ? fmtPctFromRatio(okCount, totalForRate)
       : '';
 
-    const hasAnyRawRecords = (() => {
-      try {
-        if (!s || !meta) return null;
-        if (typeof meta.hasAnyRawRecords === 'boolean') return meta.hasAnyRawRecords;
-        if (Number.isFinite(linesParsedNum)) return linesParsedNum > 0;
-        return null;
-      } catch (_) {
-        return null;
-      }
-    })();
-
-    const status = (() => {
-      try {
-        if (!s) return 'UNAVAILABLE';
-        if (hasAnyRawRecords === true) return 'OK';
-        if (hasAnyRawRecords === false) return 'EMPTY';
-        // best-effort fallback when meta is missing
-        if (Number.isFinite(total) && total > 0) return 'OK';
-        return 'EMPTY';
-      } catch (_) {
-        return 'UNAVAILABLE';
-      }
-    })();
+    const status = safeStr(stateInfo.state).trim() || 'UNAVAILABLE';
 
     const badge = (() => {
       try {
@@ -270,7 +315,8 @@ function renderLocalTelemetrySection(container, summary) {
       : `<div style="margin-top:6px; font-size: 12px; color:#64748b;">(no reasons)</div>`;
 
     const summaryBits = s ? [
-      (Number.isFinite(total) ? `total ${safeStr(total)}` : ''),
+      (totalEventsN !== null ? `totalEvents ${safeStr(totalEventsN)}` : ''),
+      (exportRecordsSeenN !== null ? `exportRecordsSeen ${safeStr(exportRecordsSeenN)}` : ''),
       (okRate ? `ok ${safeStr(okRate)}` : ''),
       (genAt ? `generatedAt ${safeStr(genAt)}` : ''),
     ].filter(Boolean) : [];
@@ -285,10 +331,10 @@ function renderLocalTelemetrySection(container, summary) {
           ${s ? `
             <div style="margin-top: 10px; font-size: 12px; color:#0f172a; line-height: 1.55;">
               <div><span style="color:#64748b;">generatedAt</span>: <strong>${safeStr(genAt)}</strong></div>
-              ${Number.isFinite(total) ? `<div><span style="color:#64748b;">total</span>: <strong>${safeStr(total)}</strong></div>` : ``}
+              <div><span style="color:#64748b;">totalEvents</span>: <strong>${totalEventsN !== null ? safeStr(totalEventsN) : '—'}</strong></div>
               ${okRate ? `<div><span style="color:#64748b;">okRate</span>: <strong>${safeStr(okRate)}</strong></div>` : ``}
-              ${Number.isFinite(linesParsedNum) ? `<div><span style="color:#64748b;">linesParsed</span>: <strong>${safeStr(linesParsedNum)}</strong></div>` : ``}
-              ${Number.isFinite(exportRecordsSeenNum) ? `<div><span style="color:#64748b;">exportRecordsSeen</span>: <strong>${safeStr(exportRecordsSeenNum)}</strong></div>` : ``}
+              <div><span style="color:#64748b;">exportRecordsSeen</span>: <strong>${exportRecordsSeenN !== null ? safeStr(exportRecordsSeenN) : '—'}</strong></div>
+              <div><span style="color:#64748b;">linesSeen</span>: <strong>${linesSeenN !== null ? safeStr(linesSeenN) : '—'}</strong></div>
               ${reasonCoverage ? `<div><span style="color:#64748b;">reasonCoverage</span>: <strong>${safeStr(reasonCoverage)}</strong></div>` : ``}
             </div>
             <div style="margin-top: 10px;">
