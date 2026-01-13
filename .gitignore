@@ -13,6 +13,7 @@ data/snapshots/
 server/data/telemetry/raw/*.jsonl
 server/data/telemetry/raw/*.ndjson
 server/data/telemetry/raw/*.log
+server/data/telemetry/raw/sample-export.jsonl
 
 # --- telemetry rollups (derived; never commit) ---
 server/data/telemetry/summary/*.json
