@@ -258,6 +258,22 @@ function computeTelemetryLocalState(summary) {
   }
 }
 
+function selectTelemetryLocalHelperCopy(state) {
+  try {
+    switch (safeStr(state).trim()) {
+      case 'OK':
+        return 'Telemetry 이벤트가 감지되었습니다.';
+      case 'EMPTY':
+        return '원본 데이터는 있으나 이벤트가 0건입니다.';
+      case 'UNAVAILABLE':
+      default:
+        return '현재 환경에서는 Telemetry를 확인할 수 없습니다.';
+    }
+  } catch (_) {
+    return '현재 환경에서는 Telemetry를 확인할 수 없습니다.';
+  }
+}
+
 function renderLocalTelemetrySection(container, summary) {
   try {
     if (!container) return;
@@ -283,6 +299,7 @@ function renderLocalTelemetrySection(container, summary) {
       : '';
 
     const status = safeStr(stateInfo.state).trim() || 'UNAVAILABLE';
+    const helperCopy = selectTelemetryLocalHelperCopy(status);
 
     const badge = (() => {
       try {
@@ -327,6 +344,7 @@ function renderLocalTelemetrySection(container, summary) {
         <details>
           <summary style="cursor:pointer; font-size: 13px; font-weight: 700; color: #0f172a;">
             Telemetry (local)${badge} <span style="font-size: 11px; font-weight: 500; color:#64748b;">— ${safeStr(summaryLine)}</span>
+            <div style="margin-top:4px; font-size: 12px; font-weight: 500; color:#64748b;">${safeStr(helperCopy)}</div>
           </summary>
           ${s ? `
             <div style="margin-top: 10px; font-size: 12px; color:#0f172a; line-height: 1.55;">
