@@ -429,6 +429,24 @@ function interpret(rawRecord) {
       // ignore
     }
 
+    // Ensure exportSchemaVersion is never empty (policy: kind default if hint missing)
+    try {
+      const current = safeStr(out.meta && out.meta.exportSchemaVersion).trim();
+      if (!current) {
+        const kind = safeStr(out.kind).trim();
+        const fallback = kind === "telemetry_export_v1"
+          ? "telemetry-export/v1"
+          : (kind === "telemetry_event_v1"
+            ? "telemetry-event/v1"
+            : (kind === "legacy_export"
+              ? "telemetry-legacy-export/v1"
+              : "unknown"));
+        out.meta.exportSchemaVersion = fallback;
+      }
+    } catch (_) {
+      // ignore
+    }
+
     return out;
   } catch (_) {
     return {
@@ -454,7 +472,7 @@ function interpret(rawRecord) {
           sampleEventKeys: [],
         },
       },
-      meta: { exportSchemaVersion: "", exportGeneratedAt: "", eventsCount: 0, hasEvents: false },
+      meta: { exportSchemaVersion: "unknown", exportGeneratedAt: "", eventsCount: 0, hasEvents: false },
     };
   }
 }

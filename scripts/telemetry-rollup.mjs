@@ -211,7 +211,7 @@ async function main() {
       exportRecordsSeen,
       // legacy meta (kept as alias)
       recordsWithExportEvents: exportRecordsSeen,
-      recordsWithExportEventsDeprecated: true,
+      recordsWithExportEventsDeprecated: false,
       exportRecordRule: "type|event|kind==='export' OR name includes 'export' OR tags includes 'export'",
       reasonCountTotal,
       reasonCoverage,
