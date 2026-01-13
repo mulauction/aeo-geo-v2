@@ -1458,7 +1458,7 @@
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
     import { getSessionId, hashId, track, downloadTelemetryJSON, downloadTelemetryCSV } from './core/telemetry.js';
-    import { renderTelemetrySummaryCard } from './core/shareTelemetryUI.js';
+    import { renderTelemetrySummaryCard, renderTelemetryLocalSummary } from './core/shareTelemetryUI.js';
 
     const SHARE_UI_COPY = {
       HOME_LABEL: "홈으로 이동"
@@ -3759,6 +3759,16 @@
               app.appendChild(mount);
               renderTelemetrySummaryCard({ container: mount, meta });
             }
+
+            // ✅ [Phase 35-0][UI-only] Telemetry (local) summary (read-only; best-effort)
+            try {
+              const mountLocal = document.createElement('div');
+              mountLocal.id = 'telemetryLocalSummary';
+              if (app) {
+                app.appendChild(mountLocal);
+                renderTelemetryLocalSummary({ container: mountLocal });
+              }
+            } catch (_) {}
           }
         } catch (_) {}
         

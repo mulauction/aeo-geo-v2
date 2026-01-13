@@ -73,3 +73,134 @@ export function renderTelemetrySummaryCard({ container, meta } = {}) {
 }
 
 
+async function fetchTelemetrySummaryLatest() {
+  try {
+    if (typeof fetch !== 'function') return null;
+    const candidates = [
+      'server/data/telemetry/summary/latest.json',
+      './server/data/telemetry/summary/latest.json',
+    ];
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res || !res.ok) continue;
+        const data = await res.json();
+        return (data && typeof data === 'object') ? data : null;
+      } catch (_) {
+        // try next
+      }
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function safeStr(v) {
+  try { return (v === null || typeof v === 'undefined') ? '' : String(v); } catch (_) { return ''; }
+}
+
+function pickTopCounts(obj, n = 3) {
+  try {
+    if (!obj || typeof obj !== 'object') return [];
+    const entries = Object.entries(obj)
+      .map(([k, v]) => ({ key: safeStr(k), count: Number(v) }))
+      .filter((x) => x.key && Number.isFinite(x.count) && x.count > 0)
+      .sort((a, b) => (b.count - a.count));
+    return entries.slice(0, n);
+  } catch (_) {
+    return [];
+  }
+}
+
+function pickTopReasons(arr, n = 3) {
+  try {
+    if (!Array.isArray(arr)) return [];
+    const rows = arr
+      .map((r) => ({
+        reason: safeStr(r && r.reason).trim(),
+        count: Number(r && r.count),
+      }))
+      .filter((x) => x.reason && Number.isFinite(x.count) && x.count > 0)
+      .sort((a, b) => (b.count - a.count));
+    return rows.slice(0, n);
+  } catch (_) {
+    return [];
+  }
+}
+
+function renderLocalTelemetrySection(container, summary) {
+  try {
+    if (!container) return;
+    container.innerHTML = '';
+
+    const s = (summary && typeof summary === 'object') ? summary : null;
+    const meta = (s && s.meta && typeof s.meta === 'object') ? s.meta : null;
+
+    const genAt = meta ? safeStr(meta.generatedAt) : '';
+    const mode = meta ? safeStr(meta.mode) : '';
+    const sourceFile = meta ? safeStr(meta.sourceFile) : '';
+    const sourcePath = meta ? safeStr(meta.sourcePath) : '';
+    const exportRecordsSeen = meta ? safeStr(meta.exportRecordsSeen) : '';
+    const reasonCoverage = meta ? safeStr(meta.reasonCoverage) : '';
+
+    const topStates = pickTopCounts(s ? s.countsByFinalState : null, 3);
+    const topReasons = pickTopReasons(s ? s.topReasons : null, 3);
+
+    const statesHtml = topStates.length > 0
+      ? `<ul style="margin: 6px 0 0 16px; padding: 0; font-size: 12px; color:#0f172a;">
+          ${topStates.map((x) => `<li>${safeStr(x.key)}: <strong>${safeStr(x.count)}</strong></li>`).join('')}
+        </ul>`
+      : `<div style="margin-top:6px; font-size: 12px; color:#64748b;">(no states)</div>`;
+
+    const reasonsHtml = topReasons.length > 0
+      ? `<ul style="margin: 6px 0 0 16px; padding: 0; font-size: 12px; color:#0f172a;">
+          ${topReasons.map((x) => `<li>${safeStr(x.reason)}: <strong>${safeStr(x.count)}</strong></li>`).join('')}
+        </ul>`
+      : `<div style="margin-top:6px; font-size: 12px; color:#64748b;">(no reasons)</div>`;
+
+    container.innerHTML = `
+      <section role="note" aria-label="Telemetry (local)" style="margin: 16px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
+        <details>
+          <summary style="cursor:pointer; font-size: 13px; font-weight: 700; color: #0f172a;">Telemetry (local)</summary>
+          ${s ? `
+            <div style="margin-top: 10px; font-size: 12px; color:#0f172a; line-height: 1.55;">
+              <div><span style="color:#64748b;">generatedAt</span>: <strong>${safeStr(genAt)}</strong></div>
+              ${mode ? `<div><span style="color:#64748b;">mode</span>: <strong>${safeStr(mode)}</strong></div>` : ``}
+              <div><span style="color:#64748b;">sourceFile</span>: <strong>${safeStr(sourceFile)}</strong></div>
+              <div><span style="color:#64748b;">sourcePath</span>: <strong>${safeStr(sourcePath)}</strong></div>
+              <div><span style="color:#64748b;">exportRecordsSeen</span>: <strong>${safeStr(exportRecordsSeen)}</strong></div>
+              <div><span style="color:#64748b;">reasonCoverage</span>: <strong>${safeStr(reasonCoverage)}</strong></div>
+            </div>
+            <div style="margin-top: 10px;">
+              <div style="font-size: 12px; font-weight: 700; color:#0f172a;">countsByFinalState (top 3)</div>
+              ${statesHtml}
+            </div>
+            <div style="margin-top: 10px;">
+              <div style="font-size: 12px; font-weight: 700; color:#0f172a;">topReasons (top 3)</div>
+              ${reasonsHtml}
+            </div>
+          ` : `
+            <div style="margin-top: 10px; font-size: 12px; color:#64748b;">
+              No local telemetry summary found.
+            </div>
+          `}
+        </details>
+      </section>
+    `;
+  } catch (_) {
+    // never throw
+  }
+}
+
+export async function renderTelemetryLocalSummary({ container } = {}) {
+  try {
+    if (!container) return;
+    const summary = await fetchTelemetrySummaryLatest();
+    renderLocalTelemetrySection(container, summary);
+  } catch (_) {
+    // never throw
+  }
+}
+
+
