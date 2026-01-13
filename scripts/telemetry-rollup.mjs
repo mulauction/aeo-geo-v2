@@ -15,6 +15,35 @@ function safeStr(v) {
   }
 }
 
+/**
+ * Rollup 대상(=export 레코드) 판정 기준 (Phase 34-2)
+ * Conservative rule: record-level signal only.
+ *
+ * - record.type === 'export' OR record.event === 'export' OR record.kind === 'export'
+ * - OR record.name includes 'export' (case-insensitive)
+ * - OR record.tags[] includes 'export'
+ */
+function isExportEvent(record) {
+  try {
+    if (!isPlainObject(record)) return false;
+    const eqExport = (v) => safeStr(v).trim().toLowerCase() === "export";
+
+    if (eqExport(record.type) || eqExport(record.event) || eqExport(record.kind)) return true;
+
+    const name = safeStr(record.name).toLowerCase();
+    if (name.includes("export")) return true;
+
+    if (Array.isArray(record.tags)) {
+      for (const t of record.tags) {
+        if (safeStr(t).trim().toLowerCase() === "export") return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function pickFirstState(evt) {
   try {
     if (!isPlainObject(evt)) return "UNKNOWN";
@@ -98,6 +127,7 @@ async function main() {
   let linesSeen = 0;
   let linesParsed = 0;
   let recordsWithExportEvents = 0;
+  let exportRecordsSeen = 0;
 
   for (const line of lines) {
     const s = safeStr(line).trim();
@@ -116,11 +146,28 @@ async function main() {
     const payload = Object.prototype.hasOwnProperty.call(rec, "payload") ? rec.payload : null;
     if (!isPlainObject(payload)) continue;
 
-    const events = Array.isArray(payload.events) ? payload.events : [];
-    if (events.length > 0) recordsWithExportEvents += 1;
+    // Candidate records extraction (best-effort):
+    // - payload.events[] (direct export payload)
+    // - payload.payload.events[] (wrapper: { source, payload: exportPayload })
+    // - payload itself (single record)
+    const directEvents = Array.isArray(payload.events) ? payload.events : null;
+    const wrapped = isPlainObject(payload.payload) ? payload.payload : null;
+    const wrappedEvents = wrapped && Array.isArray(wrapped.events) ? wrapped.events : null;
 
-    for (const evt of events) {
+    const candidates = Array.isArray(directEvents)
+      ? directEvents
+      : (Array.isArray(wrappedEvents) ? wrappedEvents : [payload]);
+
+    if (Array.isArray(directEvents) || Array.isArray(wrappedEvents)) {
+      const arr = Array.isArray(directEvents) ? directEvents : wrappedEvents;
+      if (Array.isArray(arr) && arr.length > 0) recordsWithExportEvents += 1;
+    }
+
+    for (const evt of candidates) {
       if (!isPlainObject(evt)) continue;
+      if (!isExportEvent(evt)) continue;
+
+      exportRecordsSeen += 1;
       totalEvents += 1;
 
       const st = pickFirstState(evt);
@@ -128,6 +175,8 @@ async function main() {
 
       const reasons = extractReasons(evt);
       for (const r of reasons) {
+        // "NO_REASON" is only meaningful when we have export records at all.
+        // (This loop only runs for export records, so it naturally satisfies that condition.)
         reasonCounts[r] = (reasonCounts[r] || 0) + 1;
       }
     }
@@ -145,7 +194,13 @@ async function main() {
       sourcePath: path.relative(root, rawFile),
       linesSeen,
       linesParsed,
+      // "data 없음" vs "집계 0" 구분용
+      hasAnyRawRecords: linesParsed > 0,
+      hasAnyExportRecords: exportRecordsSeen > 0,
+      exportRecordsSeen,
+      // legacy meta (kept)
       recordsWithExportEvents,
+      exportRecordRule: "type|event|kind==='export' OR name includes 'export' OR tags includes 'export'",
     },
     countsByFinalState,
     topReasons,
