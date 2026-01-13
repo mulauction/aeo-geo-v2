@@ -1,6 +1,7 @@
 // core/shareTelemetryUI.js
 // UI-only renderer for Share telemetry debug card.
 // Hard rules:
+// - dev-only + debug-only: never render or fetch outside shouldRenderTelemetryLocal()
 // - Read-only rendering
 // - No telemetry mutation / no storage mutation (local summary fetch is best-effort)
 // - Never throw
@@ -38,16 +39,9 @@ function shouldRenderTelemetryLocal() {
 
 async function fetchTelemetrySummaryLatest() {
   try {
+    // dev-only safety: never fetch unless explicitly enabled
+    if (!shouldRenderTelemetryLocal()) return null;
     if (typeof fetch !== 'function') return null;
-
-    const isStatic5502 = (() => {
-      try {
-        if (typeof location === 'undefined') return false;
-        return location.hostname === 'localhost' && /^(5502)$/.test(location.port || '');
-      } catch (_) {
-        return false;
-      }
-    })();
 
     async function tryFetch(url) {
       try {
@@ -60,14 +54,8 @@ async function fetchTelemetrySummaryLatest() {
       }
     }
 
-    // 1) Static dev server (5502): prefer dev API server (3001)
-    if (isStatic5502) {
-      const d = await tryFetch('http://localhost:3001/api/telemetry/summary/latest');
-      if (d) return d;
-    }
-
-    // 2) Same-origin endpoint fallback
-    return await tryFetch('/api/telemetry/summary/latest');
+    // Policy fixed (Phase 36-3): dev-only endpoint (no same-origin fallback)
+    return await tryFetch('http://localhost:3001/api/telemetry/summary/latest');
   } catch (_) {
     return null;
   }
@@ -227,6 +215,45 @@ function renderLocalTelemetrySection(container, summary) {
       ? fmtPctFromRatio(okCount, total)
       : '';
 
+    const hasAnyRawRecords = (() => {
+      try {
+        if (!s || !meta) return null;
+        if (typeof meta.hasAnyRawRecords === 'boolean') return meta.hasAnyRawRecords;
+        if (Number.isFinite(linesParsedNum)) return linesParsedNum > 0;
+        return null;
+      } catch (_) {
+        return null;
+      }
+    })();
+
+    const status = (() => {
+      try {
+        if (!s) return 'UNAVAILABLE';
+        if (hasAnyRawRecords === true) return 'OK';
+        if (hasAnyRawRecords === false) return 'EMPTY';
+        // best-effort fallback when meta is missing
+        if (Number.isFinite(total) && total > 0) return 'OK';
+        return 'EMPTY';
+      } catch (_) {
+        return 'UNAVAILABLE';
+      }
+    })();
+
+    const badge = (() => {
+      try {
+        const label = status;
+        const styleByStatus = {
+          OK: 'background:#dcfce7;color:#166534;border:1px solid #86efac;',
+          EMPTY: 'background:#ffedd5;color:#9a3412;border:1px solid #fdba74;',
+          UNAVAILABLE: 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;',
+        };
+        const style = styleByStatus[label] || styleByStatus.UNAVAILABLE;
+        return `<span data-testid="telemetry-local-status" style="display:inline-block; margin-left:8px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.02em; ${style}">${safeStr(label)}</span>`;
+      } catch (_) {
+        return '';
+      }
+    })();
+
     const topStates = pickTopCounts(countsByFinalState, 8);
     const topReasons = pickTopReasons(s ? s.topReasons : null, 5);
 
@@ -253,7 +280,7 @@ function renderLocalTelemetrySection(container, summary) {
       <section id="telemetry-local" data-testid="telemetry-local" class="telemetry-local" role="note" aria-label="Telemetry (local)" style="margin: 16px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
         <details>
           <summary style="cursor:pointer; font-size: 13px; font-weight: 700; color: #0f172a;">
-            Telemetry (local) <span style="font-size: 11px; font-weight: 500; color:#64748b;">— ${safeStr(summaryLine)}</span>
+            Telemetry (local)${badge} <span style="font-size: 11px; font-weight: 500; color:#64748b;">— ${safeStr(summaryLine)}</span>
           </summary>
           ${s ? `
             <div style="margin-top: 10px; font-size: 12px; color:#0f172a; line-height: 1.55;">
