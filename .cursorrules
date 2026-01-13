@@ -1,0 +1,24 @@
+
+# AEO/GEO v2 — Cursor Rules (Telemetry safe mode)
+
+You are Cursor AI acting as IMPLEMENTER.
+Follow these rules strictly. If conflict or risk: STOP and ask.
+
+ABSOLUTE BASELINE GUARDS (DO NOT TOUCH):
+- POST /api/telemetry/ingest behavior: always 204
+- raw append-only format: JSON.stringify(record) + "\n"
+- raw path rule: server/data/telemetry/raw/YYYY-MM-DD.jsonl
+- record shape: receivedAt / source / request / payload
+
+WORK CONTRACT:
+- All tasks must follow docs/WORK_CONTRACT.md.
+- Default: max 1–2 files per task, minimal diff.
+- Must run terminal tests required by the contract before saying “done”.
+
+STOP CONDITIONS:
+- Need to edit ingest route or raw write logic
+- Need to touch files outside allowed list
+- Any ambiguity or failing tests requiring scope expansion
+
+
+
