@@ -187,6 +187,17 @@ async function main() {
     .slice(0, 10)
     .map(([reason, count]) => ({ reason, count }));
 
+  const reasonCountTotal = Object.values(reasonCounts).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  let reasonCoverage = "OK";
+  const warnings = [];
+  if (exportRecordsSeen > 0 && reasonCountTotal === 0) {
+    reasonCoverage = "NONE";
+    warnings.push("NO_REASONS_FOUND");
+  } else if (exportRecordsSeen > 0 && reasonCountTotal > 0 && reasonCountTotal < exportRecordsSeen) {
+    reasonCoverage = "PARTIAL";
+    warnings.push("REASONS_PARTIAL_COVERAGE");
+  }
+
   const out = {
     meta: {
       generatedAt: new Date().toISOString(),
@@ -198,9 +209,13 @@ async function main() {
       hasAnyRawRecords: linesParsed > 0,
       hasAnyExportRecords: exportRecordsSeen > 0,
       exportRecordsSeen,
-      // legacy meta (kept)
-      recordsWithExportEvents,
+      // legacy meta (kept as alias)
+      recordsWithExportEvents: exportRecordsSeen,
+      recordsWithExportEventsDeprecated: true,
       exportRecordRule: "type|event|kind==='export' OR name includes 'export' OR tags includes 'export'",
+      reasonCountTotal,
+      reasonCoverage,
+      warnings,
     },
     countsByFinalState,
     topReasons,
