@@ -2,8 +2,45 @@
 // UI-only renderer for Share telemetry debug card.
 // Hard rules:
 // - Read-only rendering
-// - No telemetry mutation / no storage / no network
+// - No telemetry mutation / no storage mutation (local summary fetch is best-effort)
 // - Never throw
+
+async function fetchTelemetrySummaryLatest() {
+  try {
+    if (typeof fetch !== 'function') return null;
+
+    const isStatic5502 = (() => {
+      try {
+        if (typeof location === 'undefined') return false;
+        return location.hostname === 'localhost' && /^(5502)$/.test(location.port || '');
+      } catch (_) {
+        return false;
+      }
+    })();
+
+    async function tryFetch(url) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res || !res.ok) return null;
+        const data = await res.json();
+        return (data && typeof data === 'object') ? data : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // 1) Static dev server (5502): prefer dev API server (3001)
+    if (isStatic5502) {
+      const d = await tryFetch('http://localhost:3001/api/telemetry/summary/latest');
+      if (d) return d;
+    }
+
+    // 2) Same-origin endpoint fallback
+    return await tryFetch('/api/telemetry/summary/latest');
+  } catch (_) {
+    return null;
+  }
+}
 
 export function renderTelemetrySummaryCard({ container, meta } = {}) {
   try {
@@ -73,29 +110,6 @@ export function renderTelemetrySummaryCard({ container, meta } = {}) {
 }
 
 
-async function fetchTelemetrySummaryLatest() {
-  try {
-    if (typeof fetch !== 'function') return null;
-    const candidates = [
-      'server/data/telemetry/summary/latest.json',
-      './server/data/telemetry/summary/latest.json',
-    ];
-    for (const url of candidates) {
-      try {
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res || !res.ok) continue;
-        const data = await res.json();
-        return (data && typeof data === 'object') ? data : null;
-      } catch (_) {
-        // try next
-      }
-    }
-    return null;
-  } catch (_) {
-    return null;
-  }
-}
-
 function safeStr(v) {
   try { return (v === null || typeof v === 'undefined') ? '' : String(v); } catch (_) { return ''; }
 }
@@ -160,7 +174,7 @@ function renderLocalTelemetrySection(container, summary) {
       : `<div style="margin-top:6px; font-size: 12px; color:#64748b;">(no reasons)</div>`;
 
     container.innerHTML = `
-      <section role="note" aria-label="Telemetry (local)" style="margin: 16px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
+      <section id="telemetry-local" data-testid="telemetry-local" class="telemetry-local" role="note" aria-label="Telemetry (local)" style="margin: 16px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
         <details>
           <summary style="cursor:pointer; font-size: 13px; font-weight: 700; color: #0f172a;">Telemetry (local)</summary>
           ${s ? `
