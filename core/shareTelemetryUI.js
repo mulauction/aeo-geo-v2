@@ -5,6 +5,37 @@
 // - No telemetry mutation / no storage mutation (local summary fetch is best-effort)
 // - Never throw
 
+function isDebugEnabled() {
+  try {
+    if (typeof location === 'undefined') return false;
+    return new URLSearchParams(location.search || '').get('debug') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function isDevHost() {
+  try {
+    if (typeof location === 'undefined') return false;
+    const hostname = String(location.hostname || '').toLowerCase();
+    const port = String(location.port || '');
+    return hostname === 'localhost'
+      || hostname === '127.0.0.1'
+      || hostname === '::1'
+      || port === '5502';
+  } catch (_) {
+    return false;
+  }
+}
+
+function shouldRenderTelemetryLocal() {
+  try {
+    return isDebugEnabled() && isDevHost();
+  } catch (_) {
+    return false;
+  }
+}
+
 async function fetchTelemetrySummaryLatest() {
   try {
     if (typeof fetch !== 'function') return null;
@@ -210,6 +241,7 @@ function renderLocalTelemetrySection(container, summary) {
 export async function renderTelemetryLocalSummary({ container } = {}) {
   try {
     if (!container) return;
+    if (!shouldRenderTelemetryLocal()) return; // no DOM insert / no fetch unless debug=1 + dev
     const summary = await fetchTelemetrySummaryLatest();
     renderLocalTelemetrySection(container, summary);
   } catch (_) {
