@@ -14,6 +14,9 @@ server/data/telemetry/raw/*.jsonl
 server/data/telemetry/raw/*.ndjson
 server/data/telemetry/raw/*.log
 
+# --- telemetry rollups (derived; never commit) ---
+server/data/telemetry/summary/*.json
+
 # --- general runtime logs ---
 *.log
 *.jsonl
