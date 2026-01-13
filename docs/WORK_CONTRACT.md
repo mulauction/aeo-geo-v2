@@ -22,6 +22,13 @@
 2) 실제 수정 파일 목록
 3) 실행한 테스트 명령 + 결과
 4) 실패 시: 원인 + 최소 수정 + 재테스트 결과
+## 완료 보고 필수 첨부 (자동 검증)
+Cursor는 완료 보고에 반드시 아래 실출력 결과를 포함해야 한다.
+
+- `git diff --stat` 출력
+- `bash scripts/telemetry-interpret-sample.sh 3 | head -n 1` 실제 출력 1줄
+
+위 출력이 누락되면 작업은 완료로 간주되지 않는다.
 
 ## 중단 조건 (즉시 STOP)
 - ingest / raw writer 수정 필요
