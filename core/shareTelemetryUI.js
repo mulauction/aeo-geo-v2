@@ -174,6 +174,31 @@ function pickTopReasons(arr, n = 3) {
   }
 }
 
+function sumCounts(obj) {
+  try {
+    if (!obj || typeof obj !== 'object') return 0;
+    let sum = 0;
+    for (const v of Object.values(obj)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) sum += n;
+    }
+    return sum;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function fmtPctFromRatio(num, den) {
+  try {
+    const n = Number(num);
+    const d = Number(den);
+    if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return '';
+    return `${((n / d) * 100).toFixed(1)}%`;
+  } catch (_) {
+    return '';
+  }
+}
+
 function renderLocalTelemetrySection(container, summary) {
   try {
     if (!container) return;
@@ -183,14 +208,27 @@ function renderLocalTelemetrySection(container, summary) {
     const meta = (s && s.meta && typeof s.meta === 'object') ? s.meta : null;
 
     const genAt = meta ? safeStr(meta.generatedAt) : '';
-    const mode = meta ? safeStr(meta.mode) : '';
-    const sourceFile = meta ? safeStr(meta.sourceFile) : '';
-    const sourcePath = meta ? safeStr(meta.sourcePath) : '';
-    const exportRecordsSeen = meta ? safeStr(meta.exportRecordsSeen) : '';
+    const exportRecordsSeenNum = meta ? Number(meta.exportRecordsSeen) : NaN;
+    const linesParsedNum = meta ? Number(meta.linesParsed) : NaN;
     const reasonCoverage = meta ? safeStr(meta.reasonCoverage) : '';
 
-    const topStates = pickTopCounts(s ? s.countsByFinalState : null, 3);
-    const topReasons = pickTopReasons(s ? s.topReasons : null, 3);
+    const countsByFinalState = s ? s.countsByFinalState : null;
+    const totalFromCounts = s ? sumCounts(countsByFinalState) : NaN;
+    const totalEventsNum = s ? Number(s.totalEvents) : NaN;
+    const total = s
+      ? (Number.isFinite(totalEventsNum)
+        ? totalEventsNum
+        : (Number.isFinite(exportRecordsSeenNum) ? exportRecordsSeenNum : totalFromCounts))
+      : NaN;
+    const okCount = (s && countsByFinalState && typeof countsByFinalState === 'object')
+      ? Number(countsByFinalState.OK)
+      : NaN;
+    const okRate = (s && Number.isFinite(okCount) && Number.isFinite(total) && total > 0)
+      ? fmtPctFromRatio(okCount, total)
+      : '';
+
+    const topStates = pickTopCounts(countsByFinalState, 8);
+    const topReasons = pickTopReasons(s ? s.topReasons : null, 5);
 
     const statesHtml = topStates.length > 0
       ? `<ul style="margin: 6px 0 0 16px; padding: 0; font-size: 12px; color:#0f172a;">
@@ -204,25 +242,34 @@ function renderLocalTelemetrySection(container, summary) {
         </ul>`
       : `<div style="margin-top:6px; font-size: 12px; color:#64748b;">(no reasons)</div>`;
 
+    const summaryBits = s ? [
+      (Number.isFinite(total) ? `total ${safeStr(total)}` : ''),
+      (okRate ? `ok ${safeStr(okRate)}` : ''),
+      (genAt ? `generatedAt ${safeStr(genAt)}` : ''),
+    ].filter(Boolean) : [];
+    const summaryLine = summaryBits.length > 0 ? summaryBits.join(' · ') : 'debug';
+
     container.innerHTML = `
       <section id="telemetry-local" data-testid="telemetry-local" class="telemetry-local" role="note" aria-label="Telemetry (local)" style="margin: 16px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
         <details>
-          <summary style="cursor:pointer; font-size: 13px; font-weight: 700; color: #0f172a;">Telemetry (local)</summary>
+          <summary style="cursor:pointer; font-size: 13px; font-weight: 700; color: #0f172a;">
+            Telemetry (local) <span style="font-size: 11px; font-weight: 500; color:#64748b;">— ${safeStr(summaryLine)}</span>
+          </summary>
           ${s ? `
             <div style="margin-top: 10px; font-size: 12px; color:#0f172a; line-height: 1.55;">
               <div><span style="color:#64748b;">generatedAt</span>: <strong>${safeStr(genAt)}</strong></div>
-              ${mode ? `<div><span style="color:#64748b;">mode</span>: <strong>${safeStr(mode)}</strong></div>` : ``}
-              <div><span style="color:#64748b;">sourceFile</span>: <strong>${safeStr(sourceFile)}</strong></div>
-              <div><span style="color:#64748b;">sourcePath</span>: <strong>${safeStr(sourcePath)}</strong></div>
-              <div><span style="color:#64748b;">exportRecordsSeen</span>: <strong>${safeStr(exportRecordsSeen)}</strong></div>
-              <div><span style="color:#64748b;">reasonCoverage</span>: <strong>${safeStr(reasonCoverage)}</strong></div>
+              ${Number.isFinite(total) ? `<div><span style="color:#64748b;">total</span>: <strong>${safeStr(total)}</strong></div>` : ``}
+              ${okRate ? `<div><span style="color:#64748b;">okRate</span>: <strong>${safeStr(okRate)}</strong></div>` : ``}
+              ${Number.isFinite(linesParsedNum) ? `<div><span style="color:#64748b;">linesParsed</span>: <strong>${safeStr(linesParsedNum)}</strong></div>` : ``}
+              ${Number.isFinite(exportRecordsSeenNum) ? `<div><span style="color:#64748b;">exportRecordsSeen</span>: <strong>${safeStr(exportRecordsSeenNum)}</strong></div>` : ``}
+              ${reasonCoverage ? `<div><span style="color:#64748b;">reasonCoverage</span>: <strong>${safeStr(reasonCoverage)}</strong></div>` : ``}
             </div>
             <div style="margin-top: 10px;">
-              <div style="font-size: 12px; font-weight: 700; color:#0f172a;">countsByFinalState (top 3)</div>
+              <div style="font-size: 12px; font-weight: 700; color:#0f172a;">countsByFinalState</div>
               ${statesHtml}
             </div>
             <div style="margin-top: 10px;">
-              <div style="font-size: 12px; font-weight: 700; color:#0f172a;">topReasons (top 3)</div>
+              <div style="font-size: 12px; font-weight: 700; color:#0f172a;">topReasons (top 5)</div>
               ${reasonsHtml}
             </div>
           ` : `
