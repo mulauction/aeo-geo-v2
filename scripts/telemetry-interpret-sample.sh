@@ -41,6 +41,13 @@ try {
   process.exit(1);
 }
 
+// If stdout is closed early (e.g. piped to `head -n 1`), exit cleanly.
+process.stdout.on('error', (err) => {
+  try {
+    if (err && err.code === 'EPIPE') process.exit(0);
+  } catch (_) {}
+});
+
 function readStdin() {
   return new Promise((resolve) => {
     let data = '';
