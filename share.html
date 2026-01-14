@@ -3503,8 +3503,30 @@
             return;
           }
 
+          // ✅ [Phase 55] Recent reports sort stabilization (UI-only, no storage/schema change)
+          const hasCreatedAt = items.some((it) => it && typeof it === 'object' && it.createdAt != null);
+          const hasGeneratedAt = !hasCreatedAt && items.some((it) => it && typeof it === 'object' && it.generatedAt != null);
+          const sortKey = hasCreatedAt ? 'createdAt' : (hasGeneratedAt ? 'generatedAt' : 'none');
+          const sortedItems = (sortKey === 'none') ? items : [...items].sort((a, b) => {
+            const aKey = (a && typeof a === 'object') ? (a.createdAt ?? a.generatedAt ?? null) : null;
+            const bKey = (b && typeof b === 'object') ? (b.createdAt ?? b.generatedAt ?? null) : null;
+            if (aKey == null && bKey == null) return 0;
+            if (aKey == null) return 1;   // null goes last
+            if (bKey == null) return -1;  // date exists goes first
+            return new Date(bKey).getTime() - new Date(aKey).getTime();
+          });
+
+          // ✅ [Phase 55][debug] recent sort observability (debug=1 only)
+          try {
+            const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+            if (isDebug) {
+              const top3 = sortedItems.slice(0, 3).map((x) => (x && typeof x === 'object') ? (x.id || x.reportId || x.r || '') : '').join(',');
+              console.log('[share] recent sort key=' + sortKey + ' top3=' + top3);
+            }
+          } catch (_) {}
+
           const expanded = window.__recentReportsExpandedV1 === true;
-          const visible = expanded ? items.slice(0, 10) : items.slice(0, 3);
+          const visible = expanded ? sortedItems.slice(0, 10) : sortedItems.slice(0, 3);
 
           const rows = visible.map((it) => {
             const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
@@ -3522,19 +3544,19 @@
             `;
           }).join('');
 
-          mount.innerHTML = `
-            <div class="content-section" style="margin: 12px 0 0 0; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
-                <h3 style="margin: 0; font-size: 16px;">최근 리포트</h3>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <button type="button" class="btn" id="btnRecentToggle" style="padding: 8px 10px; font-size: 13px;">${expanded ? '접기' : '전체 보기'}</button>
-                  <button type="button" class="btn" id="btnRecentClear" style="padding: 8px 10px; font-size: 13px;">목록 비우기</button>
-                </div>
-              </div>
-              <div style="border-bottom: 1px solid var(--border);"></div>
-              <div>${rows}</div>
-            </div>
-          `;
+          mount.innerHTML = (
+            '<div class="content-section" style="margin: 12px 0 0 0; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">' +
+              '<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">' +
+                '<h3 style="margin: 0; font-size: 16px;">최근 리포트</h3>' +
+                '<div style="display: flex; gap: 8px; align-items: center;">' +
+                  '<button type="button" class="btn" id="btnRecentToggle" style="padding: 8px 10px; font-size: 13px;">' + (expanded ? '접기' : '전체 보기') + '</button>' +
+                  '<button type="button" class="btn" id="btnRecentClear" style="padding: 8px 10px; font-size: 13px;">목록 비우기</button>' +
+                '</div>' +
+              '</div>' +
+              '<div style="border-bottom: 1px solid var(--border);"></div>' +
+              '<div>' + rows + '</div>' +
+            '</div>'
+          );
 
           // 이벤트 바인딩 (OK 상태 전용 섹션)
           const toggleBtn = document.getElementById('btnRecentToggle');

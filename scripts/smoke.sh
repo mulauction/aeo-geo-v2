@@ -92,3 +92,11 @@ fi
 
 echo "OK: smoke passed"
 
+
+echo "== smoke: share recent reports sort stabilization guard =="
+if ! rg -n -U "createdAt\\s*\\?\\?\\s*.*generatedAt\\s*\\?\\?\\s*.*null" share.html -S >/dev/null; then
+  echo "ERR: missing recent reports sort stabilization comparator (createdAt ?? generatedAt ?? null)"
+  exit 1
+fi
+
+echo "OK: smoke passed"
