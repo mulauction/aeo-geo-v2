@@ -4271,6 +4271,9 @@
             btnExportPDF.setAttribute('aria-disabled', 'true');
           }
         }
+
+        // ✅ [phase45-b] CTA policy apply (UI-only, fail-quiet): ensure applied also on OK path
+        try { if (window.__applyCtaPolicyV1) window.__applyCtaPolicyV1(viewState); } catch (_) {}
         
         // ✅ [Phase 16-0] Observation Lite 저장/복원 로직
         // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 저장합니다.
@@ -4483,12 +4486,16 @@
     window.__applyCtaPolicyV1 = function(viewState){
       try {
         var state = String(viewState || '').trim();
-        var els = document.querySelectorAll('[data-requires]');
+        var root = document.querySelector('.app') || document;
+        var els = root.querySelectorAll ? root.querySelectorAll('[data-requires]') : [];
         els.forEach(function(el){
-          var req = String(el.getAttribute('data-requires') || '').trim();
-          if (!req) return;
-          var allowed = req.split('|').map(function(s){ return s.trim(); }).filter(Boolean);
-          if (allowed.indexOf(state) === -1) el.style.display = 'none';
+          try {
+            var req = String(el.getAttribute('data-requires') || '').trim();
+            if (!req) return;
+            var allowed = req.split('|').map(function(s){ return s.trim(); }).filter(Boolean);
+            var shouldHide = (allowed.indexOf(state) === -1);
+            el.hidden = !!shouldHide;
+          } catch (_) {}
         });
       } catch (_) {}
     };
