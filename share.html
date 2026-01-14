@@ -3543,9 +3543,10 @@
           const normalizedItems = normalizeRecentReports(items, { cap: 50 });
           try {
             const isDebug = new URLSearchParams(location.search).get('debug') === '1';
-            if (isDebug) {
+            if (isDebug && !window.__shareRecentNormalizeLogged) {
               const s = normalizeRecentReports.__last || {};
               console.log('[share] recent normalize: in=' + String(s.inCount ?? items.length) + ' out=' + String(s.outCount ?? normalizedItems.length) + ' dropped=' + String(s.droppedCount ?? 0) + ' deduped=' + String(s.dedupedCount ?? 0));
+              window.__shareRecentNormalizeLogged = true;
             }
           } catch (_) {}
 
