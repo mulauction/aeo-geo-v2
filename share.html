@@ -4445,7 +4445,19 @@
           }
         }
         } finally {
-          try { if (window.__applyCtaPolicyV1 && __ctaPolicyFinalState) window.__applyCtaPolicyV1(__ctaPolicyFinalState); } catch (_) {}
+          try {
+            if (window.__applyCtaPolicyV1 && __ctaPolicyFinalState) {
+              window.__applyCtaPolicyV1(__ctaPolicyFinalState);
+              try {
+                var __isDebug = (new URLSearchParams(location.search).get('debug') === '1');
+                if (__isDebug) {
+                  var __root = document.querySelector('.app') || document;
+                  var __count = (__root && __root.querySelectorAll) ? __root.querySelectorAll('[data-requires]').length : 0;
+                  console.log('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' count=' + String(__count));
+                }
+              } catch (_) {}
+            }
+          } catch (_) {}
         }
       }
       
