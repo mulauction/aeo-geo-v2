@@ -48,5 +48,11 @@ if ! rg -n "window\\.__applyCtaPolicyV1\\(__ctaPolicyFinalState\\)" share.html -
   exit 1
 fi
 
+echo "== smoke: share CTA policy applies in OK state guard =="
+if ! rg -n "__ctaPolicyFinalState\\s*=\\s*viewState" share.html -S >/dev/null; then
+  echo "ERR: CTA policy OK-state guard missing"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 
