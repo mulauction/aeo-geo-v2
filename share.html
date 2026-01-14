@@ -4489,15 +4489,23 @@
             if (window.__applyCtaPolicyV1 && __ctaPolicyFinalState) {
               try {
                 var __isDebug = (new URLSearchParams(location.search).get('debug') === '1');
+                var __applyCount = (function(){
+                  try {
+                    var v = Number(window.__ctaPolicyApplyCountV1 || 0);
+                    return Number.isFinite(v) ? v : 0;
+                  } catch (_) {
+                    return 0;
+                  }
+                })();
                 if (window.__ctaPolicyAppliedV1 === true) {
-                  if (__isDebug) console.log('[CTA_POLICY] skip state=' + String(__ctaPolicyFinalState) + ' reason=already_applied');
+                  if (__isDebug) console.log('[CTA_POLICY] skip state=' + String(__ctaPolicyFinalState) + ' reason=already_applied' + ' applyCount=' + String(__applyCount));
                 } else {
                   window.__ctaPolicyAppliedV1 = true;
+                  __applyCount = __applyCount + 1;
+                  try { window.__ctaPolicyApplyCountV1 = __applyCount; } catch (_) {}
                   window.__applyCtaPolicyV1(__ctaPolicyFinalState);
                   if (__isDebug) {
-                    var __root = document.querySelector('.app') || document;
-                    var __count = (__root && __root.querySelectorAll) ? __root.querySelectorAll('[data-requires]').length : 0;
-                    console.log('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' count=' + String(__count));
+                    console.log('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' applyCount=' + String(__applyCount));
                     try {
                       if (!window.__debugCtaPolicyCheckV1) {
                         window.__debugCtaPolicyCheckV1 = function(){

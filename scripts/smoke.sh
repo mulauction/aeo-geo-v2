@@ -66,6 +66,12 @@ if ! rg -n -U "window\\.__ctaPolicyAppliedV1\\s*===\\s*true[\\s\\S]{0,220}window
   exit 1
 fi
 
+echo "== smoke: share CTA policy applyCount guard =="
+if ! rg -n -U "window\\.__ctaPolicyApplyCountV1|__applyCount\\s*=\\s*__applyCount\\s*\\+\\s*1[\\s\\S]{0,120}window\\.__ctaPolicyApplyCountV1\\s*=\\s*__applyCount[\\s\\S]{0,180}window\\.__applyCtaPolicyV1\\(__ctaPolicyFinalState\\)" share.html -S >/dev/null; then
+  echo "ERR: CTA policy applyCount guard missing"
+  exit 1
+fi
+
 echo "== smoke: share r param numeric parse guard =="
 if ! rg -n -U "new URLSearchParams\\(window\\.location\\.search\\)[\\s\\S]{0,220}\\.get\\('r'\\)[\\s\\S]{0,220}/\\^\\\\d\\+\\$/" share.html -S >/dev/null; then
   echo "ERR: share r param numeric parse guard missing"
