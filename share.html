@@ -2464,6 +2464,8 @@
       }
       
       async function renderShareContent() {
+        var __ctaPolicyFinalState = null;
+        try {
         // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
         const urlParams = new URLSearchParams(window.location.search);
         const rParam = urlParams.get('r');
@@ -2622,6 +2624,7 @@
           window.__shareViewState = viewState;
         }
         console.info('[ShareViewState]', viewState);
+        __ctaPolicyFinalState = viewState;
 
         // ✅ [Phase 31-1][telemetry] final state
         try {
@@ -3331,7 +3334,7 @@
           // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
           shareContentEl.innerHTML = scoreExplainerBlock + shareCtaSlotHtml;
 
-        try { if (window.__applyCtaPolicyV1) window.__applyCtaPolicyV1(viewState); } catch (_) {}
+        // (phase45-c) CTA policy is applied once in renderShareContent() finally block
           updateShareCtaSlot(viewState);
           
           
@@ -4272,8 +4275,7 @@
           }
         }
 
-        // ✅ [phase45-b] CTA policy apply (UI-only, fail-quiet): ensure applied also on OK path
-        try { if (window.__applyCtaPolicyV1) window.__applyCtaPolicyV1(viewState); } catch (_) {}
+        // (phase45-c) CTA policy is applied once in renderShareContent() finally block
         
         // ✅ [Phase 16-0] Observation Lite 저장/복원 로직
         // ⚠️ [PRODUCT_PRINCIPLES] 점수/분석/스키마 변경 없음. UI-only로 관측 데이터만 저장합니다.
@@ -4441,6 +4443,9 @@
               }
             });
           }
+        }
+        } finally {
+          try { if (window.__applyCtaPolicyV1 && __ctaPolicyFinalState) window.__applyCtaPolicyV1(__ctaPolicyFinalState); } catch (_) {}
         }
       }
       
