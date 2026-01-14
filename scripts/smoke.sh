@@ -84,5 +84,11 @@ if ! rg -n "__shareBootstrapGuardV1" share.html -S >/dev/null || ! rg -n "skippe
   exit 1
 fi
 
+echo "== smoke: share debug log grouping guard =="
+if ! rg -n "console\\.groupCollapsed" share.html -S >/dev/null || ! rg -n "\\[Share bootstrap\\]" share.html -S >/dev/null; then
+  echo "ERR: share debug log grouping guard missing"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 

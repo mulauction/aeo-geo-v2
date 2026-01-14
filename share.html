@@ -2438,6 +2438,12 @@
       // 최초 로드, pageshow, visibilitychange에서 동일 함수 호출
       let __shareInitialized = false;
       async function bootstrapShare() {
+        const __bootDebug = (new URLSearchParams(location.search).get('debug') === '1');
+        const __bootGroupKey = '[Share bootstrap] ' + String(location.search || '');
+        const __bootCanGroup = !!(__bootDebug && console && typeof console.groupCollapsed === 'function' && typeof console.groupEnd === 'function');
+        try {
+          if (__bootCanGroup) console.groupCollapsed(__bootGroupKey);
+
         // ✅ [Phase 52] bootstrap re-entry cooldown guard (UI-only; keep behavior, only suppress rapid duplicates)
         let __bootGuard = null;
         let __bootKey = '';
@@ -2493,6 +2499,9 @@
           try {
             if (__bootGuard && typeof __bootGuard === 'object') __bootGuard.inFlight = false;
           } catch (_) {}
+        }
+        } finally {
+          try { if (__bootCanGroup) console.groupEnd(); } catch (_) {}
         }
       }
       
