@@ -36,5 +36,11 @@ if ! rg -n "\"data\"\\s*,\\s*\"telemetry\"\\s*,\\s*\"raw\"|data/telemetry/raw|te
   exit 1
 fi
 
+echo "== smoke: share debug CTA helper presence guard =="
+if ! rg -n "__debugCtaPolicyCheckV1" share.html -S >/dev/null; then
+  echo "ERROR: expected __debugCtaPolicyCheckV1 helper in share.html (debug-only CTA regression guard)"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 
