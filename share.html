@@ -1918,17 +1918,21 @@
       if (r) {
         localStorage.setItem('__currentReportId', r);
         // ✅ [Phase24-1] Safe URL construction for replaceState
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.set('r', r);
-          history.replaceState(null, '', url.toString());
-        } catch (err) {
-          // Fallback: use pathname if URL constructor fails
-          history.replaceState(
-            null,
-            '',
-            `${location.pathname}?r=${encodeURIComponent(r)}`
-          );
+        // ✅ [Phase45-A] forceState가 있으면 r 자동 부착(rewrite) 금지 (dev harness 보호)
+        const sp = new URLSearchParams(location.search);
+        if (!sp.has('forceState')) {
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('r', r);
+            history.replaceState(null, '', url.toString());
+          } catch (err) {
+            // Fallback: use pathname if URL constructor fails
+            history.replaceState(
+              null,
+              '',
+              `${location.pathname}?r=${encodeURIComponent(r)}`
+            );
+          }
         }
       }
     }
@@ -3461,7 +3465,7 @@
                   <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}</div>
                   <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
                 </div>
-                <button type="button" class="btn btn-primary" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;">열기</button>
+                <button type="button" class="btn btn-primary" data-cta="openRecent" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;">열기</button>
               </div>
             `;
           }).join('');
@@ -3506,6 +3510,7 @@
           }
           mount.querySelectorAll('[data-recent-open]').forEach((btn) => {
             btn.addEventListener('click', () => {
+              try { btn.setAttribute('data-cta','openRecent'); } catch (_) {}
               const url = btn.getAttribute('data-recent-open') || '';
               if (!url) return;
               // 저장된 URL로 이동 (우리 코드가 만든 same-site URL만 저장)
