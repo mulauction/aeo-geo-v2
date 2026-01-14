@@ -54,5 +54,17 @@ if ! rg -n "__ctaPolicyFinalState\\s*=\\s*viewState" share.html -S >/dev/null; t
   exit 1
 fi
 
+echo "== smoke: share CTA policy idempotency flag guard =="
+if ! rg -n "window\\.__ctaPolicyAppliedV1" share.html -S >/dev/null; then
+  echo "ERR: CTA policy idempotency flag missing"
+  exit 1
+fi
+
+echo "== smoke: share CTA policy idempotency apply guard =="
+if ! rg -n -U "window\\.__ctaPolicyAppliedV1\\s*===\\s*true[\\s\\S]{0,220}window\\.__applyCtaPolicyV1\\(__ctaPolicyFinalState\\)|window\\.__ctaPolicyAppliedV1\\s*=\\s*true[\\s\\S]{0,220}window\\.__applyCtaPolicyV1\\(__ctaPolicyFinalState\\)" share.html -S >/dev/null; then
+  echo "ERR: CTA policy idempotency apply guard missing"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 

@@ -4447,37 +4447,42 @@
         } finally {
           try {
             if (window.__applyCtaPolicyV1 && __ctaPolicyFinalState) {
-              window.__applyCtaPolicyV1(__ctaPolicyFinalState);
               try {
                 var __isDebug = (new URLSearchParams(location.search).get('debug') === '1');
-                if (__isDebug) {
-                  var __root = document.querySelector('.app') || document;
-                  var __count = (__root && __root.querySelectorAll) ? __root.querySelectorAll('[data-requires]').length : 0;
-                  console.log('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' count=' + String(__count));
-                  try {
-                    if (!window.__debugCtaPolicyCheckV1) {
-                      window.__debugCtaPolicyCheckV1 = function(){
-                        try {
-                          var state =
-                            (window.__ShareViewState && window.__ShareViewState.state) ||
-                            window.__shareViewState ||
-                            'unknown';
-                          var root = document.querySelector('.app') || document;
-                          var els = (root && root.querySelectorAll) ? root.querySelectorAll('[data-requires]') : [];
-                          var total = els && typeof els.length === 'number' ? els.length : 0;
-                          var hidden = 0;
+                if (window.__ctaPolicyAppliedV1 === true) {
+                  if (__isDebug) console.log('[CTA_POLICY] skip state=' + String(__ctaPolicyFinalState) + ' reason=already_applied');
+                } else {
+                  window.__ctaPolicyAppliedV1 = true;
+                  window.__applyCtaPolicyV1(__ctaPolicyFinalState);
+                  if (__isDebug) {
+                    var __root = document.querySelector('.app') || document;
+                    var __count = (__root && __root.querySelectorAll) ? __root.querySelectorAll('[data-requires]').length : 0;
+                    console.log('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' count=' + String(__count));
+                    try {
+                      if (!window.__debugCtaPolicyCheckV1) {
+                        window.__debugCtaPolicyCheckV1 = function(){
                           try {
-                            (els || []).forEach(function(el){ if (el && el.hidden === true) hidden++; });
-                          } catch (_) {}
-                          var visible = total - hidden;
-                          console.log('[CTA_CHECK] state=' + String(state) + ' total=' + String(total) + ' visible=' + String(visible) + ' hidden=' + String(hidden));
-                          return { state: String(state), total: total, visible: visible, hidden: hidden };
-                        } catch (_) {
-                          return { state: 'unknown', total: 0, visible: 0, hidden: 0 };
-                        }
-                      };
-                    }
-                  } catch (_) {}
+                            var state =
+                              (window.__ShareViewState && window.__ShareViewState.state) ||
+                              window.__shareViewState ||
+                              'unknown';
+                            var root = document.querySelector('.app') || document;
+                            var els = (root && root.querySelectorAll) ? root.querySelectorAll('[data-requires]') : [];
+                            var total = els && typeof els.length === 'number' ? els.length : 0;
+                            var hidden = 0;
+                            try {
+                              (els || []).forEach(function(el){ if (el && el.hidden === true) hidden++; });
+                            } catch (_) {}
+                            var visible = total - hidden;
+                            console.log('[CTA_CHECK] state=' + String(state) + ' total=' + String(total) + ' visible=' + String(visible) + ' hidden=' + String(hidden));
+                            return { state: String(state), total: total, visible: visible, hidden: hidden };
+                          } catch (_) {
+                            return { state: 'unknown', total: 0, visible: 0, hidden: 0 };
+                          }
+                        };
+                      }
+                    } catch (_) {}
+                  }
                 }
               } catch (_) {}
             }
