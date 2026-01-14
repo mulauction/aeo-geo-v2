@@ -72,5 +72,11 @@ if ! rg -n -U "new URLSearchParams\\(window\\.location\\.search\\)[\\s\\S]{0,220
   exit 1
 fi
 
+echo "== smoke: share bootstrap cooldown guard =="
+if ! rg -n "__shareBootstrapGuardV1" share.html -S >/dev/null || ! rg -n "skipped \\(cooldown\\)" share.html -S >/dev/null; then
+  echo "ERR: share bootstrap cooldown guard missing"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 

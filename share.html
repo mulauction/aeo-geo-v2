@@ -2438,6 +2438,34 @@
       // 최초 로드, pageshow, visibilitychange에서 동일 함수 호출
       let __shareInitialized = false;
       async function bootstrapShare() {
+        // ✅ [Phase 52] bootstrap re-entry cooldown guard (UI-only; keep behavior, only suppress rapid duplicates)
+        let __bootGuard = null;
+        let __bootKey = '';
+        let __bootDt = 0;
+        try {
+          __bootKey = String(location.search || '');
+          const __now = Date.now();
+          __bootGuard = (window.__shareBootstrapGuardV1 && typeof window.__shareBootstrapGuardV1 === 'object')
+            ? window.__shareBootstrapGuardV1
+            : { lastAt: 0, lastKey: '', inFlight: false };
+          const __lastAt = Number(__bootGuard.lastAt || 0);
+          __bootDt = __now - __lastAt;
+          const __sameKey = String(__bootGuard.lastKey || '') === __bootKey;
+          const __cooldownMs = 650;
+          const __isDebug = (new URLSearchParams(location.search).get('debug') === '1');
+          const __shouldSkip = __sameKey && (__bootGuard.inFlight === true || __bootDt < __cooldownMs);
+          if (__shouldSkip) {
+            if (__isDebug) console.log('[ShareViewState:bootstrap] skipped (cooldown)', { reason: (__bootGuard.inFlight === true ? 'in_flight' : 'cooldown'), key: __bootKey, dt: __bootDt });
+            return;
+          }
+          __bootGuard.lastAt = __now;
+          __bootGuard.lastKey = __bootKey;
+          __bootGuard.inFlight = true;
+          window.__shareBootstrapGuardV1 = __bootGuard;
+          if (__isDebug) console.log('[ShareViewState:bootstrap] running (guard ok)', { reason: (__sameKey ? 'cooldown_passed' : 'key_changed'), key: __bootKey, dt: __bootDt });
+        } catch (_) {}
+
+        try {
         // ✅ [Phase 26-0A] id boot가 있으면 먼저 완료 대기
         if (window.__shareIdBoot) {
           await window.__shareIdBoot;
@@ -2460,6 +2488,11 @@
           setTimeout(() => {
             window.__sharePendingScrollTarget = null;
           }, 300);
+        }
+        } finally {
+          try {
+            if (__bootGuard && typeof __bootGuard === 'object') __bootGuard.inFlight = false;
+          } catch (_) {}
         }
       }
       
