@@ -37,8 +37,8 @@ if ! rg -n "\"data\"\\s*,\\s*\"telemetry\"\\s*,\\s*\"raw\"|data/telemetry/raw|te
 fi
 
 echo "== smoke: share debug CTA helper presence guard =="
-if ! rg -n "__debugCtaPolicyCheckV1" share.html -S >/dev/null; then
-  echo "ERROR: expected __debugCtaPolicyCheckV1 helper in share.html (debug-only CTA regression guard)"
+if ! rg -n "window\\.__debugCtaPolicyCheckV1\\s*=\\s*function" share.html -S >/dev/null; then
+  echo "ERR: debug CTA helper function definition missing"
   exit 1
 fi
 
