@@ -66,5 +66,11 @@ if ! rg -n -U "window\\.__ctaPolicyAppliedV1\\s*===\\s*true[\\s\\S]{0,220}window
   exit 1
 fi
 
+echo "== smoke: share r param numeric parse guard =="
+if ! rg -n -U "new URLSearchParams\\(window\\.location\\.search\\)[\\s\\S]{0,220}\\.get\\('r'\\)[\\s\\S]{0,220}/\\^\\\\d\\+\\$/" share.html -S >/dev/null; then
+  echo "ERR: share r param numeric parse guard missing"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 

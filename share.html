@@ -2468,8 +2468,10 @@
         try {
         // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
         const urlParams = new URLSearchParams(window.location.search);
-        const rParam = urlParams.get('r');
         const idParam = urlParams.get('id');
+        const rRaw = urlParams.get('r');
+        const debug = urlParams.get('debug');
+        const rParam = (rRaw && /^\d+$/.test(String(rRaw))) ? String(rRaw) : null;
         const hasId = Boolean(idParam);
         const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
         const getOnly = (!forceWrite) && Boolean(rParam);
@@ -2477,6 +2479,11 @@
         if (getOnly) {
           console.log('[share] view mode: GET only');
         }
+
+        // ✅ [Phase 51][debug] query parsing observability (debug=1 only)
+        try {
+          if (debug === '1') console.log('[share] parsed params:', { id: idParam, r: rParam, debug });
+        } catch (_) {}
         
         // ✅ [Phase 26-2C-2] id 파라미터가 있으면 snapshot 플로우 허용 (r-only 규칙 적용 금지)
         if (hasId && !window.__shareIdParamFlowLogged) {
