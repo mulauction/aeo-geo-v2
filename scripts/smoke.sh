@@ -99,4 +99,11 @@ if ! rg -n -U "createdAt\\s*\\?\\?\\s*.*generatedAt\\s*\\?\\?\\s*.*null" share.h
   exit 1
 fi
 
+echo "== smoke: share recent reports normalize guard =="
+if ! rg -n "normalizeRecentReports|\\[share\\] recent normalize" share.html -S >/dev/null; then
+  echo "FAIL: recent reports normalize guard missing"
+  exit 1
+fi
+echo "OK: recent reports normalize guard present"
+
 echo "OK: smoke passed"

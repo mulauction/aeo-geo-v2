@@ -3431,6 +3431,42 @@
             return [];
           }
         };
+        // ✅ [Phase 56] Recent Reports normalize (safe, render 직전 1회)
+        function normalizeRecentReports(items, opts) {
+          let inCount = 0;
+          let droppedCount = 0;
+          let dedupedCount = 0;
+          const out = [];
+          try {
+            const cap = (() => {
+              const v = Number(opts && typeof opts === 'object' ? opts.cap : 50);
+              return Number.isFinite(v) && v > 0 ? Math.floor(v) : 50;
+            })();
+            const arr = Array.isArray(items) ? items : [];
+            inCount = arr.length;
+            const seen = new Set();
+            for (const it of arr) {
+              if (!it || typeof it !== 'object') { droppedCount++; continue; }
+              const idKey = it.id || it.reportId || it.r;
+              if (!idKey) { droppedCount++; continue; }
+              if (seen.has(idKey)) { dedupedCount++; continue; }
+              const hasTime = (it.createdAt != null) || (it.generatedAt != null);
+              if (!hasTime) { droppedCount++; continue; }
+              if (out.length >= cap) { droppedCount++; continue; }
+              seen.add(idKey);
+              out.push(it);
+            }
+          } catch (_) {}
+          try {
+            normalizeRecentReports.__last = {
+              inCount,
+              outCount: out.length,
+              droppedCount,
+              dedupedCount
+            };
+          } catch (_) {}
+          return out;
+        }
         const saveRecentReports = (items) => {
           try {
             localStorage.setItem(RECENT_KEY, JSON.stringify(items));
@@ -3503,11 +3539,21 @@
             return;
           }
 
+          // ✅ [Phase 56] normalize once (render 직전)
+          const normalizedItems = normalizeRecentReports(items, { cap: 50 });
+          try {
+            const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+            if (isDebug) {
+              const s = normalizeRecentReports.__last || {};
+              console.log('[share] recent normalize: in=' + String(s.inCount ?? items.length) + ' out=' + String(s.outCount ?? normalizedItems.length) + ' dropped=' + String(s.droppedCount ?? 0) + ' deduped=' + String(s.dedupedCount ?? 0));
+            }
+          } catch (_) {}
+
           // ✅ [Phase 55] Recent reports sort stabilization (UI-only, no storage/schema change)
-          const hasCreatedAt = items.some((it) => it && typeof it === 'object' && it.createdAt != null);
-          const hasGeneratedAt = !hasCreatedAt && items.some((it) => it && typeof it === 'object' && it.generatedAt != null);
+          const hasCreatedAt = normalizedItems.some((it) => it && typeof it === 'object' && it.createdAt != null);
+          const hasGeneratedAt = !hasCreatedAt && normalizedItems.some((it) => it && typeof it === 'object' && it.generatedAt != null);
           const sortKey = hasCreatedAt ? 'createdAt' : (hasGeneratedAt ? 'generatedAt' : 'none');
-          const sortedItems = (sortKey === 'none') ? items : [...items].sort((a, b) => {
+          const sortedItems = (sortKey === 'none') ? normalizedItems : [...normalizedItems].sort((a, b) => {
             const aKey = (a && typeof a === 'object') ? (a.createdAt ?? a.generatedAt ?? null) : null;
             const bKey = (b && typeof b === 'object') ? (b.createdAt ?? b.generatedAt ?? null) : null;
             if (aKey == null && bKey == null) return 0;
@@ -3530,7 +3576,8 @@
 
           const rows = visible.map((it) => {
             const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
-            const when = (it && typeof it === 'object' && it.createdAt) ? formatRecentDate(it.createdAt) : '';
+            const whenKey = (it && typeof it === 'object') ? (it.createdAt ?? it.generatedAt ?? null) : null;
+            const when = whenKey ? formatRecentDate(whenKey) : '';
             const score = (it && typeof it === 'object' && typeof it.score === 'number') ? `${it.score}점` : '';
             const url = (it && typeof it === 'object' && it.url) ? String(it.url) : '';
             return `
