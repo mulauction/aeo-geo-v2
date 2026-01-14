@@ -42,5 +42,11 @@ if ! rg -n "window\\.__debugCtaPolicyCheckV1\\s*=\\s*function" share.html -S >/d
   exit 1
 fi
 
+echo "== smoke: share CTA policy apply-after-finalize guard =="
+if ! rg -n "window\\.__applyCtaPolicyV1\\(__ctaPolicyFinalState\\)" share.html -S >/dev/null; then
+  echo "ERR: CTA policy apply-after-finalize guard missing"
+  exit 1
+fi
+
 echo "OK: smoke passed"
 
