@@ -2908,6 +2908,15 @@
             const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
             const isFile = (location.protocol === 'file:');
             const base = (isLocalHost || isFile) ? 'http://localhost:3001' : '';
+            const params = new URLSearchParams(location.search);
+            const debug = params.get('debug') === '1';
+            const api = params.get('api') === '1';
+            const shouldFetch = debug || api;
+            if (!shouldFetch) return;
+            if (debug && !window.__shareUsageFetchEnabledLoggedV1) {
+              window.__shareUsageFetchEnabledLoggedV1 = true;
+              console.info('[share] usage summary: fetch enabled');
+            }
 
             // prevent duplicate in-flight fetches; allow retry on failure
             if (window.__usageSummaryFetchPromise) return;
@@ -2938,13 +2947,11 @@
                   return true;
                 }
                 // invalid / missing data -> allow retry
-                if (new URLSearchParams(location.search).get('debug') === '1' && !window.__shareUsageSummaryWarnedV1) { window.__shareUsageSummaryWarnedV1 = true; console.warn("[share] usage summary skipped: api unavailable"); }
                 window.__usageSummaryFetchPromise = null;
                 return false;
               })
               .catch(() => {
                 // allow retry
-                if (new URLSearchParams(location.search).get('debug') === '1' && !window.__shareUsageSummaryWarnedV1) { window.__shareUsageSummaryWarnedV1 = true; console.warn("[share] usage summary skipped: api unavailable"); }
                 window.__usageSummaryFetchPromise = null;
               });
           } catch (_) {
