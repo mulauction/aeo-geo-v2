@@ -2938,11 +2938,13 @@
                   return true;
                 }
                 // invalid / missing data -> allow retry
+                if (new URLSearchParams(location.search).get('debug') === '1' && !window.__shareUsageSummaryWarnedV1) { window.__shareUsageSummaryWarnedV1 = true; console.warn("[share] usage summary skipped: api unavailable"); }
                 window.__usageSummaryFetchPromise = null;
                 return false;
               })
               .catch(() => {
                 // allow retry
+                if (new URLSearchParams(location.search).get('debug') === '1' && !window.__shareUsageSummaryWarnedV1) { window.__shareUsageSummaryWarnedV1 = true; console.warn("[share] usage summary skipped: api unavailable"); }
                 window.__usageSummaryFetchPromise = null;
               });
           } catch (_) {
