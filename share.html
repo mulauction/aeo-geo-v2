@@ -2438,6 +2438,12 @@
       // 최초 로드, pageshow, visibilitychange에서 동일 함수 호출
       let __shareInitialized = false;
       async function bootstrapShare() {
+        if (window.__shareBootstrapInFlight) {
+          const debug = new URLSearchParams(window.location.search).get('debug') === '1';
+          if (debug) console.log('[share] bootstrap skipped: in-flight');
+          return;
+        }
+        window.__shareBootstrapInFlight = true;
         const __bootDebug = (new URLSearchParams(location.search).get('debug') === '1');
         const __bootGroupKey = '[Share bootstrap] ' + String(location.search || '');
         const __bootCanGroup = !!(__bootDebug && console && typeof console.groupCollapsed === 'function' && typeof console.groupEnd === 'function');
@@ -2502,6 +2508,7 @@
         }
         } finally {
           try { if (__bootCanGroup) console.groupEnd(); } catch (_) {}
+           window.__shareBootstrapInFlight = false;
         }
       }
       
