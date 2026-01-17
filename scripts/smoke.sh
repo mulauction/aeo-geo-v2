@@ -90,6 +90,30 @@ if ! rg -n "console\\.groupCollapsed" share.html -S >/dev/null || ! rg -n "\\[Sh
   exit 1
 fi
 
+echo "== smoke: share telemetry mount id duplication guard =="
+telemetry_summary_mount_count="$(rg -n "mount\\.id = 'telemetrySummaryCard'" share.html -S | wc -l | tr -d ' ')"
+telemetry_local_mount_count="$(rg -n "mountLocal\\.id = 'telemetryLocalSummary'" share.html -S | wc -l | tr -d ' ')"
+if [ "${telemetry_summary_mount_count}" != "1" ] || [ "${telemetry_local_mount_count}" != "1" ]; then
+  echo "FAIL: telemetry mount id duplication guard"
+  echo "  telemetrySummaryCard mount.id count=${telemetry_summary_mount_count} (expected 1)"
+  echo "  telemetryLocalSummary mountLocal.id count=${telemetry_local_mount_count} (expected 1)"
+  exit 1
+fi
+echo "OK: telemetry mount id duplication guard"
+
+echo "== smoke: share restore/open preserve guard =="
+restore_open_set_count="$( (rg -n "q\\.set\\(\\s*('open'|\"open\")\\s*," share.html -S || true) | wc -l | tr -d ' ' )"
+restore_open_delete_count="$( (rg -n "q\\.delete\\(\\s*('open'|\"open\")\\s*\\)" share.html -S || true) | wc -l | tr -d ' ' )"
+if [ "${restore_open_set_count}" -lt "1" ]; then
+  echo "FAIL: restore/open preserve guard (missing q.set('open', ...))"
+  exit 1
+fi
+if [ "${restore_open_delete_count}" != "0" ]; then
+  echo "FAIL: restore/open preserve guard (q.delete('open') found)"
+  exit 1
+fi
+echo "OK: restore/open preserve guard"
+
 echo "OK: smoke passed"
 
 
