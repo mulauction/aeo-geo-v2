@@ -1919,8 +1919,9 @@
         localStorage.setItem('__currentReportId', r);
         // ✅ [Phase24-1] Safe URL construction for replaceState
         // ✅ [Phase45-A] forceState가 있으면 r 자동 부착(rewrite) 금지 (dev harness 보호)
-        const sp = new URLSearchParams(location.search);
-        if (!sp.has('forceState')) {
+        const urlParams = new URLSearchParams(location.search);
+        const isRestore = urlParams.get('restore') === '1';
+        if (!isRestore && !urlParams.has('forceState')) {
           try {
             const url = new URL(window.location.href);
             url.searchParams.set('r', r);
@@ -2174,6 +2175,29 @@
       const hasId = Boolean(urlParams.get('id'));
       const rParam = urlParams.get('r');
       const rOnly = Boolean(rParam) && !hasId;
+      const isRestore = urlParams.get('restore') === '1';
+      const openIdRaw = urlParams.get('open');
+      const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
+      const isRestoreOpen = Boolean(openId) && isRestore;
+
+      // ✅ [openRecent] restore=1&open=<digits> 에서는 선택된 __lastV2만 사용
+      if (isRestoreOpen) {
+        try {
+          const v = window.__lastV2 || (() => {
+            try {
+              const s = localStorage.getItem('__lastV2');
+              return s ? JSON.parse(s) : null;
+            } catch (_) { return null; }
+          })();
+          const vid =
+            (v && typeof v === 'object')
+              ? (v.reportId || v.meta?.reportId || v.meta?.id || v.id || null)
+              : null;
+          if (v && typeof v === 'object' && String(vid || '') === String(openId)) {
+            return v;
+          }
+        } catch (_) {}
+      }
       
       // ✅ [Phase22] viewState가 OK가 아니면 snapshot fetch 금지
       const currentViewState = window.__shareViewState;
@@ -2238,16 +2262,18 @@
       
       // ✅ [Phase 26-2C-2] r-only가 아닐 때만 fallback 로직 사용
       // (2) window.__lastV2 또는 localStorage '__lastV2'
-      if (window.__lastV2) {
+      if (!isRestoreOpen && window.__lastV2) {
         return window.__lastV2;
       }
       
       try {
-        const lastV2Str = localStorage.getItem('__lastV2');
-        if (lastV2Str) {
-          const parsed = JSON.parse(lastV2Str);
-          if (parsed && typeof parsed === 'object') {
-            return parsed;
+        if (!isRestoreOpen) {
+          const lastV2Str = localStorage.getItem('__lastV2');
+          if (lastV2Str) {
+            const parsed = JSON.parse(lastV2Str);
+            if (parsed && typeof parsed === 'object') {
+              return parsed;
+            }
           }
         }
       } catch (e) {
@@ -2517,13 +2543,91 @@
         try {
         // ✅ [Phase 11-2C] 공유 링크 진입 여부 및 forceWrite 플래그 확인
         const urlParams = new URLSearchParams(window.location.search);
+        const isRestore = urlParams.get('restore') === '1';
+        const openIdRaw = urlParams.get('open');
+        const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
+        const isRestoreOpen = Boolean(openId) && isRestore;
+        if (isRestoreOpen) {
+          try { localStorage.setItem('__currentReportId', String(openId)); } catch (_) {}
+          try {
+            const s = localStorage.getItem('__lastV2');
+            const v = s ? JSON.parse(s) : null;
+            const vid =
+              (v && typeof v === 'object')
+                ? (v.reportId || v.meta?.reportId || v.meta?.id || v.id || null)
+                : null;
+            if (v && typeof v === 'object' && String(vid || '') === String(openId)) {
+              window.__lastV2 = v;
+            }
+          } catch (_) {}
+        }
+        // [hotfix] Ensure restore button always works even after rerender/reinit
+        if (!window.__shareRestoreDelegateBoundV1) {
+          window.__shareRestoreDelegateBoundV1 = true;
+
+          document.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('[data-action="restore-recent"]') : null;
+            if (!btn) return;
+            if (btn.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            try {
+              const lastV2Str = localStorage.getItem('__lastV2');
+              if (!lastV2Str || lastV2Str.length < 10) { console.info('[restore] no __lastV2'); return; }
+
+              let lastV2 = null;
+              try { lastV2 = JSON.parse(lastV2Str); } catch (_) { console.info('[restore] no __lastV2'); return; }
+
+              const reportId =
+                (lastV2 && typeof lastV2 === 'object')
+                  ? (lastV2.reportId || lastV2.meta?.reportId || lastV2.meta?.id || lastV2.id || String(lastV2.generatedAt || Date.now()))
+                  : null;
+              if (!reportId) { console.info('[restore] no __lastV2'); return; }
+
+              localStorage.setItem('__currentReportId', reportId);
+
+              // navigate without preserving any existing query (r/id/restore)
+              const p = new URLSearchParams(window.location.search);
+              const debug = p.get('debug') === '1';
+              const target = location.pathname + (debug ? '?restore=1&debug=1' : '?restore=1');
+              if (debug) console.info('[restore] nav target', { target, reportId });
+              window.location.assign(target);
+            } catch (_) {}
+          }, true);
+        }
+
+        if (isRestore && !isRestoreOpen) {
+          try {
+            const s = localStorage.getItem('__lastV2');
+            const v = s ? JSON.parse(s) : null;
+            if (v && typeof v === 'object') {
+              if (!window.__lastV2) window.__lastV2 = v;
+            } else {
+              try { if (urlParams.get('debug') === '1') console.warn('[restore] restore=1 but __lastV2 invalid'); } catch (_) {}
+            }
+          } catch (e) {
+            try { if (urlParams.get('debug') === '1') console.warn('[restore] restore=1 but __lastV2 invalid'); } catch (_) {}
+          }
+        }
+        if (isRestore) {
+          try {
+            const q = new URLSearchParams();
+            q.set('restore', '1');
+            if (urlParams.get('debug') === '1') q.set('debug', '1');
+            if (openId) q.set('open', String(openId));
+            const next = location.pathname + '?' + q.toString();
+            history.replaceState(null, '', next);
+          } catch (_) {}
+        }
         const idParam = urlParams.get('id');
-        const rRaw = urlParams.get('r');
+        const rRaw = new URLSearchParams(window.location.search).get('r');
         const debug = urlParams.get('debug');
         const rParam = (rRaw && /^\d+$/.test(String(rRaw))) ? String(rRaw) : null;
         const hasId = Boolean(idParam);
         const forceWrite = (window.__SHARE_FORCE_WRITE__ === true);
-        const getOnly = (!forceWrite) && Boolean(rParam);
+        const isNumericR = Boolean(rParam) && /^[0-9]+$/.test(String(rParam));
+        const getOnly = (!forceWrite) && Boolean(rParam) && !isRestore && (hasId || !isNumericR);
         
         if (getOnly) {
           console.log('[share] view mode: GET only');
@@ -2553,7 +2657,7 @@
               String(rParam).includes('%7b')
             );
         const isValidIdParam = !idParam || isValidShareId(idParam);
-        const isValidRParam = !rParam || isValidShareId(rParam);
+        const isValidRParam = !rParam || isNumericR || isValidShareId(rParam);
 
         // ✅ [Phase24-1] NO_REPORT pre-check input (localStorage read는 기존과 동일)
         const lastV2StrPre = localStorage.getItem('__lastV2');
@@ -2612,7 +2716,7 @@
         }
 
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성 (2단계 흐름 유지)
-        const reportModel = pre.needsLoad ? await loadReportModel() : null;
+        const reportModel = (pre.needsLoad || isRestoreOpen) ? await loadReportModel() : null;
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
@@ -2628,9 +2732,10 @@
         
         // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때만 localStorage fallback 비활성화
         const hasR = Boolean(rParam);
-        const isROnly = hasR && !hasId;
+        const isROnly = hasR && !hasId && !isRestore && !isNumericR;
+        const restore = isRestore;
         // ✅ [Phase 26-2C-LogPolish] force=<state>일 때는 r-only 감지 로그를 출력하지 않음 (동작은 동일)
-        if (!forceParam && isROnly) {
+        if (!forceParam && isROnly && !restore) {
           console.log('[share] r-only param detected – disabling localStorage fallback');
         }
         
@@ -2836,12 +2941,12 @@
             if (canRestore) {
               // 가능하면 버튼 활성화
               restoreButtonHtml = `
-                <button id="btnRestoreLastReport" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+                <button id="btnRestoreLastReport" data-action="restore-recent" class="btn-restore" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #4caf50; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease; margin-right: 8px;">이 브라우저의 최근 리포트 목록 열기</button>
               `;
             } else {
               // 불가능하면 버튼 disabled + 안내 문구
               restoreButtonHtml = `
-                <button id="btnRestoreLastReport" class="btn-restore" disabled style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #999; background: #e0e0e0; border: none; border-radius: 4px; text-decoration: none; cursor: not-allowed; margin-right: 8px;">이 브라우저에 저장된 최신 리포트 열기</button>
+                <button id="btnRestoreLastReport" data-action="restore-recent" class="btn-restore" disabled style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #999; background: #e0e0e0; border: none; border-radius: 4px; text-decoration: none; cursor: not-allowed; margin-right: 8px;">이 브라우저의 최근 리포트 목록 열기</button>
               `;
               restoreNoticeHtml = `
                 <p style="margin: 8px 0 0 0; font-size: 12px; color: #666; font-style: italic;">이 브라우저에 저장된 리포트가 없습니다.</p>
@@ -2881,6 +2986,10 @@
           const cachedRemaining =
             cache && cache.month === month ? cache.remaining : window.__usageSummaryCacheRemaining;
           const hasCachedRemaining = typeof cachedRemaining === 'number' && Number.isFinite(cachedRemaining);
+
+          if (!hasCachedRemaining) {
+            remainingEl.textContent = '잔여 분석: Share 페이지에서는 표시되지 않습니다';
+          }
 
           const renderRemaining = (n) => copy.remainingText.replace('—', String(n));
 
@@ -3527,13 +3636,23 @@
           const recentUrl = snapshotId
             ? (location.origin + location.pathname + `?id=${encodeURIComponent(snapshotId)}&r=${encodeURIComponent(String(now))}`)
             : (location.origin + location.pathname);
+          let recentReportId = '';
+          try { recentReportId = String(currentReportIdForRecent || ''); } catch (_) { recentReportId = ''; }
+          let recentV2 = null;
+          try {
+            recentV2 = (window.__lastV2 && typeof window.__lastV2 === 'object')
+              ? window.__lastV2
+              : buildReportPayloadFromModel(reportModel);
+          } catch (_) { recentV2 = null; }
 
           const entry = {
             id: recentId,
+            reportId: recentReportId,
             target: analysisTarget || '분석 대상 없음',
             createdAt: now,
             score: getBestKpiScore(),
-            url: recentUrl
+            url: recentUrl,
+            v2: recentV2
           };
 
           const existing = loadRecentReports();
@@ -3590,20 +3709,34 @@
 
           const expanded = window.__recentReportsExpandedV1 === true;
           const visible = expanded ? sortedItems.slice(0, 10) : sortedItems.slice(0, 3);
+        const debugOn = (function(){ try { return new URLSearchParams(location.search).get('debug') === '1'; } catch (_) { return false; } })();
 
           const rows = visible.map((it) => {
             const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
             const whenKey = (it && typeof it === 'object') ? (it.createdAt ?? it.generatedAt ?? null) : null;
             const when = whenKey ? formatRecentDate(whenKey) : '';
             const score = (it && typeof it === 'object' && typeof it.score === 'number') ? `${it.score}점` : '';
-            const url = (it && typeof it === 'object' && it.url) ? String(it.url) : '';
+          const reportId =
+            (it && typeof it === 'object')
+              ? (it.reportId || it.meta?.reportId || it.meta?.id || it.id || it.r || null)
+              : null;
+          const reportIdStr = (reportId != null) ? String(reportId) : '';
+          const hasNumericId = /^\d+$/.test(reportIdStr);
+          let url = '';
+          if (hasNumericId) {
+            const qs = new URLSearchParams();
+            qs.set('restore', '1');
+            qs.set('open', reportIdStr);
+            if (debugOn) qs.set('debug', '1');
+            url = location.pathname + '?' + qs.toString();
+          }
             return `
               <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border);">
                 <div style="min-width: 0;">
                   <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}</div>
                   <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
                 </div>
-                <button type="button" class="btn btn-primary" data-cta="openRecent" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;">열기</button>
+                <button type="button" class="btn btn-primary" data-cta="openRecent" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;" ${url ? '' : 'disabled'}>열기</button>
               </div>
             `;
           }).join('');
@@ -3651,7 +3784,25 @@
               try { btn.setAttribute('data-cta','openRecent'); } catch (_) {}
               const url = btn.getAttribute('data-recent-open') || '';
               if (!url) return;
-              // 저장된 URL로 이동 (우리 코드가 만든 same-site URL만 저장)
+              // ✅ [openRecent] 선택된 로컬 리포트를 __lastV2로 주입 후 이동 (debug=1 only logs)
+              try {
+                const debug = new URLSearchParams(location.search).get('debug') === '1';
+                const u = new URL(url, location.origin);
+                const openId = u.searchParams.get('open');
+                if (debug) console.log('[share][openRecent] picked', { open: openId });
+                if (openId && /^\d+$/.test(String(openId))) {
+                  const items = loadRecentReports();
+                  const hit = items.find((x) => x && typeof x === 'object' && String(x.reportId || x.id || x.r || '') === String(openId));
+                  const v2 = hit && typeof hit === 'object' ? (hit.v2 || hit.__lastV2 || null) : null;
+                  if (v2 && typeof v2 === 'object') {
+                    try { localStorage.setItem('__lastV2', JSON.stringify(v2)); } catch (_) {}
+                    try { localStorage.setItem('__currentReportId', String(openId)); } catch (_) {}
+                    try { window.__lastV2 = v2; } catch (_) {}
+                    if (debug) console.log('[share][openRecent] wrote __lastV2', { open: openId });
+                  }
+                }
+                if (debug) console.log('[share][openRecent] navigate', { url });
+              } catch (_) {}
               location.href = url;
             });
           });
@@ -3999,20 +4150,26 @@
             } catch (_) {
               meta = null;
             }
-            const mount = document.createElement('div');
-            mount.id = 'telemetrySummaryCard';
             const app = document.querySelector('.app');
             if (app) {
-              app.appendChild(mount);
+              let mount = document.getElementById('telemetrySummaryCard');
+              if (!mount) {
+                mount = document.createElement('div');
+                mount.id = 'telemetrySummaryCard';
+                app.appendChild(mount);
+              }
               renderTelemetrySummaryCard({ container: mount, meta });
             }
 
             // ✅ [Phase 35-0][UI-only] Telemetry (local) summary (read-only; best-effort)
             try {
-              const mountLocal = document.createElement('div');
-              mountLocal.id = 'telemetryLocalSummary';
               if (app) {
-                app.appendChild(mountLocal);
+                let mountLocal = document.getElementById('telemetryLocalSummary');
+                if (!mountLocal) {
+                  mountLocal = document.createElement('div');
+                  mountLocal.id = 'telemetryLocalSummary';
+                  app.appendChild(mountLocal);
+                }
                 renderTelemetryLocalSummary({ container: mountLocal });
               }
             } catch (_) {}
@@ -4059,13 +4216,16 @@
             }
           });
         }
-        
         // ✅ [Phase 17-1] EXPIRED 상태 복구 버튼 이벤트 바인딩
         const btnRestoreLastReport = document.getElementById('btnRestoreLastReport');
         if (btnRestoreLastReport) {
           btnRestoreLastReport.addEventListener('click', () => {
+            if (window.__shareRestoreDelegateBoundV1) return;
+            const debug = new URLSearchParams(window.location.search).get('debug') === '1';
+            if (debug) console.info('[restore] click', { disabled: btnRestoreLastReport.disabled, href: location.href });
             // disabled 상태면 클릭 무시
             if (btnRestoreLastReport.disabled) {
+              if (debug) console.warn('[restore] bail: disabled');
               return;
             }
             
@@ -4073,15 +4233,16 @@
               // __lastV2에서 reportId 추출
               const lastV2Str = localStorage.getItem('__lastV2');
               if (!lastV2Str || lastV2Str.length <= 10) {
-                console.warn('[ShareViewState:restore] __lastV2 not found or invalid');
+                if (debug) console.warn('[restore] bail: __lastV2 missing/short', { len: lastV2Str?.length });
                 return;
               }
               
-              const lastV2 = JSON.parse(lastV2Str);
+              let lastV2 = null;
+              try { lastV2 = JSON.parse(lastV2Str); } catch (e) { if (debug) console.error('[restore] bail: __lastV2 JSON parse failed', e); throw e; }
               
               // parsed?.analysis 존재 여부 재확인
               if (!lastV2?.analysis) {
-                console.warn('[ShareViewState:restore] __lastV2.analysis not found');
+                if (debug) console.warn('[restore] bail: __lastV2.analysis missing');
                 return;
               }
               
@@ -4090,14 +4251,24 @@
                 lastV2.meta?.id || 
                 lastV2.id || 
                 String(lastV2.generatedAt || Date.now());
+              if (debug) console.info('[restore] reportId', reportId);
               
               // __currentReportId를 reportId로 설정
               localStorage.setItem('__currentReportId', reportId);
               
-              // share.html?r=reportId로 이동하여 재렌더링 트리거
-              window.location.href = `./share.html?r=${encodeURIComponent(reportId)}`;
+              const p = new URLSearchParams(window.location.search);
+              const hasId = Boolean(p.get('id'));
+              const hasR = Boolean(p.get('r'));
+              if (debug) console.info('[restore] r-only gate', { hasR, hasId, target: './share.html?restore=1&debug=1' });
+              const debugOn = p.get('debug') === '1';
+              const q = new URLSearchParams();
+              if (debugOn) q.set('debug','1');
+              q.set('restore','1');
+              if (debug) console.info('[restore] nav', { target: `./share.html?${q.toString()}` });
+              window.location.href = `./share.html?${q.toString()}`;
+              return;
             } catch (e) {
-              console.error('[ShareViewState:restore] Failed to restore last report:', e);
+              if (debug) console.error('[ShareViewState:restore] Failed to restore last report:', e);
             }
           });
         }

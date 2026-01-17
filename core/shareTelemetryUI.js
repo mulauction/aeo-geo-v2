@@ -15,6 +15,15 @@ function isDebugEnabled() {
   }
 }
 
+function isTelemetryFetchEnabled() {
+  try {
+    if (typeof location === 'undefined') return false;
+    return new URLSearchParams(location.search || '').get('telemetry') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
 function isDevHost() {
   try {
     if (typeof location === 'undefined') return false;
@@ -41,11 +50,13 @@ async function fetchTelemetrySummaryLatest() {
   try {
     // dev-only safety: never fetch unless explicitly enabled
     if (!shouldRenderTelemetryLocal()) return null;
+    if (!isTelemetryFetchEnabled()) return null;
     if (typeof fetch !== 'function') return null;
 
     async function tryFetch(url) {
       try {
         const res = await fetch(url, { cache: 'no-store' });
+        if (res && res.status === 404) return null;
         if (!res || !res.ok) return null;
         const data = await res.json();
         return (data && typeof data === 'object') ? data : null;
