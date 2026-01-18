@@ -8,10 +8,14 @@
 |---|---:|---|---|
 | phase58-telemetry-debug-gate-stable | a456585 | share.html | Telemetry는 debug=1에서만 노출. EXPIRED 등 meta 없음 상태에서도 UNAVAILABLE fallback으로 섹션 유지 |
 | phase59-share-analyze-boundary-ssot | 8d171be | docs | Share ↔ Analyze 경계/정책 문서 SSOT 고정 (진입 경로, viewState 의미, URL SSOT, Telemetry 정책) |
-| phase60-share-focus-visible-ui-only | a9d3d76 | share.html | Share 전역 :focus-visible 포커스 링 추가(UI-only) |
+| phase60-share-focus-visible-ui-only | a9d3d76 | share.html (SSOT로 대체됨) | Share 전역 :focus-visible 포커스 링 추가(UI-only) — 이후 a11y.css SSOT로 대체 |
 | phase61-share-aria-min-pass | e34669c | share.html | Share 토글에 aria-controls만 추가(aria-expanded는 동기화 불가로 금지) |
-| phase62-analyze-focus-visible-ui-only | a48856b | analyze.html | Analyze 전역 :focus-visible 포커스 링 추가(UI-only) |
+| phase62-analyze-focus-visible-ui-only | a48856b | analyze.html (SSOT로 대체됨) | Analyze 전역 :focus-visible 포커스 링 추가(UI-only) — 이후 a11y.css SSOT로 대체 |
 | phase63-a11y-min-testcases | 6407c39 | docs | Share/Analyze 접근성 최소 수동 테스트 체크리스트 추가 |
+| phase65-a11y-css-ssot-share | eb999ad | core/styles/a11y.css | a11y.css 추가(SSOT 생성) |
+| phase65-a11y-css-ssot-share-fix | 7e82f29 | share.html | share.html이 a11y.css를 참조하도록 연결 + 로컬 focus-visible 제거 |
+| phase66-a11y-css-ssot-analyze | c1b6bc8 | analyze.html | analyze.html이 a11y.css를 참조하도록 연결 + 로컬 focus-visible 제거 |
+| phase67-a11y-css-ssot-complete | c1b6bc8 | share.html + analyze.html + core/styles/a11y.css | Share/Analyze 모두 a11y.css SSOT 사용 완료(통합 기준 태그) |
 
 > Note: 커밋 해시는 “해당 태그가 가리키는 HEAD” 기준입니다.
 
