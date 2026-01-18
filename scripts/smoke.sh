@@ -133,6 +133,17 @@ if ! rg -n "onafterprint" share.html -S >/dev/null; then
 fi
 echo "OK: print ssot keywords guard"
 
+echo "== smoke: phase79 next-action guide guard =="
+if ! rg -n "공유는 링크 복사, 보관은 PDF 저장이 편합니다\\." share.html -S >/dev/null; then
+  echo "FAIL: phase79 next-action guide missing: 공유는 링크 복사, 보관은 PDF 저장이 편합니다."
+  exit 1
+fi
+if ! rg -n "이 상태에서는 최근 리포트를 열거나 다시 분석할 수 있습니다\\." share.html -S >/dev/null; then
+  echo "FAIL: phase79 next-action guide missing: 이 상태에서는 최근 리포트를 열거나 다시 분석할 수 있습니다."
+  exit 1
+fi
+echo "OK: phase79 next-action guide guard"
+
 echo "OK: smoke passed"
 
 
