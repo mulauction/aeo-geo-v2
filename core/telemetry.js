@@ -1002,6 +1002,39 @@ export function __attachTelemetryDebugHelpers() {
       }
     };
 
+    window.__debugTelemetryReleaseLine = function __debugTelemetryReleaseLine() {
+      try {
+        const fn = (typeof __debugTelemetryFunnel === 'function')
+          ? __debugTelemetryFunnel
+          : (typeof _debugTelemetryFunnel === 'function' ? _debugTelemetryFunnel : null);
+        if (!fn) return "INSUFFICIENT";
+        const r = fn();
+        const s = r && r.release_judgement && r.release_judgement.status;
+        return (s === "PASS" || s === "FAIL" || s === "INSUFFICIENT") ? s : "INSUFFICIENT";
+      } catch (e) {
+        return "INSUFFICIENT";
+      }
+    };
+
+    window.__debugTelemetryReleaseJSON = function __debugTelemetryReleaseJSON() {
+      try {
+        const fn = (typeof __debugTelemetryFunnel === 'function')
+          ? __debugTelemetryFunnel
+          : (typeof _debugTelemetryFunnel === 'function' ? _debugTelemetryFunnel : null);
+        if (!fn) return { status: "INSUFFICIENT" };
+        const r = fn();
+        const j = r && r.release_judgement ? r.release_judgement : null;
+        if (!j) return { status: "INSUFFICIENT" };
+        return {
+          status: (j.status === "PASS" || j.status === "FAIL" || j.status === "INSUFFICIENT") ? j.status : "INSUFFICIENT",
+          summary: j.summary,
+          stats: j.stats
+        };
+      } catch (e) {
+        return { status: "INSUFFICIENT" };
+      }
+    };
+
     console.info('[telemetry] debug helpers attached');
   } catch (_) {}
 }
