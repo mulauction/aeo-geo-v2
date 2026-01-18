@@ -1,6 +1,6 @@
 import { buildTelemetryExportCsvV1, buildTelemetryExportV1 } from './telemetryExport.js';
 import { sendTelemetryToIngestOnce } from "./telemetryIngestClient.js";
-import { buildFunnelActionChecklist, buildFunnelRecommendedActions } from './funnelActions.js';
+import { buildFunnelActionChecklist, buildFunnelRecommendedActions, pickTopActionFromChecklist } from './funnelActions.js';
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -547,6 +547,8 @@ function __debugTelemetryFunnel() {
     let recommendation_reason = '';
     let action_checklist = [];
     let checklist_note = '';
+    let top_action = null;
+    let top_action_reason = '';
     try {
       for (const sid of sidsAll) {
         const arr = bySid.get(sid) || [];
@@ -620,6 +622,16 @@ function __debugTelemetryFunnel() {
       checklist_note = '';
     }
 
+    // ✅ [Phase 95-1] Dev-only Top-1 action (derived from checklist; no UI/track/store changes)
+    try {
+      const top = pickTopActionFromChecklist({ action_checklist, dominant_drop_case });
+      top_action = top?.top_action || null;
+      top_action_reason = String(top?.top_action_reason || '');
+    } catch (_) {
+      top_action = null;
+      top_action_reason = '';
+    }
+
     console.groupCollapsed('[telemetry] funnel summary');
     console.table([{ kind: 'views', ...views }]);
     console.table([{ kind: 'actions', ...actions }]);
@@ -644,6 +656,8 @@ function __debugTelemetryFunnel() {
       recommendation_reason,
       action_checklist,
       checklist_note,
+      top_action,
+      top_action_reason,
       dominant_basis,
       counts_by_case,
       latest_drop_case,
@@ -665,6 +679,8 @@ function __debugTelemetryFunnel() {
       recommendation_reason: 'Analyze 진입 대비 실행 비율이 낮습니다.',
       action_checklist: [],
       checklist_note: '',
+      top_action: null,
+      top_action_reason: '',
       dominant_basis: 'aggregate_sessions',
       counts_by_case: { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 },
       latest_drop_case: '',

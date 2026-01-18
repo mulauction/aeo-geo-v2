@@ -59,6 +59,20 @@ const FUNNEL_RULES = {
   },
 };
 
+const IMPACT_LEVEL_BY_ID = {
+  A1: 'HIGH', A2: 'MED', A3: 'LOW',
+  B1: 'HIGH', B2: 'MED', B3: 'LOW',
+  C1: 'HIGH', C2: 'MED', C3: 'LOW',
+  D1: 'HIGH', D2: 'MED', D3: 'LOW',
+  OK1: 'LOW',
+};
+
+function _impactLevelFromId(id) {
+  const key = String(id || '');
+  const v = IMPACT_LEVEL_BY_ID[key];
+  return (v === 'HIGH' || v === 'MED' || v === 'LOW') ? v : 'LOW';
+}
+
 function _safeNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -146,12 +160,14 @@ export function buildFunnelActionChecklist(input = {}) {
         {
           id: 'A1',
           action: fallbackRule.actions[0],
+          impact_level: _impactLevelFromId('A1'),
           how_to_verify: fallbackRule.how_to_verify,
           expected_impact: fallbackRule.expected_impact,
         },
         {
           id: 'A2',
           action: fallbackRule.actions[1],
+          impact_level: _impactLevelFromId('A2'),
           how_to_verify: fallbackRule.how_to_verify,
           expected_impact: fallbackRule.expected_impact,
         },
@@ -170,9 +186,11 @@ export function buildFunnelActionChecklist(input = {}) {
     const ids = Array.isArray(rule.ids) ? rule.ids : [];
     const actions = Array.isArray(rule.actions) ? rule.actions : [];
     for (let i = 0; i < Math.min(takeN, ids.length, actions.length); i++) {
+      const id = String(ids[i]);
       items.push({
-        id: String(ids[i]),
+        id,
         action: String(actions[i]),
+        impact_level: _impactLevelFromId(id),
         how_to_verify: String(rule.how_to_verify || ''),
         expected_impact: String(rule.expected_impact || ''),
       });
@@ -190,18 +208,49 @@ export function buildFunnelActionChecklist(input = {}) {
         {
           id: 'A1',
           action: 'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+          impact_level: 'HIGH',
           how_to_verify: '다음 배포 후 counts_by_case에서 CASE_A 비중 감소 확인',
           expected_impact: 'Analyze 진입→실행 전환 개선',
         },
         {
           id: 'A2',
           action: '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+          impact_level: 'MED',
           how_to_verify: '다음 배포 후 counts_by_case에서 CASE_A 비중 감소 확인',
           expected_impact: 'Analyze 진입→실행 전환 개선',
         },
       ],
       checklist_note: '우선순위: 상단부터. 다음 배포 후 counts_by_case의 병목 케이스 비중이 줄면 개선입니다.',
     };
+  }
+}
+
+export function pickTopActionFromChecklist({ action_checklist = [], dominant_drop_case = '' } = {}) {
+  try {
+    const arr = Array.isArray(action_checklist) ? action_checklist : [];
+    const levels = ['HIGH', 'MED', 'LOW'];
+
+    let chosen = null;
+    for (const lvl of levels) {
+      chosen = arr.find((it) => it && typeof it === 'object' && String(it.impact_level || '') === lvl) || null;
+      if (chosen) break;
+    }
+
+    if (!chosen) return { top_action: null, top_action_reason: '' };
+
+    const isOk = String(dominant_drop_case || '') === 'CASE_OK';
+    const top_action = {
+      id: String(chosen.id || ''),
+      action: String(chosen.action || ''),
+      impact_level: String(chosen.impact_level || ''),
+    };
+    const top_action_reason = isOk
+      ? '현재 병목이 없어 유지가 우선입니다.'
+      : 'dominant_drop_case 기준 최우선 병목 해소를 위한 1순위 액션입니다.';
+
+    return { top_action, top_action_reason };
+  } catch (_) {
+    return { top_action: null, top_action_reason: '' };
   }
 }
 
