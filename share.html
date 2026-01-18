@@ -5101,8 +5101,11 @@
           if (!gateOrWarn("PDF 내보내기")) return;
           
           // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
-          if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing');
-          window.print();
+          // - Defer print so the click handler returns immediately (avoid long handler / allow instant cancel)
+          setTimeout(() => {
+            try { if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing'); } catch (_) {}
+            try { window.print(); } catch (_) {}
+          }, 0);
         });
       }
 
