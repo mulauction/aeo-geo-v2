@@ -1315,6 +1315,126 @@
       .report-footer {
         page-break-inside: avoid;
       }
+
+      /* ✅ [PHASE 73-2][SSOT] Print/PDF 품질 고정 (print only; screen 영향 0) */
+      html, body { height: auto !important; }
+      a, a:visited { color: inherit !important; text-decoration: none !important; }
+      * { box-shadow: none !important; text-shadow: none !important; filter: none !important; }
+
+      /* 인쇄에서 제거해야 할 UI (CTA/PRO/debug/telemetry/토글/액션/고정/유도) */
+      #shareCtaSlot,
+      [data-share-upgrade-cta="1"],
+      #proModalOverlay,
+      #telemetrySummaryCard,
+      #telemetryLocalSummary,
+      #telemetryHiddenNotice,
+      .action-grid,
+      .next-actions-section,
+      .score-criteria-toggle,
+      .share-policy,
+      .report-header-fixed-toast,
+      #helper-link-feedback {
+        display: none !important;
+      }
+
+      /* details/summary 토글: 인쇄에서는 내용이 보이게 강제 */
+      details > summary { display: none !important; }
+      details:not([open]) > *:not(summary) { display: block !important; }
+      details[open] > *:not(summary) { display: block !important; }
+      details { border: 0 !important; }
+
+      /* ✅ [PHASE 73-4][SSOT] Print hardening (no :has; sibling-based) */
+      /* Always hide "recent reports" list in print (INVALID_ID safety) */
+      .recent-reports, .recent-reports-section, #recentReports, #recent-reports, #recentReportsList { display: none !important; }
+
+      /* ✅ [PHASE 73-5][SSOT] Hide recent reports list in print (INVALID_ID 4p -> 1p) */
+      .recent-reports,
+      .recent-reports-section,
+      #recentReports,
+      #recent-reports,
+      [data-recent-reports],
+      .report-recent,
+      .report-recent-reports {
+        display: none !important;
+      }
+
+      /* Non-OK: collapse to 1 page (banner-driven, no :has) */
+      .report-warning-box ~ #anchor-evidence,
+      .report-warning-box ~ #anchor-content,
+      .report-warning-box ~ .content-section,
+      .report-warning-box ~ .report-footer,
+      .report-load-failed-banner ~ #anchor-evidence,
+      .report-load-failed-banner ~ #anchor-content,
+      .report-load-failed-banner ~ .content-section,
+      .report-load-failed-banner ~ .report-footer {
+        display: none !important;
+      }
+
+      /* Ensure minimal summary stays visible */
+      #share-status { display: block !important; }
+      #anchor-score-explainer { display: block !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+      .report-warning-box, .report-load-failed-banner, .report-header, .report-header-fixed { display: block !important; }
+
+      /* ✅ [PHASE 73-6][SSOT] Explicit state-based print (no inference) */
+      body[data-share-state="NO_REPORT"],
+      body[data-share-state="OTHER_DEVICE"],
+      body[data-share-state="EXPIRED"],
+      body[data-share-state="FETCH_FAIL"],
+      body[data-share-state="INVALID_ID"] {
+        font-size: 10pt !important;
+        line-height: 1.45 !important;
+      }
+      body[data-share-state="NO_REPORT"] .content-section,
+      body[data-share-state="OTHER_DEVICE"] .content-section,
+      body[data-share-state="EXPIRED"] .content-section,
+      body[data-share-state="FETCH_FAIL"] .content-section,
+      body[data-share-state="INVALID_ID"] .content-section,
+      body[data-share-state="NO_REPORT"] #anchor-evidence,
+      body[data-share-state="OTHER_DEVICE"] #anchor-evidence,
+      body[data-share-state="EXPIRED"] #anchor-evidence,
+      body[data-share-state="FETCH_FAIL"] #anchor-evidence,
+      body[data-share-state="INVALID_ID"] #anchor-evidence,
+      body[data-share-state="NO_REPORT"] #anchor-content,
+      body[data-share-state="OTHER_DEVICE"] #anchor-content,
+      body[data-share-state="EXPIRED"] #anchor-content,
+      body[data-share-state="FETCH_FAIL"] #anchor-content,
+      body[data-share-state="INVALID_ID"] #anchor-content,
+      body[data-share-state="NO_REPORT"] .report-footer,
+      body[data-share-state="OTHER_DEVICE"] .report-footer,
+      body[data-share-state="EXPIRED"] .report-footer,
+      body[data-share-state="FETCH_FAIL"] .report-footer,
+      body[data-share-state="INVALID_ID"] .report-footer,
+      body[data-share-state="INVALID_ID"] .recent-reports,
+      body[data-share-state="INVALID_ID"] .recent-reports-section,
+      body[data-share-state="INVALID_ID"] #recentReports,
+      body[data-share-state="INVALID_ID"] #recent-reports,
+      body[data-share-state="INVALID_ID"] #recentReportsList {
+        display: none !important;
+      }
+      body[data-share-state="NO_REPORT"] #share-status,
+      body[data-share-state="OTHER_DEVICE"] #share-status,
+      body[data-share-state="EXPIRED"] #share-status,
+      body[data-share-state="FETCH_FAIL"] #share-status,
+      body[data-share-state="INVALID_ID"] #share-status {
+        display: block !important;
+      }
+      body[data-share-state="NO_REPORT"] #anchor-score-explainer,
+      body[data-share-state="OTHER_DEVICE"] #anchor-score-explainer,
+      body[data-share-state="EXPIRED"] #anchor-score-explainer,
+      body[data-share-state="FETCH_FAIL"] #anchor-score-explainer,
+      body[data-share-state="INVALID_ID"] #anchor-score-explainer,
+      body[data-share-state="NO_REPORT"] .report-header,
+      body[data-share-state="OTHER_DEVICE"] .report-header,
+      body[data-share-state="EXPIRED"] .report-header,
+      body[data-share-state="FETCH_FAIL"] .report-header,
+      body[data-share-state="INVALID_ID"] .report-header,
+      body[data-share-state="NO_REPORT"] .report-header-fixed,
+      body[data-share-state="OTHER_DEVICE"] .report-header-fixed,
+      body[data-share-state="EXPIRED"] .report-header-fixed,
+      body[data-share-state="FETCH_FAIL"] .report-header-fixed,
+      body[data-share-state="INVALID_ID"] .report-header-fixed {
+        display: block !important;
+      }
     }
   </style>
   <script>
@@ -2814,6 +2934,7 @@
           viewState = devForcedViewState;
           window.__shareViewState = viewState;
         }
+        document.body.dataset.shareState = viewState;
         console.info('[ShareViewState]', viewState);
         __ctaPolicyFinalState = viewState;
 
