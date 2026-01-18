@@ -2395,11 +2395,11 @@
       
       try {
         if (!isRestoreOpen) {
-          const lastV2Str = localStorage.getItem('__lastV2');
-          if (lastV2Str) {
-            const parsed = JSON.parse(lastV2Str);
-            if (parsed && typeof parsed === 'object') {
-              return parsed;
+        const lastV2Str = localStorage.getItem('__lastV2');
+        if (lastV2Str) {
+          const parsed = JSON.parse(lastV2Str);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
             }
           }
         }
@@ -3088,12 +3088,12 @@
               </div>
               <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(0,0,0,0.15);">
                 <details style="margin: 0; font-size: 12px; color: #666;">
-                  <summary style="cursor: pointer; font-weight: 500;">더 알아보기</summary>
-                  <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
-                    <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 리포트를 브라우저에만 저장합니다. 다른 기기나 브라우저에서는 리포트 데이터에 접근할 수 없습니다. 서버 저장 기능은 준비 중입니다. 해결: 홈에서 다시 분석해 최신 리포트를 생성하세요.</p>
-                    <p style="margin: 8px 0 0 0; line-height: 1.5;"><a href="#obs-lite" style="color: #0066cc; text-decoration: none; font-weight: 500;">신뢰도/사유 보기 →</a></p>
-                  </div>
-                </details>
+                <summary style="cursor: pointer; font-weight: 500;">더 알아보기</summary>
+                <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
+                  <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 리포트를 브라우저에만 저장합니다. 다른 기기나 브라우저에서는 리포트 데이터에 접근할 수 없습니다. 서버 저장 기능은 준비 중입니다. 해결: 홈에서 다시 분석해 최신 리포트를 생성하세요.</p>
+                  <p style="margin: 8px 0 0 0; line-height: 1.5;"><a href="#obs-lite" style="color: #0066cc; text-decoration: none; font-weight: 500;">신뢰도/사유 보기 →</a></p>
+                </div>
+              </details>
               </div>
             </div>
           `;
@@ -4431,7 +4431,7 @@
               if (!mount) {
                 mount = document.createElement('div');
                 mount.id = 'telemetrySummaryCard';
-                app.appendChild(mount);
+              app.appendChild(mount);
               }
               renderTelemetrySummaryCard({ container: mount, meta });
             }
@@ -4443,7 +4443,7 @@
                 if (!mountLocal) {
                   mountLocal = document.createElement('div');
                   mountLocal.id = 'telemetryLocalSummary';
-                  app.appendChild(mountLocal);
+                app.appendChild(mountLocal);
                 }
                 renderTelemetryLocalSummary({ container: mountLocal });
               }
@@ -5093,21 +5093,34 @@
         } catch (_) {}
         return false;
       }
-
+      
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
       const btnExportPDF = document.getElementById('btnExportPDF');
       if (btnExportPDF) {
         btnExportPDF.addEventListener('click', () => {
           if (!gateOrWarn("PDF 내보내기")) return;
+          try {
+            if (window.__sharePdfExportInFlightV1 === true) {
+              if (isDebugOn()) console.info('[print] export skipped (in-flight)');
+              return;
+            }
+            window.__sharePdfExportInFlightV1 = true;
+            try { btnExportPDF.disabled = true; } catch (_) {}
+          } catch (_) {}
           try { if (isDebugOn()) console.info('[print] export button clicked'); } catch (_) {}
           
           // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
           // - Defer print so the click handler returns immediately (avoid long handler / allow instant cancel)
           setTimeout(() => {
-            try { if (isDebugOn()) console.info('[print] window.print invoked'); } catch (_) {}
-            try { if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing'); } catch (_) {}
-            try { window.print(); } catch (_) {}
-            try { if (isDebugOn()) console.info('[print] dialog returned'); } catch (_) {}
+            try {
+              try { if (isDebugOn()) console.info('[print] window.print invoked'); } catch (_) {}
+              try { if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing'); } catch (_) {}
+              try { window.print(); } catch (_) {}
+              try { if (isDebugOn()) console.info('[print] dialog returned'); } catch (_) {}
+            } finally {
+              try { window.__sharePdfExportInFlightV1 = false; } catch (_) {}
+              try { btnExportPDF.disabled = false; } catch (_) {}
+            }
           }, 0);
         });
       }
@@ -5188,9 +5201,9 @@
         var els = root.querySelectorAll ? root.querySelectorAll('[data-requires]') : [];
         els.forEach(function(el){
           try {
-            var req = String(el.getAttribute('data-requires') || '').trim();
-            if (!req) return;
-            var allowed = req.split('|').map(function(s){ return s.trim(); }).filter(Boolean);
+          var req = String(el.getAttribute('data-requires') || '').trim();
+          if (!req) return;
+          var allowed = req.split('|').map(function(s){ return s.trim(); }).filter(Boolean);
             var shouldHide = (allowed.indexOf(state) === -1);
             el.hidden = !!shouldHide;
           } catch (_) {}
