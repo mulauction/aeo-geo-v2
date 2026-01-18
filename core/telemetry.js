@@ -1,6 +1,6 @@
 import { buildTelemetryExportCsvV1, buildTelemetryExportV1 } from './telemetryExport.js';
 import { sendTelemetryToIngestOnce } from "./telemetryIngestClient.js";
-import { buildFunnelRecommendedActions } from './funnelActions.js';
+import { buildFunnelActionChecklist, buildFunnelRecommendedActions } from './funnelActions.js';
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -545,6 +545,8 @@ function __debugTelemetryFunnel() {
     const dominant_basis = 'aggregate_sessions';
     let recommended_actions = [];
     let recommendation_reason = '';
+    let action_checklist = [];
+    let checklist_note = '';
     try {
       for (const sid of sidsAll) {
         const arr = bySid.get(sid) || [];
@@ -604,6 +606,20 @@ function __debugTelemetryFunnel() {
       recommendation_reason = 'Analyze 진입 대비 실행 비율이 낮습니다.';
     }
 
+    // ✅ [Phase 94-1] Dev-only action checklist (pure rules; no UI/track/store changes)
+    try {
+      const checklist = buildFunnelActionChecklist({
+        dominant_drop_case,
+        counts_by_case,
+        totals: { sessions: shareSessions },
+      });
+      action_checklist = Array.isArray(checklist?.action_checklist) ? checklist.action_checklist : [];
+      checklist_note = String(checklist?.checklist_note || '');
+    } catch (_) {
+      action_checklist = [];
+      checklist_note = '';
+    }
+
     console.groupCollapsed('[telemetry] funnel summary');
     console.table([{ kind: 'views', ...views }]);
     console.table([{ kind: 'actions', ...actions }]);
@@ -626,6 +642,8 @@ function __debugTelemetryFunnel() {
       next_action_hint,
       recommended_actions,
       recommendation_reason,
+      action_checklist,
+      checklist_note,
       dominant_basis,
       counts_by_case,
       latest_drop_case,
@@ -645,6 +663,8 @@ function __debugTelemetryFunnel() {
         '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
       ],
       recommendation_reason: 'Analyze 진입 대비 실행 비율이 낮습니다.',
+      action_checklist: [],
+      checklist_note: '',
       dominant_basis: 'aggregate_sessions',
       counts_by_case: { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 },
       latest_drop_case: '',
