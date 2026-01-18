@@ -253,5 +253,113 @@ export function pickTopActionFromChecklist({ action_checklist = [], dominant_dro
     return { top_action: null, top_action_reason: '' };
   }
 }
+// core/funnelActions.js
+export function buildExecutionGuide({
+  top_action = null,
+  dominant_drop_case = '',
+  impact_level = ''
+} = {}) {
+  const base = {
+    goal: '',
+    steps: [],
+    verify: [],
+    failure_signals: []
+  };
+
+  const CASES = {
+    CASE_A: {
+      goal: 'Analyze 실행률 올리기',
+      steps: [
+        'Analyze 버튼을 상단 1순위 CTA로 고정',
+        '샘플 입력 1줄 자동 채움',
+        '실행 전 1줄 가이드 문구 추가',
+        '첫 클릭 후 즉시 실행 트리거 검토',
+        '에러/대기 상태 명확화'
+      ],
+      verify: [
+        'counts_by_case에서 CASE_A 비중 감소',
+        'CASE_OK 또는 CASE_B 증가'
+      ],
+      failure_signals: [
+        'CASE_A 비중 유지/증가',
+        'CASE_B로 이동 후 정체'
+      ]
+    },
+    CASE_B: {
+      goal: 'Analyze→Generate 전환 끊김 해소',
+      steps: [
+        'Analyze 완료 후 Generate 자동 이동',
+        'Generate CTA 고정 노출',
+        '중간 확인 모달 제거',
+        '전환 중 로딩 상태 명확화',
+        '전환 실패 시 재시도 CTA'
+      ],
+      verify: [
+        'CASE_B 감소',
+        'CASE_C 또는 CASE_OK 증가'
+      ],
+      failure_signals: [
+        'CASE_B 유지',
+        'Generate_view는 증가하나 run 미증가'
+      ]
+    },
+    CASE_C: {
+      goal: 'Generate 실행률 올리기',
+      steps: [
+        'Generate 버튼 대비 강조',
+        '기본 옵션 프리셋 적용',
+        '실행 비용/시간 안내',
+        '실행 중 진행 표시 강화',
+        '실행 실패 시 즉시 재시도'
+      ],
+      verify: [
+        'CASE_C 감소',
+        'CASE_D 또는 CASE_OK 증가'
+      ],
+      failure_signals: [
+        'Generate_view만 증가',
+        'run 비율 정체'
+      ]
+    },
+    CASE_D: {
+      goal: 'Generate→Share 복귀 끊김 해소',
+      steps: [
+        '완료 후 Share 자동 이동',
+        '“리포트 보기” CTA 상단 고정',
+        '완료 토스트에 Share 링크 포함',
+        '백그라운드 완료 시 알림',
+        '복귀 실패 시 수동 링크 제공'
+      ],
+      verify: [
+        'CASE_D 감소',
+        'CASE_OK 증가'
+      ],
+      failure_signals: [
+        'CASE_D 유지',
+        'Share_view 미증가'
+      ]
+    },
+    CASE_OK: {
+      goal: '병목 없음 유지',
+      steps: ['현 상태 유지'],
+      verify: ['CASE_OK 유지'],
+      failure_signals: []
+    }
+  };
+
+  const tpl = CASES[dominant_drop_case] || CASES.CASE_A;
+  const guide = { ...base, ...tpl };
+
+  // top_action 우선 반영
+  if (top_action?.action) {
+    guide.steps = [top_action.action, ...guide.steps];
+  }
+
+  // impact_level에 따른 길이 조절
+  const maxSteps = impact_level === 'HIGH' ? 5 : 4;
+  guide.steps = guide.steps.slice(0, maxSteps);
+
+  return guide;
+}
 
 
