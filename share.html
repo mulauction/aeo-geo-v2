@@ -1584,7 +1584,7 @@
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
-    import { getSessionId, hashId, track, downloadTelemetryJSON, downloadTelemetryCSV } from './core/telemetry.js';
+    import { getSessionId, hashId, track, downloadTelemetryJSON, downloadTelemetryCSV, __attachTelemetryDebugHelpers } from './core/telemetry.js';
     import { renderTelemetrySummaryCard, renderTelemetryLocalSummary } from './core/shareTelemetryUI.js';
 
     const SHARE_UI_COPY = {
@@ -2645,6 +2645,14 @@
         
         // renderShareContent 호출
         await renderShareContent();
+
+        // ✅ [telemetry] debug helpers attach (Share + debug=1 only; once per page session)
+        try {
+          if (!window.__telemetryDebugHelpersAttachedV1) {
+            window.__telemetryDebugHelpersAttachedV1 = true;
+            __attachTelemetryDebugHelpers();
+          }
+        } catch (_) {}
         
         // ✅ [Phase 90-1C][observe-only] UX telemetry: share_view (session once; after render)
         try {

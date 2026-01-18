@@ -232,6 +232,256 @@ export function downloadTelemetryCSV() {
   } catch (_) {}
 }
 
+// -----------------------------
+// ✅ [Phase 90 debug helpers][observe-only]
+// - Dev-only helpers for sessionStorage telemetry inspection
+// - No network, no UI changes, no schema changes (read-only)
+// - Exposed only on share.html with debug=1
+// -----------------------------
+
+function _isShareDebugOn() {
+  try {
+    if (typeof location === 'undefined') return false;
+    const p = new URLSearchParams(location.search || '');
+    const isDebug = p.get('debug') === '1';
+    const isShare = String(location.pathname || '').endsWith('/share.html') || String(location.pathname || '') === '/share.html';
+    return !!(isDebug && isShare);
+  } catch (_) {
+    return false;
+  }
+}
+
+function _readRawTelemetryEvents() {
+  try {
+    if (typeof sessionStorage === 'undefined') return [];
+    const raw = sessionStorage.getItem(KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function _getSidFallback() {
+  try {
+    if (typeof sessionStorage === 'undefined') return '';
+    return String(sessionStorage.getItem(SID_KEY) || '');
+  } catch (_) {
+    return '';
+  }
+}
+
+function _fmtTs(ts) {
+  try {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return new Date(n).toISOString();
+  } catch (_) {
+    return '';
+  }
+}
+
+function _pick(o, keys) {
+  try {
+    for (const k of keys) {
+      if (o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k) && o[k] != null) return o[k];
+    }
+    return undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function _groupBySid(events) {
+  const sidFallback = _getSidFallback();
+  const map = new Map();
+  for (const ev of Array.isArray(events) ? events : []) {
+    const o = (ev && typeof ev === 'object') ? ev : {};
+    const sid = String(o.sid || sidFallback || 'unknown');
+    const arr = map.get(sid) || [];
+    arr.push(o);
+    map.set(sid, arr);
+  }
+  return map;
+}
+
+function _countByEvent(events) {
+  const counts = Object.create(null);
+  for (const ev of Array.isArray(events) ? events : []) {
+    const name = (ev && typeof ev === 'object') ? String(ev.event || '') : '';
+    if (!name) continue;
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  return counts;
+}
+
+function _pct(n, d) {
+  try {
+    const nn = Number(n);
+    const dd = Number(d);
+    if (!Number.isFinite(nn) || !Number.isFinite(dd) || dd <= 0) return '0%';
+    return `${Math.round((nn / dd) * 1000) / 10}%`;
+  } catch (_) {
+    return '0%';
+  }
+}
+
+function __debugTelemetryLast(n = 20) {
+  try {
+    const limit = Math.max(1, Math.min(200, Number(n) || 20));
+    const events = _readRawTelemetryEvents().slice(-limit);
+    const sidFallback = _getSidFallback();
+    const rows = events.map((e) => {
+      const o = (e && typeof e === 'object') ? e : {};
+      const sid = String(o.sid || sidFallback || '');
+      const report_id = _pick(o, ['report_id', 'reportIdHash']);
+      const share_state = _pick(o, ['share_state', 'finalState', 'preState']);
+      const from = _pick(o, ['from']);
+      const has_previous_report = _pick(o, ['has_previous_report']);
+      return {
+        event: String(o.event || ''),
+        ts: _fmtTs(o.ts),
+        sid,
+        has_report_id: !!report_id,
+        report_id: report_id != null ? String(report_id) : '',
+        share_state: share_state != null ? String(share_state) : '',
+        from: from != null ? String(from) : '',
+        has_previous_report: typeof has_previous_report === 'boolean' ? has_previous_report : '',
+      };
+    });
+    console.table(rows);
+    return rows;
+  } catch (_) {
+    return [];
+  }
+}
+
+function __debugTelemetryFunnel() {
+  try {
+    const events = _readRawTelemetryEvents();
+    const bySid = _groupBySid(events);
+    const sidsAll = Array.from(bySid.keys());
+
+    const hasEvent = (arr, name) => {
+      try {
+        return (arr || []).some((e) => e && typeof e === 'object' && String(e.event || '') === name);
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const sidHasShare = new Set();
+    const sidHasCopy = new Set();
+    const sidHasPdf = new Set();
+    const sidHasAnalyze = new Set();
+    const sidHasAnalyzeView = new Set();
+    const sidHasGenerateView = new Set();
+
+    for (const sid of sidsAll) {
+      const arr = bySid.get(sid) || [];
+      if (hasEvent(arr, 'share_view')) sidHasShare.add(sid);
+      if (hasEvent(arr, 'share_action_copy_link')) sidHasCopy.add(sid);
+      if (hasEvent(arr, 'share_action_pdf')) sidHasPdf.add(sid);
+      if (hasEvent(arr, 'share_action_analyze')) sidHasAnalyze.add(sid);
+      if (hasEvent(arr, 'analyze_view')) sidHasAnalyzeView.add(sid);
+      if (hasEvent(arr, 'generate_view')) sidHasGenerateView.add(sid);
+    }
+
+    const counts = _countByEvent(events);
+    const views = {
+      share_view: counts.share_view || 0,
+      analyze_view: counts.analyze_view || 0,
+      generate_view: counts.generate_view || 0,
+    };
+    const actions = {
+      share_action_copy_link: counts.share_action_copy_link || 0,
+      share_action_pdf: counts.share_action_pdf || 0,
+      share_action_analyze: counts.share_action_analyze || 0,
+    };
+
+    const shareSessions = sidHasShare.size;
+    const funnel = [
+      { metric: 'share_view sessions', value: shareSessions },
+      { metric: 'copy_link sessions', value: sidHasCopy.size, rate: _pct(sidHasCopy.size, shareSessions) },
+      { metric: 'pdf sessions', value: sidHasPdf.size, rate: _pct(sidHasPdf.size, shareSessions) },
+      { metric: 'analyze_click sessions', value: sidHasAnalyze.size, rate: _pct(sidHasAnalyze.size, shareSessions) },
+    ];
+
+    console.groupCollapsed('[telemetry] funnel summary');
+    console.table([{ kind: 'views', ...views }]);
+    console.table([{ kind: 'actions', ...actions }]);
+    console.table(funnel);
+    console.groupEnd();
+
+    return { views, actions, funnel };
+  } catch (_) {
+    return { views: {}, actions: {}, funnel: [] };
+  }
+}
+
+// Attach only for share.html?debug=1
+try {
+  if (typeof window !== 'undefined' && _isShareDebugOn()) {
+    if (typeof window.__debugTelemetryLast !== 'function') window.__debugTelemetryLast = __debugTelemetryLast;
+    if (typeof window.__debugTelemetryFunnel !== 'function') window.__debugTelemetryFunnel = __debugTelemetryFunnel;
+  }
+} catch (_) {}
+
+// === DEBUG HELPERS ATTACH (Share only; debug=1) ==========
+export function __attachTelemetryDebugHelpers() {
+  try {
+    if (typeof window === 'undefined') return;
+
+    const p = new URLSearchParams(location.search);
+    if (p.get('debug') !== '1') return;
+    const isShare = String(location.pathname || '').endsWith('/share.html') || String(location.pathname || '') === '/share.html';
+    if (!isShare) return;
+
+    if (window.__telemetryDebugAttached) return;
+    window.__telemetryDebugAttached = true;
+
+    // Attach only when helpers exist
+    if (typeof __debugTelemetryLast === 'function') window.__debugTelemetryLast = __debugTelemetryLast;
+    if (typeof __debugTelemetryFunnel === 'function') window.__debugTelemetryFunnel = __debugTelemetryFunnel;
+    // aliases (guard against user typos)
+    if (typeof __debugTelemetryLast === 'function') window._debugTelemetryLast = __debugTelemetryLast;
+    if (typeof __debugTelemetryFunnel === 'function') window._debugTelemetryFunnel = __debugTelemetryFunnel;
+
+    console.info('[telemetry] debug helpers attached');
+  } catch (_) {}
+}
+
+// --- Phase 90 debug helpers: attach once on module load (Share only; debug=1; fail-quiet)
+function isDebugMode() {
+  try {
+    const p = new URLSearchParams(location.search || '');
+    return p.get('debug') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function _isSharePage() {
+  try {
+    const path = String(location.pathname || '');
+    return path.endsWith('/share.html') || path === '/share.html';
+  } catch (_) {
+    return false;
+  }
+}
+
+function attachTelemetryDebugHelpersOnce() {
+  try {
+    if (typeof window === 'undefined') return;
+    if (!isDebugMode()) return;
+    if (!_isSharePage()) return;
+    if (window.__telemetryDebugAttached) return;
+    __attachTelemetryDebugHelpers();
+  } catch (_) {}
+}
+
+try { attachTelemetryDebugHelpersOnce(); } catch (_) {}
+
 export function summarize() {
   try {
     if (typeof sessionStorage === 'undefined') {
