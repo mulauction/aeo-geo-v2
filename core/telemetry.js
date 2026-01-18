@@ -240,6 +240,23 @@ export function downloadTelemetryCSV() {
 // - Exposed only on share.html with debug=1
 // -----------------------------
 
+const BEFORE_KEY = "__funnel_snapshot_before_v1";
+
+function _lsGetJSON(key) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+function _lsSetJSON(key, obj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(obj));
+  } catch {}
+}
+
 function _isShareDebugOn() {
   try {
     if (typeof location === 'undefined') return false;
@@ -419,6 +436,137 @@ export function computeTelemetryFunnelOutcome(events = [], _meta = null) {
       flags: { fallback: true, error: true },
     };
   }
+}
+
+// -----------------------------
+// [Phase 97-1 / Step 1] Before vs After funnel snapshot compare (PURE)
+// - No side effects, no console, no storage, no exports required
+// -----------------------------
+
+function _safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _round1(n) {
+  return Math.round(Number(n) * 10) / 10;
+}
+
+function _pct1(count, sessions) {
+  const s = _safeNum(sessions);
+  const c = _safeNum(count);
+  if (!(s > 0)) return 0;
+  return _round1((c / s) * 100);
+}
+
+function _fmtPP(n) {
+  const v = _round1(n);
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(1)}pp`;
+}
+
+function _fmtPct(n) {
+  return `${_round1(n).toFixed(1)}%`;
+}
+
+function _dominantDropCase(counts_by_case) {
+  const c = counts_by_case && typeof counts_by_case === 'object' ? counts_by_case : {};
+  const cases = ['CASE_A', 'CASE_B', 'CASE_C', 'CASE_D'];
+
+  let bestCase = null;
+  let bestCount = -1;
+  for (const k of cases) {
+    const n = _safeNum(c[k]);
+    if (n > bestCount) {
+      bestCount = n;
+      bestCase = k;
+    }
+  }
+  if (!(bestCount > 0)) return null;
+  return bestCase;
+}
+
+function normalizeFunnelSnapshot(snapshot) {
+  const s = snapshot && typeof snapshot === 'object' ? snapshot : null;
+  const totals = s && s.totals && typeof s.totals === 'object' ? s.totals : null;
+
+  const sessionsRaw = totals ? totals.sessions : 0;
+  const sessions = Math.max(0, _safeNum(sessionsRaw));
+
+  const inCounts = s && s.counts_by_case && typeof s.counts_by_case === 'object' ? s.counts_by_case : {};
+  const counts_by_case = {
+    CASE_OK: Math.max(0, _safeNum(inCounts.CASE_OK)),
+    CASE_A: Math.max(0, _safeNum(inCounts.CASE_A)),
+    CASE_B: Math.max(0, _safeNum(inCounts.CASE_B)),
+    CASE_C: Math.max(0, _safeNum(inCounts.CASE_C)),
+    CASE_D: Math.max(0, _safeNum(inCounts.CASE_D)),
+  };
+
+  return { totals: { sessions }, counts_by_case };
+}
+
+function compareFunnelSnapshots(before, after) {
+  const notes = [];
+  const b = before ? normalizeFunnelSnapshot(before) : null;
+  const a = after ? normalizeFunnelSnapshot(after) : null;
+
+  const bSessions = b ? _safeNum(b.totals.sessions) : 0;
+  const aSessions = a ? _safeNum(a.totals.sessions) : 0;
+
+  const minSessions = 30;
+
+  const comparable = !!(b && a && bSessions > 0 && aSessions > 0 && bSessions >= minSessions && aSessions >= minSessions);
+  if (!b) notes.push('before snapshot missing');
+  if (!a) notes.push('after snapshot missing');
+  if (b && !(bSessions > 0)) notes.push('before.sessions==0');
+  if (a && !(aSessions > 0)) notes.push('after.sessions==0');
+  if (b && bSessions > 0 && bSessions < minSessions) notes.push(`before.sessions<${minSessions}`);
+  if (a && aSessions > 0 && aSessions < minSessions) notes.push(`after.sessions<${minSessions}`);
+
+  const bCounts = b ? b.counts_by_case : { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
+  const aCounts = a ? a.counts_by_case : { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
+
+  const beforeOkRate = _pct1(bCounts.CASE_OK, bSessions);
+  const afterOkRate = _pct1(aCounts.CASE_OK, aSessions);
+
+  const beforeDomCase = _dominantDropCase(bCounts);
+  const afterDomCase = _dominantDropCase(aCounts);
+
+  const beforeDomRate = beforeDomCase ? _pct1(bCounts[beforeDomCase], bSessions) : 0;
+  const afterDomRate = afterDomCase ? _pct1(aCounts[afterDomCase], aSessions) : 0;
+
+  const deltasByCase = {
+    CASE_A: _round1(_pct1(aCounts.CASE_A, aSessions) - _pct1(bCounts.CASE_A, bSessions)),
+    CASE_B: _round1(_pct1(aCounts.CASE_B, aSessions) - _pct1(bCounts.CASE_B, bSessions)),
+    CASE_C: _round1(_pct1(aCounts.CASE_C, aSessions) - _pct1(bCounts.CASE_C, bSessions)),
+    CASE_D: _round1(_pct1(aCounts.CASE_D, aSessions) - _pct1(bCounts.CASE_D, bSessions)),
+    CASE_OK: _round1(afterOkRate - beforeOkRate),
+  };
+
+  const okDelta = deltasByCase.CASE_OK;
+  const dominantDelta = _round1(afterDomRate - beforeDomRate);
+
+  const improved = !!(comparable && okDelta >= 0.5 && dominantDelta <= -0.5);
+
+  const summary = comparable
+    ? `CASE_OK ${_fmtPct(beforeOkRate)}→${_fmtPct(afterOkRate)}(${_fmtPP(okDelta)}), dominant ${beforeDomCase || 'n/a'} ${_fmtPct(beforeDomRate)}→${_fmtPct(afterDomRate)}(${_fmtPP(dominantDelta)}) — ${improved ? 'improved' : 'not improved'}`
+    : `Not comparable: before.sessions=${_safeNum(bSessions)}, after.sessions=${_safeNum(aSessions)}`;
+
+  return {
+    comparable,
+    improved,
+    summary,
+    rates: {
+      before: { CASE_OK: beforeOkRate, dominant_drop_case: beforeDomCase, dominant_drop_rate: beforeDomRate },
+      after: { CASE_OK: afterOkRate, dominant_drop_case: afterDomCase, dominant_drop_rate: afterDomRate },
+    },
+    deltas: {
+      CASE_OK: okDelta,
+      dominant_drop_rate: dominantDelta,
+      by_case: deltasByCase,
+    },
+    notes,
+  };
 }
 
 function __debugTelemetryLast(n = 20) {
@@ -645,6 +793,31 @@ function __debugTelemetryFunnel() {
     } catch (_) {}
     console.groupEnd();
 
+    const sessions = sidsAll.length;
+    const afterSnapshot = {
+      totals: { sessions },
+      counts_by_case
+    };
+
+    const beforeSnapshot = _lsGetJSON(BEFORE_KEY);
+
+    let improvement_snapshot;
+
+    if (!beforeSnapshot) {
+      _lsSetJSON(BEFORE_KEY, afterSnapshot);
+      improvement_snapshot = {
+        comparable: false,
+        improved: false,
+        summary: "Baseline saved (before). Re-run to compare.",
+        notes: ["baseline_saved"]
+      };
+    } else {
+      improvement_snapshot = compareFunnelSnapshots(
+        beforeSnapshot,
+        afterSnapshot
+      );
+    }
+
     return {
       views,
       actions,
@@ -663,6 +836,7 @@ function __debugTelemetryFunnel() {
       latest_drop_case,
       latest_human_reason,
       latest_next_action_hint,
+      improvement_snapshot
     };
   } catch (_) {
     return {
@@ -686,6 +860,12 @@ function __debugTelemetryFunnel() {
       latest_drop_case: '',
       latest_human_reason: '',
       latest_next_action_hint: '',
+      improvement_snapshot: {
+        comparable: false,
+        improved: false,
+        summary: "Not comparable: error",
+        notes: ["error"]
+      }
     };
   }
 }
