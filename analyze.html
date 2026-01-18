@@ -155,7 +155,34 @@
 
   <script type="module">
     import { boot } from './core/lifecycle.js';
+    import { getSessionId, track } from './core/telemetry.js';
     
+    // ✅ [Phase 90-1C][observe-only] UX telemetry: analyze_view (no UX change; run after DOMContentLoaded)
+    (function () {
+      const runOnce = () => {
+        try {
+          const sid = (typeof getSessionId === 'function') ? getSessionId() : '';
+          const onceKey = '__telemetry_once_analyze_view_' + String(sid || '');
+          if (typeof sessionStorage !== 'undefined' && sid && sessionStorage.getItem(onceKey) === '1') return;
+          try { if (typeof sessionStorage !== 'undefined' && sid) sessionStorage.setItem(onceKey, '1'); } catch (_) {}
+          const ref = String(document.referrer || '');
+          const from = ref.includes('share.html') ? 'share' : (ref.includes('home.html') ? 'home' : 'direct');
+          let has_previous_report = false;
+          try {
+            const v = localStorage.getItem('__lastV2');
+            has_previous_report = !!(v && v.length > 10);
+          } catch (_) {}
+          track('analyze_view', { from, has_previous_report: !!has_previous_report });
+        } catch (_) {}
+      };
+      try {
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', runOnce, { once: true });
+        else runOnce();
+      } catch (_) {
+        try { runOnce(); } catch (_) {}
+      }
+    })();
+
     boot();
   </script>
 </body>

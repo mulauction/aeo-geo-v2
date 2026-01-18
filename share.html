@@ -2646,6 +2646,23 @@
         // renderShareContent 호출
         await renderShareContent();
         
+        // ✅ [Phase 90-1C][observe-only] UX telemetry: share_view (session once; after render)
+        try {
+          const share_state = String(window.__shareViewState || '');
+          const p = new URLSearchParams(location.search || '');
+          const from = (p.get('restore') === '1') ? 'restore' : ((p.get('id') || p.get('r') || p.get('open')) ? 'link' : 'direct');
+          const rawId = (() => {
+            try { return String(p.get('id') || p.get('r') || (localStorage.getItem('__currentReportId') || '') || ''); } catch (_) { return String(p.get('id') || p.get('r') || ''); }
+          })();
+          const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+          const sid = (typeof getSessionId === 'function') ? getSessionId() : '';
+          const onceKey = '__telemetry_once_share_view_' + String(sid || '');
+          if (typeof sessionStorage === 'undefined' || !sid || sessionStorage.getItem(onceKey) !== '1') {
+            try { if (typeof sessionStorage !== 'undefined' && sid) sessionStorage.setItem(onceKey, '1'); } catch (_) {}
+            track('share_view', { report_id, share_state, from });
+          }
+        } catch (_) {}
+        
         // ✅ [Phase 19-1A] 재초기화 후 pending scroll 재적용
         if (window.__sharePendingScrollTarget) {
           const target = window.__sharePendingScrollTarget;
@@ -3703,6 +3720,13 @@
               if (shareUrl) {
                 try {
                   await navigator.clipboard.writeText(shareUrl);
+                  // ✅ [Phase 90-1][observe-only] UX telemetry: share_action_copy_link
+                  try {
+                    const p = new URLSearchParams(location.search || '');
+                    const rawId = String(p.get('id') || p.get('r') || (localStorage.getItem('__currentReportId') || '') || '');
+                    const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                    track('share_action_copy_link', { report_id });
+                  } catch (_) {}
                   const statusEl = document.getElementById('share-status');
                   if (statusEl) {
                     statusEl.textContent = '링크가 클립보드에 복사되었습니다.';
@@ -4562,6 +4586,13 @@
               
               try {
                 await navigator.clipboard.writeText(shareUrl);
+                // ✅ [Phase 90-1C][observe-only] UX telemetry: share_action_copy_link
+                try {
+                  const p = new URLSearchParams(location.search || '');
+                  const rawId = String(p.get('id') || p.get('r') || (localStorage.getItem('__currentReportId') || '') || '');
+                  const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                  track('share_action_copy_link', { report_id });
+                } catch (_) {}
                 copyBtn.textContent = '복사됨';
                 setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
                 showToast('공유 링크가 복사되었습니다');
@@ -4600,6 +4631,13 @@
               
               try {
                 await navigator.clipboard.writeText(shareUrl);
+                // ✅ [Phase 90-1C][observe-only] UX telemetry: share_action_copy_link
+                try {
+                  const p = new URLSearchParams(location.search || '');
+                  const rawId = String(p.get('id') || p.get('r') || (localStorage.getItem('__currentReportId') || '') || '');
+                  const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                  track('share_action_copy_link', { report_id });
+                } catch (_) {}
                 copyBtn.textContent = '복사됨';
                 setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
                 showToast('공유 링크가 복사되었습니다');
@@ -5110,6 +5148,13 @@
             try { btnExportPDF.disabled = true; } catch (_) {}
           } catch (_) {}
           try { if (isDebugOn()) console.info('[print] export button clicked'); } catch (_) {}
+          // ✅ [Phase 90-1][observe-only] UX telemetry: share_action_pdf
+          try {
+            const p = new URLSearchParams(location.search || '');
+            const rawId = String(p.get('id') || p.get('r') || (localStorage.getItem('__currentReportId') || '') || '');
+            const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+            track('share_action_pdf', { report_id });
+          } catch (_) {}
           
           // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
           // - Defer print so the click handler returns immediately (avoid long handler / allow instant cancel)
@@ -5125,6 +5170,26 @@
             }
           }, 0);
         });
+      }
+
+      // ✅ [Phase 90-1][observe-only] UX telemetry: share_action_analyze (no UX change)
+      if (!window.__shareUxAnalyzeClickBoundV1) {
+        window.__shareUxAnalyzeClickBoundV1 = true;
+        document.addEventListener('click', (e) => {
+          try {
+            const t = e && e.target ? e.target : null;
+            const el = (t && t.closest) ? t.closest('a,[role=\"button\"],button,div') : null;
+            if (!el) return;
+            const href = (typeof el.getAttribute === 'function') ? (el.getAttribute('href') || '') : '';
+            const onclick = (typeof el.getAttribute === 'function') ? (el.getAttribute('onclick') || '') : '';
+            const isAnalyzeNav = (String(href).includes('analyze.html') || String(onclick).includes('analyze.html'));
+            if (!isAnalyzeNav) return;
+            const p = new URLSearchParams(location.search || '');
+            const rawId = String(p.get('id') || p.get('r') || (localStorage.getItem('__currentReportId') || '') || '');
+            const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+            track('share_action_analyze', { report_id });
+          } catch (_) {}
+        }, true);
       }
 
       // ✅ [PHASE 74-B][print SSOT] cleanup printing flag after print (best-effort)
