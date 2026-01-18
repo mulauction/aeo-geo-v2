@@ -3710,6 +3710,25 @@
           const expanded = window.__recentReportsExpandedV1 === true;
           const visible = expanded ? sortedItems.slice(0, 10) : sortedItems.slice(0, 3);
         const debugOn = (function(){ try { return new URLSearchParams(location.search).get('debug') === '1'; } catch (_) { return false; } })();
+          const selectedId = (function() {
+            try {
+              const p = new URLSearchParams(location.search);
+              const openIdRaw = p.get('open');
+              const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
+              if (openId) return openId;
+              const cur = localStorage.getItem('__currentReportId');
+              return cur ? String(cur) : '';
+            } catch (_) {
+              return '';
+            }
+          })();
+          try {
+            if (debugOn && !window.__shareRestoreListLoggedV1) {
+              window.__shareRestoreListLoggedV1 = true;
+              console.log('[share][restoreList] selectedId', { selectedId });
+            }
+          } catch (_) {}
+          let __activeLogged = false;
 
           const rows = visible.map((it) => {
             const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
@@ -3730,10 +3749,23 @@
             if (debugOn) qs.set('debug', '1');
             url = location.pathname + '?' + qs.toString();
           }
+          const isActive = Boolean(selectedId) && (String(selectedId) === reportIdStr);
+          const activeBadge = isActive
+            ? '<span style="font-size: 12px; padding: 2px 6px; border-radius: 999px; background: #4caf50; color: #fff; margin-left: 6px;">현재 열람중</span>'
+            : '';
+          const rowStyle = isActive
+            ? 'outline: 2px solid #4caf50; background: rgba(76,175,80,0.08); border-radius: 8px; padding: 10px 8px;'
+            : '';
+          try {
+            if (debugOn && isActive && !__activeLogged) {
+              __activeLogged = true;
+              console.log('[share][restoreList] activeRow', { selectedId, reportId: reportIdStr });
+            }
+          } catch (_) {}
             return `
-              <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border);">
+              <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border); ${rowStyle}">
                 <div style="min-width: 0;">
-                  <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}</div>
+                  <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}${activeBadge}</div>
                   <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
                 </div>
                 <button type="button" class="btn btn-primary" data-cta="openRecent" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;" ${url ? '' : 'disabled'}>열기</button>
