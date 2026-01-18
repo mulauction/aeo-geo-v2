@@ -117,6 +117,12 @@
       opacity: 0.72;
       font-size: 12px;
     }
+    /* Recent Reports "열기" button: keyboard focus feedback (focus-visible only) */
+    button[data-cta="openRecent"]:focus-visible {
+      outline: 2px solid #4caf50;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
+    }
     /* ✅ [Phase 11-2] Share 상태 표시 영역 */
     #share-status {
       margin: 12px 0;
@@ -2612,11 +2618,29 @@
         }
         if (isRestore) {
           try {
+            const debugOn = urlParams.get('debug') === '1';
             const q = new URLSearchParams();
             q.set('restore', '1');
-            if (urlParams.get('debug') === '1') q.set('debug', '1');
-            if (openId) q.set('open', String(openId));
+            if (debugOn) q.set('debug', '1');
+            const openRaw = urlParams.get('open');
+            const openKeep = (openRaw && /^\d+$/.test(String(openRaw))) ? String(openRaw) : null;
+            if (openKeep) q.set('open', openKeep);
             const next = location.pathname + '?' + q.toString();
+            if (openKeep) {
+              try {
+                if (debugOn && !window.__shareUrlNormalizeSkipLoggedV1) {
+                  window.__shareUrlNormalizeSkipLoggedV1 = true;
+                  console.log('[share][url] skip normalize: open present', { open: openKeep });
+                }
+              } catch (_) {}
+              return;
+            }
+            try {
+              if (debugOn && !window.__shareUrlNormalizeLoggedV1) {
+                window.__shareUrlNormalizeLoggedV1 = true;
+                console.log('[share][url] normalize restore url', { next });
+              }
+            } catch (_) {}
             history.replaceState(null, '', next);
           } catch (_) {}
         }
@@ -2717,6 +2741,11 @@
 
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성 (2단계 흐름 유지)
         const reportModel = (pre.needsLoad || isRestoreOpen) ? await loadReportModel() : null;
+        try {
+          if (reportModel && reportModel.id) {
+            localStorage.setItem('__currentReportId', String(reportModel.id));
+          }
+        } catch (_) {}
         
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
@@ -3534,6 +3563,58 @@
               }
             });
           }
+
+          // ✅ [Share][Telemetry] debug=1이면 viewState와 무관하게 Telemetry 섹션을 항상 렌더한다
+          // - debug!=1이면 Telemetry DOM/fetch/render를 차단하고 안내 문구만 표시
+          try {
+            const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+            if (!isDebug) {
+              try { const el = document.getElementById('telemetrySummaryCard'); if (el && el.parentNode) el.parentNode.removeChild(el); } catch (_) {}
+              try { const el = document.getElementById('telemetryLocalSummary'); if (el && el.parentNode) el.parentNode.removeChild(el); } catch (_) {}
+              try {
+                const app = document.querySelector('.app');
+                if (app && !document.getElementById('telemetryHiddenNotice')) {
+                  const note = document.createElement('div');
+                  note.id = 'telemetryHiddenNotice';
+                  note.style.margin = '12px 0 0 0';
+                  note.style.fontSize = '12px';
+                  note.style.color = '#64748b';
+                  note.textContent = '실행 로그/텔레메트리는 로그인 환경 또는 디버그 모드에서만 확인할 수 있습니다.';
+                  app.appendChild(note);
+                }
+              } catch (_) {}
+            } else {
+              try { const note = document.getElementById('telemetryHiddenNotice'); if (note && note.parentNode) note.parentNode.removeChild(note); } catch (_) {}
+              const app = document.querySelector('.app');
+              if (app) {
+                let mount = document.getElementById('telemetrySummaryCard');
+                if (!mount) {
+                  mount = document.createElement('div');
+                  mount.id='telemetrySummaryCard';
+                  app.appendChild(mount);
+                }
+                try { renderTelemetrySummaryCard({ container: mount, meta: null }); } catch (_) {}
+                // Fallback: if renderTelemetrySummaryCard() is no-op (meta null), keep debug section visible
+                if (isDebug) {
+                  const empty = !mount || mount.childElementCount === 0 || !String(mount.textContent || '').trim();
+                  if (empty && mount) mount.innerHTML = '<div class="telemetry-card telemetry-card--unavailable"><div style="display:flex;gap:8px;align-items:center;"><strong>Telemetry 요약</strong><span class="badge">UNAVAILABLE</span></div><div class="muted" style="margin-top:6px;">현재 상태(EXPIRED/NO_REPORT 등)에서는 Telemetry 메타가 없습니다.</div></div>';
+                }
+
+                let mountLocal = document.getElementById('telemetryLocalSummary');
+                if (!mountLocal) {
+                  mountLocal = document.createElement('div');
+                  mountLocal.id='telemetryLocalSummary';
+                  app.appendChild(mountLocal);
+                }
+                try { renderTelemetryLocalSummary({ container: mountLocal }); } catch (_) {}
+                try {
+                  if (mountLocal && String(mountLocal.innerHTML || '').trim() === '') {
+                    mountLocal.innerHTML = '<section role="note" aria-label="Telemetry (local)" style="margin: 16px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; font-size: 12px; color:#64748b;">Telemetry (local) — UNAVAILABLE</section>';
+                  }
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
           
           return;
         }
@@ -3644,6 +3725,12 @@
               ? window.__lastV2
               : buildReportPayloadFromModel(reportModel);
           } catch (_) { recentV2 = null; }
+          try {
+            if (recentV2 && typeof recentV2 === 'object' && /^\d+$/.test(String(recentReportId || ''))) {
+              if (!recentV2.id) recentV2.id = String(recentReportId);
+              if (!recentV2.reportId) recentV2.reportId = String(recentReportId);
+            }
+          } catch (_) {}
 
           const entry = {
             id: recentId,
@@ -3709,25 +3796,8 @@
 
           const expanded = window.__recentReportsExpandedV1 === true;
           const visible = expanded ? sortedItems.slice(0, 10) : sortedItems.slice(0, 3);
-        const debugOn = (function(){ try { return new URLSearchParams(location.search).get('debug') === '1'; } catch (_) { return false; } })();
-          const selectedId = (function() {
-            try {
-              const p = new URLSearchParams(location.search);
-              const openIdRaw = p.get('open');
-              const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
-              if (openId) return openId;
-              const cur = localStorage.getItem('__currentReportId');
-              return cur ? String(cur) : '';
-            } catch (_) {
-              return '';
-            }
-          })();
-          try {
-            if (debugOn && !window.__shareRestoreListLoggedV1) {
-              window.__shareRestoreListLoggedV1 = true;
-              console.log('[share][restoreList] selectedId', { selectedId });
-            }
-          } catch (_) {}
+          const debugOn = (function(){ try { return new URLSearchParams(location.search).get('debug') === '1'; } catch (_) { return false; } })();
+          const activeId = (reportModel && reportModel.id) ? String(reportModel.id) : null;
           let __activeLogged = false;
 
           const rows = visible.map((it) => {
@@ -3741,15 +3811,7 @@
               : null;
           const reportIdStr = (reportId != null) ? String(reportId) : '';
           const hasNumericId = /^\d+$/.test(reportIdStr);
-          let url = '';
-          if (hasNumericId) {
-            const qs = new URLSearchParams();
-            qs.set('restore', '1');
-            qs.set('open', reportIdStr);
-            if (debugOn) qs.set('debug', '1');
-            url = location.pathname + '?' + qs.toString();
-          }
-          const isActive = Boolean(selectedId) && (String(selectedId) === reportIdStr);
+          const isActive = Boolean(activeId) && (String(reportIdStr) === String(activeId));
           const activeBadge = isActive
             ? '<span style="font-size: 12px; padding: 2px 6px; border-radius: 999px; background: #4caf50; color: #fff; margin-left: 6px;">현재 열람중</span>'
             : '';
@@ -3759,7 +3821,7 @@
           try {
             if (debugOn && isActive && !__activeLogged) {
               __activeLogged = true;
-              console.log('[share][restoreList] activeRow', { selectedId, reportId: reportIdStr });
+              console.log('[share][restoreList] activeRow', { activeId, reportId: reportIdStr });
             }
           } catch (_) {}
             return `
@@ -3768,7 +3830,7 @@
                   <div style="font-size: 13px; font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px;">${esc(target)}${activeBadge}</div>
                   <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">${esc(when)}${score ? ' · ' + esc(score) : ''}</div>
                 </div>
-                <button type="button" class="btn btn-primary" data-cta="openRecent" data-recent-open="${esc(url)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;" ${url ? '' : 'disabled'}>열기</button>
+                <button type="button" class="btn btn-primary" data-cta="openRecent" aria-label="리포트 열기: ${esc(target)}" data-recent-id="${esc(reportIdStr)}" data-requires="OK" style="padding: 8px 12px; font-size: 13px;" ${hasNumericId ? '' : 'disabled'}>열기</button>
               </div>
             `;
           }).join('');
@@ -3811,31 +3873,42 @@
               renderRecentReportsSection();
             };
           }
-          mount.querySelectorAll('[data-recent-open]').forEach((btn) => {
+          mount.querySelectorAll('[data-recent-id]').forEach((btn) => {
             btn.addEventListener('click', () => {
               try { btn.setAttribute('data-cta','openRecent'); } catch (_) {}
-              const url = btn.getAttribute('data-recent-open') || '';
-              if (!url) return;
+              const id = (btn && btn.getAttribute) ? (btn.getAttribute('data-recent-id') || '') : '';
+              const idStr = String(id || '');
+              if (!/^\d+$/.test(idStr)) return;
               // ✅ [openRecent] 선택된 로컬 리포트를 __lastV2로 주입 후 이동 (debug=1 only logs)
               try {
                 const debug = new URLSearchParams(location.search).get('debug') === '1';
-                const u = new URL(url, location.origin);
-                const openId = u.searchParams.get('open');
-                if (debug) console.log('[share][openRecent] picked', { open: openId });
-                if (openId && /^\d+$/.test(String(openId))) {
-                  const items = loadRecentReports();
-                  const hit = items.find((x) => x && typeof x === 'object' && String(x.reportId || x.id || x.r || '') === String(openId));
-                  const v2 = hit && typeof hit === 'object' ? (hit.v2 || hit.__lastV2 || null) : null;
+                if (debug) console.log('[share][openRecent] picked', { open: idStr });
+                const items = loadRecentReports();
+                const hit = items.find((x) => x && typeof x === 'object' && String(x.reportId || x.id || x.r || '') === String(idStr));
+                const v2 = hit && typeof hit === 'object' ? (hit.v2 || hit.__lastV2 || null) : null;
                   if (v2 && typeof v2 === 'object') {
+                    try { if (!v2.id) v2.id = String(idStr); } catch (_) {}
+                    try { if (!v2.reportId) v2.reportId = String(idStr); } catch (_) {}
                     try { localStorage.setItem('__lastV2', JSON.stringify(v2)); } catch (_) {}
-                    try { localStorage.setItem('__currentReportId', String(openId)); } catch (_) {}
+                    try { localStorage.setItem('__currentReportId', String(idStr)); } catch (_) {}
                     try { window.__lastV2 = v2; } catch (_) {}
-                    if (debug) console.log('[share][openRecent] wrote __lastV2', { open: openId });
+                    if (debug) console.log('[share][openRecent] wrote __lastV2', { open: idStr });
                   }
-                }
-                if (debug) console.log('[share][openRecent] navigate', { url });
+                const u = new URL(location.href);
+                u.searchParams.set('restore', '1');
+                u.searchParams.set('open', idStr);
+                u.searchParams.delete('r');
+                u.searchParams.delete('id');
+                if (debug) console.log('[share][openRecent] navigate', { url: u.toString() });
+                location.assign(u.toString());
+                return;
               } catch (_) {}
-              location.href = url;
+              const u = new URL(location.href);
+              u.searchParams.set('restore', '1');
+              u.searchParams.set('open', idStr);
+              u.searchParams.delete('r');
+              u.searchParams.delete('id');
+              location.assign(u.toString());
             });
           });
         };
@@ -4174,7 +4247,23 @@
         // - 이는 Share SSOT/보안/상태결정 가드에 따른 정상 동작임
         try {
           const isDebug = new URLSearchParams(location.search).get('debug') === '1';
-          if (isDebug) {
+          if (!isDebug) {
+            try { const el = document.getElementById('telemetrySummaryCard'); if (el && el.parentNode) el.parentNode.removeChild(el); } catch (_) {}
+            try { const el = document.getElementById('telemetryLocalSummary'); if (el && el.parentNode) el.parentNode.removeChild(el); } catch (_) {}
+            try {
+              const app = document.querySelector('.app');
+              if (app && !document.getElementById('telemetryHiddenNotice')) {
+                const note = document.createElement('div');
+                note.id = 'telemetryHiddenNotice';
+                note.style.margin = '12px 0 0 0';
+                note.style.fontSize = '12px';
+                note.style.color = '#64748b';
+                note.textContent = '실행 로그/텔레메트리는 로그인 환경 또는 디버그 모드에서만 확인할 수 있습니다.';
+                app.appendChild(note);
+              }
+            } catch (_) {}
+          } else {
+            try { const note = document.getElementById('telemetryHiddenNotice'); if (note && note.parentNode) note.parentNode.removeChild(note); } catch (_) {}
             let meta = null;
             try {
               const raw = localStorage.getItem('__telemetry_meta_v1');
