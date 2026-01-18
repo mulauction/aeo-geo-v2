@@ -5096,15 +5096,17 @@
       
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
       const btnExportPDF = document.getElementById('btnExportPDF');
+      // ✅ [Phase 85] PDF export double-click guard (deterministic in-flight boolean; UI-only)
+      let __pdfPrintInFlight = false;
       if (btnExportPDF) {
         btnExportPDF.addEventListener('click', () => {
           if (!gateOrWarn("PDF 내보내기")) return;
           try {
-            if (window.__sharePdfExportInFlightV1 === true) {
+            if (__pdfPrintInFlight === true) {
               if (isDebugOn()) console.info('[print] export skipped (in-flight)');
               return;
             }
-            window.__sharePdfExportInFlightV1 = true;
+            __pdfPrintInFlight = true;
             try { btnExportPDF.disabled = true; } catch (_) {}
           } catch (_) {}
           try { if (isDebugOn()) console.info('[print] export button clicked'); } catch (_) {}
@@ -5118,7 +5120,7 @@
               try { window.print(); } catch (_) {}
               try { if (isDebugOn()) console.info('[print] dialog returned'); } catch (_) {}
             } finally {
-              try { window.__sharePdfExportInFlightV1 = false; } catch (_) {}
+              try { __pdfPrintInFlight = false; } catch (_) {}
               try { btnExportPDF.disabled = false; } catch (_) {}
             }
           }, 0);
