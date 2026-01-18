@@ -1608,6 +1608,34 @@
       }
     }
 
+    // ✅ [Phase 90-4][dev-only] debug=1 persistence across navigation (localhost only; UI/logic unchanged)
+    function __isDevLocalhost() {
+      try {
+        return location.hostname === 'localhost' || location.hostname === '127.0.0.1' || String(location.origin || '').includes('localhost');
+      } catch (_) {
+        return false;
+      }
+    }
+    (function __devDebugPersistOnce() {
+      try {
+        if (!__isDevLocalhost()) return;
+        const p = new URLSearchParams(location.search || '');
+        if (p.get('debug') === '1') {
+          try { sessionStorage.setItem('__aeoDebug', '1'); } catch (_) {}
+        }
+        const shouldCarry = (() => {
+          try { return sessionStorage.getItem('__aeoDebug') === '1'; } catch (_) { return false; }
+        })();
+        if (!shouldCarry) return;
+        if (p.get('debug') === '1') return;
+        try {
+          p.set('debug', '1');
+          const next = location.pathname + '?' + p.toString() + (location.hash || '');
+          history.replaceState(null, '', next);
+        } catch (_) {}
+      } catch (_) {}
+    })();
+
     function getForceState() {
       try {
         const v = new URLSearchParams(location.search).get('forceState');

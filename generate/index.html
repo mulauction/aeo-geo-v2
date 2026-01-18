@@ -103,6 +103,9 @@
     <p style="margin: 6px 0 10px 0; color: var(--muted); font-size: 12px;">
       이 단계는 분석 결과를 바탕으로 콘텐츠를 생성합니다.
     </p>
+    <div style="margin: 0 0 12px 0;">
+      <button type="button" class="btn btn-secondary" id="btnBackToShare">리포트 보기</button>
+    </div>
     <p style="margin: 0 0 24px 0; color: var(--muted); font-size: 14px;">
       Generate는 콘텐츠 생성만 수행합니다. 생성된 콘텐츠는 점수에 영향을 주지 않습니다.
     </p>
@@ -282,6 +285,71 @@
     import { calculateUrlPreviewScore } from './core/urlPreview.js';
 
     const LS_KEY_URL = '__urlStructureV1';
+
+    // ✅ [Phase 90-4][dev-only] debug=1 persistence across navigation (localhost only; UI/logic unchanged)
+    function __isDevLocalhost() {
+      try {
+        return location.hostname === 'localhost' || location.hostname === '127.0.0.1' || String(location.origin || '').includes('localhost');
+      } catch (_) {
+        return false;
+      }
+    }
+    function getDevDebugQuery(targetUrl) {
+      try {
+        if (!__isDevLocalhost()) return '';
+        if (typeof sessionStorage === 'undefined') return '';
+        if (sessionStorage.getItem('__aeoDebug') !== '1') return '';
+        const s = String(targetUrl || '');
+        return s.includes('?') ? '&debug=1' : '?debug=1';
+      } catch (_) {
+        return '';
+      }
+    }
+    (function () {
+      try {
+        if (!__isDevLocalhost()) return;
+        const p = new URLSearchParams(location.search || '');
+        if (p.get('debug') === '1') {
+          try { sessionStorage.setItem('__aeoDebug', '1'); } catch (_) {}
+        }
+        const shouldCarry = (() => { try { return sessionStorage.getItem('__aeoDebug') === '1'; } catch (_) { return false; } })();
+        if (!shouldCarry) return;
+        if (p.get('debug') === '1') return;
+        try {
+          p.set('debug', '1');
+          const next = location.pathname + '?' + p.toString() + (location.hash || '');
+          history.replaceState(null, '', next);
+        } catch (_) {}
+      } catch (_) {}
+    })();
+
+    // ✅ [Phase 90-4] Generate → Share (minimal)
+    (function () {
+      try {
+        const btn = document.getElementById('btnBackToShare');
+        if (!btn) return;
+        let rid = '';
+        try { rid = String(localStorage.getItem('__currentReportId') || ''); } catch (_) { rid = ''; }
+        if (!rid) {
+          try { btn.disabled = true; } catch (_) {}
+        }
+        btn.addEventListener('click', () => {
+          try {
+            let reportId = '';
+            try { reportId = String(localStorage.getItem('__currentReportId') || ''); } catch (_) { reportId = ''; }
+            const ts = String(Date.now());
+            if (!reportId) {
+              const targetHome = '../home.html' + getDevDebugQuery('../home.html');
+              location.assign(targetHome);
+              return;
+            }
+            const base = '../share.html?id=' + encodeURIComponent(reportId) + '&r=' + encodeURIComponent(ts);
+            const target = base + getDevDebugQuery(base);
+            location.assign(target);
+          } catch (_) {}
+        }, true);
+      } catch (_) {}
+    })();
 
     // ✅ [Phase 90-1C][observe-only] UX telemetry: generate_view (no UX change; run after DOMContentLoaded)
     (function () {
