@@ -3851,12 +3851,12 @@
               '<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">' +
                 '<h3 style="margin: 0; font-size: 16px;">최근 리포트</h3>' +
                 '<div style="display: flex; gap: 8px; align-items: center;">' +
-                  '<button type="button" class="btn" id="btnRecentToggle" style="padding: 8px 10px; font-size: 13px;">' + (expanded ? '접기' : '전체 보기') + '</button>' +
+                  '<button type="button" class="btn" id="btnRecentToggle" aria-controls="recentReportsList" style="padding: 8px 10px; font-size: 13px;">' + (expanded ? '접기' : '전체 보기') + '</button>' +
                   '<button type="button" class="btn" id="btnRecentClear" style="padding: 8px 10px; font-size: 13px;">목록 비우기</button>' +
                 '</div>' +
               '</div>' +
               '<div style="border-bottom: 1px solid var(--border);"></div>' +
-              '<div>' + rows + '</div>' +
+              '<div id="recentReportsList">' + rows + '</div>' +
             '</div>'
           );
 
@@ -4015,7 +4015,7 @@
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
         scoreCriteriaToggle = `
           <div class="score-criteria-toggle">
-            <button class="score-criteria-btn" id="btnScoreCriteria" type="button">
+            <button class="score-criteria-btn" id="btnScoreCriteria" type="button" aria-controls="scoreCriteriaContent">
               <span class="caret"></span>
               <span>측정 기준 보기</span>
             </button>
