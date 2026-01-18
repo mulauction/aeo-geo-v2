@@ -58,3 +58,15 @@
 - A2 OTHER_DEVICE(EXPIRED): 1p ✅
 - A5 INVALID_ID: 1p ✅
 - B1 OK: multi-page ✅
+
+## Phase 77-2 — Non-OK Print/PDF Details Closed Verification
+
+- 대상: Non-OK 상태 (NO_REPORT, INVALID_ID, FETCH_FAIL, EXPIRED, OTHER_DEVICE)
+- 조건: Print/PDF 미리보기 진입 시 `<details>`는 기본 closed 상태여야 함
+- 확인 항목:
+  - PDF로 내보내기 → `<details>` 닫힘 유지
+  - ⌘P → `<details>` 닫힘 유지
+  - 페이지 전환/재렌더 후에도 자동 open 없음
+- 제외:
+  - CTA 개수/순서/문구 변경 없음
+  - 상태 판정 로직 변경 없음
