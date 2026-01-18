@@ -1,5 +1,6 @@
 import { buildTelemetryExportCsvV1, buildTelemetryExportV1 } from './telemetryExport.js';
 import { sendTelemetryToIngestOnce } from "./telemetryIngestClient.js";
+import { buildFunnelRecommendedActions } from './funnelActions.js';
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -542,6 +543,8 @@ function __debugTelemetryFunnel() {
     let human_reason = 'Analyze 진입했으나 실행하지 않음';
     let next_action_hint = 'Analyze 실행 CTA/가이드 강화';
     const dominant_basis = 'aggregate_sessions';
+    let recommended_actions = [];
+    let recommendation_reason = '';
     try {
       for (const sid of sidsAll) {
         const arr = bySid.get(sid) || [];
@@ -584,10 +587,34 @@ function __debugTelemetryFunnel() {
       try { console.warn('[telemetry] outcome aggregate failed'); } catch (_) {}
     }
 
+    // ✅ [Phase 93-1] Dev-only recommended UX actions (pure rules; no UI/track/store changes)
+    try {
+      const rec = buildFunnelRecommendedActions({
+        dominant_drop_case,
+        counts_by_case,
+        totals: { sessions: sidsAll.length },
+      });
+      recommended_actions = Array.isArray(rec?.recommended_actions) ? rec.recommended_actions : [];
+      recommendation_reason = String(rec?.recommendation_reason || '');
+    } catch (_) {
+      recommended_actions = [
+        'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+        '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+      ];
+      recommendation_reason = 'Analyze 진입 대비 실행 비율이 낮습니다.';
+    }
+
     console.groupCollapsed('[telemetry] funnel summary');
     console.table([{ kind: 'views', ...views }]);
     console.table([{ kind: 'actions', ...actions }]);
     console.table(funnel);
+    try {
+      console.table([{
+        kind: 'recommended_actions',
+        recommendation_reason,
+        recommended_actions: (Array.isArray(recommended_actions) ? recommended_actions : []).join(' | '),
+      }]);
+    } catch (_) {}
     console.groupEnd();
 
     return {
@@ -597,6 +624,8 @@ function __debugTelemetryFunnel() {
       dominant_drop_case,
       human_reason,
       next_action_hint,
+      recommended_actions,
+      recommendation_reason,
       dominant_basis,
       counts_by_case,
       latest_drop_case,
@@ -611,6 +640,11 @@ function __debugTelemetryFunnel() {
       dominant_drop_case: 'CASE_A',
       human_reason: 'Analyze 진입했으나 실행하지 않음',
       next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+      recommended_actions: [
+        'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+        '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+      ],
+      recommendation_reason: 'Analyze 진입 대비 실행 비율이 낮습니다.',
       dominant_basis: 'aggregate_sessions',
       counts_by_case: { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 },
       latest_drop_case: '',
