@@ -629,6 +629,8 @@ function judgeReleaseFromRuns(runs, opts = {}) {
   // - apply weights from latest: alpha^k (k=0 for latest)
   let weightedComparable = 0;
   let weightedImproved = 0;
+  let stable_dominant_drop_case = null;
+  let stable_dominant_share = null;
   try {
     const sorted = arr.slice().sort((a, b) => {
       const ta = (a && typeof a === 'object') ? Number(a.ts) : NaN;
@@ -638,15 +640,42 @@ function judgeReleaseFromRuns(runs, opts = {}) {
       return na - nb;
     });
     const comparableRuns = sorted.filter((r) => r && typeof r === 'object' && !!r.comparable);
+    const score = { CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
     for (let i = comparableRuns.length - 1, k = 0; i >= 0; i--, k++) {
       const r = comparableRuns[i];
       const w = Math.pow(recencyAlpha, k);
       weightedComparable += w;
       if (r.improved) weightedImproved += w;
+
+      const c = String(r.dominant_drop_case || '');
+      if (c === 'CASE_A' || c === 'CASE_B' || c === 'CASE_C' || c === 'CASE_D') {
+        score[c] += w;
+      }
+    }
+
+    if (comparable >= minComparable) {
+      const totalScore = score.CASE_A + score.CASE_B + score.CASE_C + score.CASE_D;
+      if (totalScore > 0) {
+        let bestCase = null;
+        let bestScore = -1;
+        for (const c of ['CASE_A', 'CASE_B', 'CASE_C', 'CASE_D']) {
+          if (score[c] > bestScore) {
+            bestScore = score[c];
+            bestCase = c;
+          }
+        }
+        const bestShare = bestScore > 0 ? (bestScore / totalScore) : 0;
+        const share2 = Math.round(bestShare * 100) / 100;
+        stable_dominant_share = share2;
+        stable_dominant_drop_case = (bestShare >= 0.5) ? bestCase : null;
+        if (!stable_dominant_drop_case) stable_dominant_share = null;
+      }
     }
   } catch (_) {
     weightedComparable = 0;
     weightedImproved = 0;
+    stable_dominant_drop_case = null;
+    stable_dominant_share = null;
   }
   const weightedRate = weightedComparable > 0 ? (weightedImproved / weightedComparable) : 0;
   const improvedRate = Math.round(weightedRate * 100) / 100; // 2 decimals
@@ -657,6 +686,8 @@ function judgeReleaseFromRuns(runs, opts = {}) {
       status: "INSUFFICIENT",
       summary: `Release judgement: INSUFFICIENT (comparable ${comparable}/${minComparable}, window=${daysWindow}d)`,
       stats: { total, comparable, improved, improvedRate },
+      stable_dominant_drop_case: null,
+      stable_dominant_share: null,
       notes,
     };
   }
@@ -667,6 +698,8 @@ function judgeReleaseFromRuns(runs, opts = {}) {
     status,
     summary: `Release judgement: ${status} (weighted improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable}, window=${daysWindow}d)`,
     stats: { total, comparable, improved, improvedRate },
+    stable_dominant_drop_case,
+    stable_dominant_share,
     notes,
   };
 }
@@ -934,7 +967,8 @@ function __debugTelemetryFunnel() {
         ts: Date.now(),
         comparable: !!improvement_snapshot?.comparable,
         improved: !!improvement_snapshot?.improved,
-        summary: String(improvement_snapshot?.summary || '')
+        summary: String(improvement_snapshot?.summary || ''),
+        dominant_drop_case
       });
 
       if (runs.length > 20) runs = runs.slice(runs.length - 20);
@@ -1076,7 +1110,9 @@ export function __attachTelemetryDebugHelpers() {
         return {
           status: (j.status === "PASS" || j.status === "FAIL" || j.status === "INSUFFICIENT") ? j.status : "INSUFFICIENT",
           summary: j.summary,
-          stats: j.stats
+          stats: j.stats,
+          stable_dominant_drop_case: j.stable_dominant_drop_case,
+          stable_dominant_share: j.stable_dominant_share
         };
       } catch (e) {
         return { status: "INSUFFICIENT" };
