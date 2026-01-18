@@ -898,6 +898,15 @@ export function __attachTelemetryDebugHelpers() {
     if (typeof __debugTelemetryLast === 'function') window._debugTelemetryLast = __debugTelemetryLast;
     if (typeof __debugTelemetryFunnel === 'function') window._debugTelemetryFunnel = __debugTelemetryFunnel;
 
+    window.__resetFunnelSnapshotBeforeV1 = function __resetFunnelSnapshotBeforeV1() {
+      try {
+        localStorage.removeItem("__funnel_snapshot_before_v1");
+        return { cleared: true, key: "__funnel_snapshot_before_v1" };
+      } catch (e) {
+        return { cleared: false, key: "__funnel_snapshot_before_v1" };
+      }
+    };
+
     console.info('[telemetry] debug helpers attached');
   } catch (_) {}
 }
