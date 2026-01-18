@@ -578,6 +578,7 @@ function judgeReleaseFromRuns(runs, opts = {}) {
   const defaultMinComparable = 5;
   const defaultPassRate = 0.6;
   const defaultRecencyAlpha = 0.85;
+  const defaultDaysWindow = 7;
 
   let minComparable = Number.isFinite(Number(opts?.minComparable)) ? Number(opts.minComparable) : defaultMinComparable;
   if (minComparable < 1) minComparable = 1;
@@ -589,7 +590,26 @@ function judgeReleaseFromRuns(runs, opts = {}) {
   const recencyAlpha = (alphaRaw > 0 && alphaRaw <= 1) ? alphaRaw : defaultRecencyAlpha;
 
   const notes = [];
-  const arr = Array.isArray(runs) ? runs : [];
+  const arrRaw = Array.isArray(runs) ? runs : [];
+
+  // Days window filter (dev-only judgement stability):
+  // - Filter out old runs by ts (ms)
+  // - Allow deterministic testing via opts.nowTs
+  const nowTsRaw = Number.isFinite(Number(opts?.nowTs)) ? Number(opts.nowTs) : Date.now();
+  const daysWindowRaw = Number.isFinite(Number(opts?.daysWindow)) ? Number(opts.daysWindow) : defaultDaysWindow;
+  const daysWindow = (daysWindowRaw >= 1 && daysWindowRaw <= 90) ? daysWindowRaw : defaultDaysWindow;
+  const cutoffTs = nowTsRaw - (daysWindow * 24 * 60 * 60 * 1000);
+
+  const arr = arrRaw.filter((r) => {
+    try {
+      if (!r || typeof r !== 'object') return false;
+      const t = Number(r.ts);
+      if (!Number.isFinite(t)) return false;
+      return t >= cutoffTs;
+    } catch (_) {
+      return false;
+    }
+  });
 
   let comparable = 0;
   let improved = 0;
@@ -635,7 +655,7 @@ function judgeReleaseFromRuns(runs, opts = {}) {
     notes.push('insufficient_comparable_runs');
     return {
       status: "INSUFFICIENT",
-      summary: `Release judgement: INSUFFICIENT (comparable ${comparable}/${minComparable})`,
+      summary: `Release judgement: INSUFFICIENT (comparable ${comparable}/${minComparable}, window=${daysWindow}d)`,
       stats: { total, comparable, improved, improvedRate },
       notes,
     };
@@ -645,7 +665,7 @@ function judgeReleaseFromRuns(runs, opts = {}) {
   const pct = Math.round(improvedRate * 100);
   return {
     status,
-    summary: `Release judgement: ${status} (weighted improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable})`,
+    summary: `Release judgement: ${status} (weighted improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable}, window=${daysWindow}d)`,
     stats: { total, comparable, improved, improvedRate },
     notes,
   };
