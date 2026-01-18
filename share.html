@@ -5099,12 +5099,15 @@
       if (btnExportPDF) {
         btnExportPDF.addEventListener('click', () => {
           if (!gateOrWarn("PDF 내보내기")) return;
+          try { if (isDebugOn()) console.info('[print] export button clicked'); } catch (_) {}
           
           // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
           // - Defer print so the click handler returns immediately (avoid long handler / allow instant cancel)
           setTimeout(() => {
+            try { if (isDebugOn()) console.info('[print] window.print invoked'); } catch (_) {}
             try { if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing'); } catch (_) {}
             try { window.print(); } catch (_) {}
+            try { if (isDebugOn()) console.info('[print] dialog returned'); } catch (_) {}
           }, 0);
         });
       }
