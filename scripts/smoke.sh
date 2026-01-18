@@ -114,6 +114,25 @@ if [ "${restore_open_delete_count}" != "0" ]; then
 fi
 echo "OK: restore/open preserve guard"
 
+echo "== smoke: print ssot keywords guard =="
+if ! rg -n "shouldForcePrintSSOT" share.html -S >/dev/null; then
+  echo "FAIL: shouldForcePrintSSOT missing"
+  exit 1
+fi
+if ! rg -n "is-printing" share.html -S >/dev/null; then
+  echo "FAIL: is-printing missing"
+  exit 1
+fi
+if ! rg -n "beforeprint" share.html -S >/dev/null; then
+  echo "FAIL: beforeprint missing"
+  exit 1
+fi
+if ! rg -n "onafterprint" share.html -S >/dev/null; then
+  echo "FAIL: onafterprint missing"
+  exit 1
+fi
+echo "OK: print ssot keywords guard"
+
 echo "OK: smoke passed"
 
 
