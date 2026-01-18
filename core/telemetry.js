@@ -575,8 +575,14 @@ function compareFunnelSnapshots(before, after) {
 // -----------------------------
 
 function judgeReleaseFromRuns(runs, opts = {}) {
-  const minComparable = Number.isFinite(Number(opts?.minComparable)) ? Number(opts.minComparable) : 5;
-  const passRate = Number.isFinite(Number(opts?.passRate)) ? Number(opts.passRate) : 0.6;
+  const defaultMinComparable = 5;
+  const defaultPassRate = 0.6;
+
+  let minComparable = Number.isFinite(Number(opts?.minComparable)) ? Number(opts.minComparable) : defaultMinComparable;
+  if (minComparable < 1) minComparable = 1;
+
+  const passRateRaw = Number.isFinite(Number(opts?.passRate)) ? Number(opts.passRate) : defaultPassRate;
+  const passRate = (passRateRaw >= 0 && passRateRaw <= 1) ? passRateRaw : defaultPassRate;
 
   const notes = [];
   const arr = Array.isArray(runs) ? runs : [];
@@ -984,6 +990,15 @@ export function __attachTelemetryDebugHelpers() {
         return { cleared: true, key: "__funnel_snapshot_before_v1" };
       } catch (e) {
         return { cleared: false, key: "__funnel_snapshot_before_v1" };
+      }
+    };
+
+    window.__resetFunnelJudgementRunsV1 = function __resetFunnelJudgementRunsV1() {
+      try {
+        localStorage.removeItem("__funnel_judgement_runs_v1");
+        return { cleared: true, key: "__funnel_judgement_runs_v1" };
+      } catch (e) {
+        return { cleared: false, key: "__funnel_judgement_runs_v1" };
       }
     };
 
