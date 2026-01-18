@@ -577,12 +577,16 @@ function compareFunnelSnapshots(before, after) {
 function judgeReleaseFromRuns(runs, opts = {}) {
   const defaultMinComparable = 5;
   const defaultPassRate = 0.6;
+  const defaultRecencyAlpha = 0.85;
 
   let minComparable = Number.isFinite(Number(opts?.minComparable)) ? Number(opts.minComparable) : defaultMinComparable;
   if (minComparable < 1) minComparable = 1;
 
   const passRateRaw = Number.isFinite(Number(opts?.passRate)) ? Number(opts.passRate) : defaultPassRate;
   const passRate = (passRateRaw >= 0 && passRateRaw <= 1) ? passRateRaw : defaultPassRate;
+
+  const alphaRaw = Number.isFinite(Number(opts?.recencyAlpha)) ? Number(opts.recencyAlpha) : defaultRecencyAlpha;
+  const recencyAlpha = (alphaRaw > 0 && alphaRaw <= 1) ? alphaRaw : defaultRecencyAlpha;
 
   const notes = [];
   const arr = Array.isArray(runs) ? runs : [];
@@ -600,8 +604,32 @@ function judgeReleaseFromRuns(runs, opts = {}) {
   }
 
   const total = arr.length;
-  const rawRate = comparable > 0 ? (improved / comparable) : 0;
-  const improvedRate = Math.round(rawRate * 100) / 100; // 2 decimals
+  // Weighted improvedRate:
+  // - runs order may be unknown, so sort by ts ascending first
+  // - apply weights from latest: alpha^k (k=0 for latest)
+  let weightedComparable = 0;
+  let weightedImproved = 0;
+  try {
+    const sorted = arr.slice().sort((a, b) => {
+      const ta = (a && typeof a === 'object') ? Number(a.ts) : NaN;
+      const tb = (b && typeof b === 'object') ? Number(b.ts) : NaN;
+      const na = Number.isFinite(ta) ? ta : 0;
+      const nb = Number.isFinite(tb) ? tb : 0;
+      return na - nb;
+    });
+    const comparableRuns = sorted.filter((r) => r && typeof r === 'object' && !!r.comparable);
+    for (let i = comparableRuns.length - 1, k = 0; i >= 0; i--, k++) {
+      const r = comparableRuns[i];
+      const w = Math.pow(recencyAlpha, k);
+      weightedComparable += w;
+      if (r.improved) weightedImproved += w;
+    }
+  } catch (_) {
+    weightedComparable = 0;
+    weightedImproved = 0;
+  }
+  const weightedRate = weightedComparable > 0 ? (weightedImproved / weightedComparable) : 0;
+  const improvedRate = Math.round(weightedRate * 100) / 100; // 2 decimals
 
   if (comparable < minComparable) {
     notes.push('insufficient_comparable_runs');
@@ -613,11 +641,11 @@ function judgeReleaseFromRuns(runs, opts = {}) {
     };
   }
 
-  const status = improvedRate >= passRate ? "PASS" : "FAIL";
+  const status = weightedRate >= passRate ? "PASS" : "FAIL";
   const pct = Math.round(improvedRate * 100);
   return {
     status,
-    summary: `Release judgement: ${status} (improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable})`,
+    summary: `Release judgement: ${status} (weighted improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable})`,
     stats: { total, comparable, improved, improvedRate },
     notes,
   };
