@@ -33,4 +33,17 @@
 4. 완료 시: diff/stat + smoke 출력 포함한 보고서 확보
 5. 기준 태그(tag)로 고정 후 다음 작업 진행
 
+## Baseline Tag Hygiene (SSOT)
+
+1) Primary baseline tag
+- 항상 “현재 HEAD 기준 통합 태그 1개”만 Primary로 취급한다.
+- fix 태그가 생기면, 최종 상태(HEAD)에 통합 태그를 새로 찍고 그걸 Primary로 표에 표시한다.
+
+2) Fix / interim tags
+- fix 태그는 삭제하지 않되, BASELINES_INDEX 표에는 “참고(secondary)”로만 남긴다.
+- 임시/오타 태그(예: phaseXX)는 발견 즉시 “정식 태그 생성 → 임시 태그 삭제” 절차를 따른다.
+
+3) Update discipline
+- 통합 태그를 찍으면, 반드시 BASELINES_INDEX 표를 같은 날 업데이트한다.
+
 
