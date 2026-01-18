@@ -326,6 +326,100 @@ function _pct(n, d) {
   }
 }
 
+// ✅ [Phase 91-1] Pure funnel outcome classifier (no side effects; no schema/event changes)
+// - Uses actual emitted event names (verified via rg):
+//   share_view, analyze_view, analyze_action_run, generate_view, generate_action_run
+export function computeTelemetryFunnelOutcome(events = [], _meta = null) {
+  try {
+    const arr = Array.isArray(events) ? events : [];
+    const getName = (e) => {
+      try {
+        if (!e || typeof e !== 'object') return '';
+        return String(e.event || e.name || '');
+      } catch (_) {
+        return '';
+      }
+    };
+    const has = (name) => arr.some((e) => getName(e) === name);
+
+    const hasShareView = has('share_view');
+    const hasAnalyzeView = has('analyze_view');
+    const hasAnalyzeRun = has('analyze_action_run');
+    const hasGenerateView = has('generate_view');
+    const hasGenerateRun = has('generate_action_run');
+
+    const flags = {
+      hasShareView,
+      hasAnalyzeView,
+      hasAnalyzeRun,
+      hasGenerateView,
+      hasGenerateRun,
+    };
+
+    // Priority:
+    // 1) CASE_OK
+    // 2) CASE_A
+    // 3) CASE_B
+    // 4) CASE_C
+    // 5) CASE_D
+    if (hasAnalyzeRun && hasGenerateRun && hasShareView) {
+      return {
+        dominant_drop_case: 'CASE_OK',
+        human_reason: '완주',
+        next_action_hint: '유지',
+        flags,
+      };
+    }
+    if (hasAnalyzeView && !hasAnalyzeRun) {
+      return {
+        dominant_drop_case: 'CASE_A',
+        human_reason: 'Analyze 진입했으나 실행하지 않음',
+        next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+        flags,
+      };
+    }
+    if (hasAnalyzeRun && !hasGenerateView) {
+      return {
+        dominant_drop_case: 'CASE_B',
+        human_reason: 'Analyze 실행 후 Generate로 이동 안 함',
+        next_action_hint: 'Analyze→Generate 전환 CTA 강화/자동 이동 고려',
+        flags,
+      };
+    }
+    if (hasGenerateView && !hasGenerateRun) {
+      return {
+        dominant_drop_case: 'CASE_C',
+        human_reason: 'Generate 화면은 봤으나 실행 안 함',
+        next_action_hint: 'Generate 실행 버튼 가시성/마찰 감소',
+        flags,
+      };
+    }
+    if (hasGenerateRun && !hasShareView) {
+      return {
+        dominant_drop_case: 'CASE_D',
+        human_reason: 'Generate 실행 후 Share로 돌아오지 않음',
+        next_action_hint: 'Share 복귀 유도(리포트 보기/자동 리다이렉트) 강화',
+        flags,
+      };
+    }
+
+    // Fallback (should be rare in normal Share-driven sessions)
+    return {
+      dominant_drop_case: 'CASE_A',
+      human_reason: 'Analyze 진입했으나 실행하지 않음',
+      next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+      flags: { ...flags, fallback: true, emptyEvents: arr.length === 0 },
+    };
+  } catch (_) {
+    return {
+      dominant_drop_case: 'CASE_A',
+      human_reason: 'Analyze 진입했으나 실행하지 않음',
+      next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+      flags: { fallback: true, error: true },
+    };
+  }
+}
+
 function __debugTelemetryLast(n = 20) {
   try {
     const limit = Math.max(1, Math.min(200, Number(n) || 20));
@@ -416,15 +510,41 @@ function __debugTelemetryFunnel() {
       { metric: 'generate_run sessions', value: sidHasGenerateRun.size, rate: _pct(sidHasGenerateRun.size, shareSessions), rate_from_analyze_click: _pct(sidHasGenerateRun.size, analyzeClickSessions) },
     ];
 
+    // ✅ [Phase 91-2] Merge reasoned outcome (representative session = latest sid by max ts)
+    let dominant_drop_case = '';
+    let human_reason = '';
+    let next_action_hint = '';
+    try {
+      let latestSid = '';
+      let latestTs = -1;
+      for (const sid of sidsAll) {
+        const arr = bySid.get(sid) || [];
+        for (const e of arr) {
+          const t = (e && typeof e === 'object') ? Number(e.ts) : NaN;
+          if (Number.isFinite(t) && t > latestTs) {
+            latestTs = t;
+            latestSid = sid;
+          }
+        }
+      }
+      const representativeEvents = latestSid ? (bySid.get(latestSid) || []) : events;
+      const outcome = computeTelemetryFunnelOutcome(representativeEvents);
+      dominant_drop_case = String(outcome?.dominant_drop_case || '');
+      human_reason = String(outcome?.human_reason || '');
+      next_action_hint = String(outcome?.next_action_hint || '');
+    } catch (e) {
+      try { console.warn('[telemetry] outcome compute failed'); } catch (_) {}
+    }
+
     console.groupCollapsed('[telemetry] funnel summary');
     console.table([{ kind: 'views', ...views }]);
     console.table([{ kind: 'actions', ...actions }]);
     console.table(funnel);
     console.groupEnd();
 
-    return { views, actions, funnel };
+    return { views, actions, funnel, dominant_drop_case, human_reason, next_action_hint };
   } catch (_) {
-    return { views: {}, actions: {}, funnel: [] };
+    return { views: {}, actions: {}, funnel: [], dominant_drop_case: 'CASE_A', human_reason: 'Analyze 진입했으나 실행하지 않음', next_action_hint: 'Analyze 실행 CTA/가이드 강화' };
   }
 }
 
