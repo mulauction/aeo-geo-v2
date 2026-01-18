@@ -2794,7 +2794,28 @@
         const vsOverride = urlParams.get('vs');
 
         // ✅ [Phase 29-1] invalid r/id pre-check input (판정/상태결정은 deriveShareViewState로만)
-          const invalidFromHead = window.__shareInvalidShareId;
+          let invalidFromHead = window.__shareInvalidShareId;
+          // ✅ [PHASE 74-A][SSOT] r param must be strictly numeric; non-numeric => INVALID_ID (no OK fallback)
+          // - keep force behavior: if force is present, do not mark INVALID_ID here
+          try {
+            const rStr = (rRaw != null) ? String(rRaw).trim() : '';
+            if (!invalidFromHead && !forceParam && rStr && !/^\d+$/.test(rStr)) {
+              invalidFromHead = { source: 'r', value: rStr };
+            }
+          } catch (_) {}
+          // ✅ [PHASE 74-A][SSOT] hard-stop: non-numeric r must NEVER fallback to __lastV2
+          if (!forceParam && rRaw != null) {
+            const rStr = String(rRaw).trim();
+            if (rStr && !/^\d+$/.test(rStr)) {
+              try {
+                if (debug === '1') {
+                  console.warn('[share] INVALID_ID hard-stop (non-numeric r)', { r: rStr });
+                }
+              } catch (_) {}
+              window.__shareInvalidShareId = { source: 'r', value: rStr };
+              window.__shareHardNoFallbackV1 = true;
+            }
+          }
           const isInlineJsonCandidate =
             Boolean(rParam) && (
               String(rParam).trim().startsWith('{') ||
@@ -2802,7 +2823,7 @@
               String(rParam).includes('%7b')
             );
         const isValidIdParam = !idParam || isValidShareId(idParam);
-        const isValidRParam = !rParam || isNumericR || isValidShareId(rParam);
+        const isValidRParam = forceParam ? true : (!(rRaw != null) || /^\d+$/.test(String(rRaw).trim()));
 
         // ✅ [Phase24-1] NO_REPORT pre-check input (localStorage read는 기존과 동일)
         const lastV2StrPre = localStorage.getItem('__lastV2');
@@ -2892,7 +2913,7 @@
         let hasLastV2 = false;
         let lastV2Str = null;
         // ✅ [Phase 26-2C-2] r 파라미터만 있고 id가 없을 때만 hasLastV2를 false로 강제 (localStorage fallback 방지)
-        if (!isROnly) {
+        if (!isROnly && window.__shareHardNoFallbackV1 !== true) {
           try {
             lastV2Str = localStorage.getItem('__lastV2');
             if (lastV2Str) {
