@@ -48,6 +48,21 @@ Cursor는 완료 보고에 반드시 아래 실출력 결과를 포함해야 한
 3) 예외/승인 규칙
 - 매트릭스 밖의 커맨드를 추가로 요구하려면, 해당 Phase에서 명시적으로 합의해야 한다.
 
+## Smoke Output Interpretation (SSOT)
+
+1) “repo dirty check (informational)”의 의미
+- docs-only / UI-only 변경에서는 정상이며 실패가 아님.
+- untracked/modified docs 또는 CSS만 있을 때 허용.
+
+2) 실패로 간주되는 경우
+- conflict markers
+- policy/guard 실패 라인
+- restore/open/telemetry guard 실패 등
+
+3) 완료 보고 규칙
+- smoke 통과 기준을 위 해석에 따라 판단.
+- 의심 시, 변경 타입(UI-only/Docs-only/Logic)을 보고서 첫 줄에 명시.
+
 ## 중단 조건 (즉시 STOP)
 - ingest / raw writer 수정 필요
 - allowed files 초과
