@@ -1,0 +1,25 @@
+name: "Release Gate"
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_status:
+        description: "PASS | FAIL | INSUFFICIENT"
+        required: true
+        default: "INSUFFICIENT"
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run release gate
+        run: node scripts/release-gate.mjs --status="${{ inputs.release_status }}"
+
