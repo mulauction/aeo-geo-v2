@@ -278,7 +278,7 @@
     import { setModals, requireLogin, requireCredit } from '../core/gate.js';
     import { spendCredit } from '../core/credit.js';
     import { getState, setState } from '../core/state.js';
-    import { getSessionId, track } from '../core/telemetry.js';
+    import { getSessionId, hashId, track } from '../core/telemetry.js';
     import { calculateUrlPreviewScore } from './core/urlPreview.js';
 
     const LS_KEY_URL = '__urlStructureV1';
@@ -302,6 +302,34 @@
       } catch (_) {
         try { runOnce(); } catch (_) {}
       }
+    })();
+
+    // ✅ [observe-only] UX telemetry: generate_action_run (no UX change)
+    (function () {
+      try {
+        const bind = () => {
+          try {
+            const bindOne = (id) => {
+              const btn = document.getElementById(id);
+              if (!btn) return;
+              const key = '__telemetryBoundGenerateRun_' + String(id);
+              if (btn[key]) return;
+              btn[key] = true;
+              btn.addEventListener('click', () => {
+                try {
+                  const rawId = String(localStorage.getItem('__currentReportId') || '');
+                  const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                  track('generate_action_run', { report_id });
+                } catch (_) {}
+              }, true);
+            };
+            bindOne('btnGen');
+            bindOne('btnGen4');
+          } catch (_) {}
+        };
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', bind, { once: true });
+        else bind();
+      } catch (_) {}
     })();
 
     const root = {

@@ -155,7 +155,7 @@
 
   <script type="module">
     import { boot } from './core/lifecycle.js';
-    import { getSessionId, track } from './core/telemetry.js';
+    import { getSessionId, hashId, track } from './core/telemetry.js';
     
     // ✅ [Phase 90-1C][observe-only] UX telemetry: analyze_view (no UX change; run after DOMContentLoaded)
     (function () {
@@ -181,6 +181,29 @@
       } catch (_) {
         try { runOnce(); } catch (_) {}
       }
+    })();
+
+    // ✅ [observe-only] UX telemetry: analyze_action_run (no UX change)
+    (function () {
+      try {
+        const bind = () => {
+          try {
+            const btn = document.getElementById('btnAnalyze');
+            if (!btn) return;
+            if (btn.__telemetryBoundAnalyzeRun) return;
+            btn.__telemetryBoundAnalyzeRun = true;
+            btn.addEventListener('click', () => {
+              try {
+                const rawId = String(localStorage.getItem('__currentReportId') || '');
+                const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                track('analyze_action_run', { report_id });
+              } catch (_) {}
+            }, true);
+          } catch (_) {}
+        };
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', bind, { once: true });
+        else bind();
+      } catch (_) {}
     })();
 
     boot();

@@ -376,6 +376,8 @@ function __debugTelemetryFunnel() {
     const sidHasAnalyze = new Set();
     const sidHasAnalyzeView = new Set();
     const sidHasGenerateView = new Set();
+    const sidHasAnalyzeRun = new Set();
+    const sidHasGenerateRun = new Set();
 
     for (const sid of sidsAll) {
       const arr = bySid.get(sid) || [];
@@ -385,6 +387,8 @@ function __debugTelemetryFunnel() {
       if (hasEvent(arr, 'share_action_analyze')) sidHasAnalyze.add(sid);
       if (hasEvent(arr, 'analyze_view')) sidHasAnalyzeView.add(sid);
       if (hasEvent(arr, 'generate_view')) sidHasGenerateView.add(sid);
+      if (hasEvent(arr, 'analyze_action_run')) sidHasAnalyzeRun.add(sid);
+      if (hasEvent(arr, 'generate_action_run')) sidHasGenerateRun.add(sid);
     }
 
     const counts = _countByEvent(events);
@@ -397,14 +401,19 @@ function __debugTelemetryFunnel() {
       share_action_copy_link: counts.share_action_copy_link || 0,
       share_action_pdf: counts.share_action_pdf || 0,
       share_action_analyze: counts.share_action_analyze || 0,
+      analyze_action_run: counts.analyze_action_run || 0,
+      generate_action_run: counts.generate_action_run || 0,
     };
 
     const shareSessions = sidHasShare.size;
+    const analyzeClickSessions = sidHasAnalyze.size;
     const funnel = [
       { metric: 'share_view sessions', value: shareSessions },
       { metric: 'copy_link sessions', value: sidHasCopy.size, rate: _pct(sidHasCopy.size, shareSessions) },
       { metric: 'pdf sessions', value: sidHasPdf.size, rate: _pct(sidHasPdf.size, shareSessions) },
       { metric: 'analyze_click sessions', value: sidHasAnalyze.size, rate: _pct(sidHasAnalyze.size, shareSessions) },
+      { metric: 'analyze_run sessions', value: sidHasAnalyzeRun.size, rate: _pct(sidHasAnalyzeRun.size, shareSessions), rate_from_analyze_click: _pct(sidHasAnalyzeRun.size, analyzeClickSessions) },
+      { metric: 'generate_run sessions', value: sidHasGenerateRun.size, rate: _pct(sidHasGenerateRun.size, shareSessions), rate_from_analyze_click: _pct(sidHasGenerateRun.size, analyzeClickSessions) },
     ];
 
     console.groupCollapsed('[telemetry] funnel summary');
