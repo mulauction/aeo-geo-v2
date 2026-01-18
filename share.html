@@ -1322,18 +1322,18 @@
       * { box-shadow: none !important; text-shadow: none !important; filter: none !important; }
 
       /* 인쇄에서 제거해야 할 UI (CTA/PRO/debug/telemetry/토글/액션/고정/유도) */
-      #shareCtaSlot,
-      [data-share-upgrade-cta="1"],
-      #proModalOverlay,
-      #telemetrySummaryCard,
-      #telemetryLocalSummary,
-      #telemetryHiddenNotice,
-      .action-grid,
-      .next-actions-section,
-      .score-criteria-toggle,
-      .share-policy,
-      .report-header-fixed-toast,
-      #helper-link-feedback {
+      html.is-printing #shareCtaSlot,
+      html.is-printing [data-share-upgrade-cta="1"],
+      html.is-printing #proModalOverlay,
+      html.is-printing #telemetrySummaryCard,
+      html.is-printing #telemetryLocalSummary,
+      html.is-printing #telemetryHiddenNotice,
+      html.is-printing .action-grid,
+      html.is-printing .next-actions-section,
+      html.is-printing .score-criteria-toggle,
+      html.is-printing .share-policy,
+      html.is-printing .report-header-fixed-toast,
+      html.is-printing #helper-link-feedback {
         display: none !important;
       }
 
@@ -1345,94 +1345,94 @@
 
       /* ✅ [PHASE 73-4][SSOT] Print hardening (no :has; sibling-based) */
       /* Always hide "recent reports" list in print (INVALID_ID safety) */
-      .recent-reports, .recent-reports-section, #recentReports, #recent-reports, #recentReportsList { display: none !important; }
+      html.is-printing .recent-reports, html.is-printing .recent-reports-section, html.is-printing #recentReports, html.is-printing #recent-reports, html.is-printing #recentReportsList { display: none !important; }
 
       /* ✅ [PHASE 73-5][SSOT] Hide recent reports list in print (INVALID_ID 4p -> 1p) */
-      .recent-reports,
-      .recent-reports-section,
-      #recentReports,
-      #recent-reports,
-      [data-recent-reports],
-      .report-recent,
-      .report-recent-reports {
+      html.is-printing .recent-reports,
+      html.is-printing .recent-reports-section,
+      html.is-printing #recentReports,
+      html.is-printing #recent-reports,
+      html.is-printing [data-recent-reports],
+      html.is-printing .report-recent,
+      html.is-printing .report-recent-reports {
         display: none !important;
       }
 
       /* Non-OK: collapse to 1 page (banner-driven, no :has) */
-      .report-warning-box ~ #anchor-evidence,
-      .report-warning-box ~ #anchor-content,
-      .report-warning-box ~ .content-section,
-      .report-warning-box ~ .report-footer,
-      .report-load-failed-banner ~ #anchor-evidence,
-      .report-load-failed-banner ~ #anchor-content,
-      .report-load-failed-banner ~ .content-section,
-      .report-load-failed-banner ~ .report-footer {
+      html.is-printing .report-warning-box ~ #anchor-evidence,
+      html.is-printing .report-warning-box ~ #anchor-content,
+      html.is-printing .report-warning-box ~ .content-section,
+      html.is-printing .report-warning-box ~ .report-footer,
+      html.is-printing .report-load-failed-banner ~ #anchor-evidence,
+      html.is-printing .report-load-failed-banner ~ #anchor-content,
+      html.is-printing .report-load-failed-banner ~ .content-section,
+      html.is-printing .report-load-failed-banner ~ .report-footer {
         display: none !important;
       }
 
       /* Ensure minimal summary stays visible */
-      #share-status { display: block !important; }
-      #anchor-score-explainer { display: block !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-      .report-warning-box, .report-load-failed-banner, .report-header, .report-header-fixed { display: block !important; }
+      html.is-printing #share-status { display: block !important; }
+      html.is-printing #anchor-score-explainer { display: block !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+      html.is-printing .report-warning-box, html.is-printing .report-load-failed-banner, html.is-printing .report-header, html.is-printing .report-header-fixed { display: block !important; }
 
       /* ✅ [PHASE 73-6][SSOT] Explicit state-based print (no inference) */
-      body[data-share-state="NO_REPORT"],
-      body[data-share-state="OTHER_DEVICE"],
-      body[data-share-state="EXPIRED"],
-      body[data-share-state="FETCH_FAIL"],
-      body[data-share-state="INVALID_ID"] {
+      html.is-printing body[data-share-state="NO_REPORT"],
+      html.is-printing body[data-share-state="OTHER_DEVICE"],
+      html.is-printing body[data-share-state="EXPIRED"],
+      html.is-printing body[data-share-state="FETCH_FAIL"],
+      html.is-printing body[data-share-state="INVALID_ID"] {
         font-size: 10pt !important;
         line-height: 1.45 !important;
       }
-      body[data-share-state="NO_REPORT"] .content-section,
-      body[data-share-state="OTHER_DEVICE"] .content-section,
-      body[data-share-state="EXPIRED"] .content-section,
-      body[data-share-state="FETCH_FAIL"] .content-section,
-      body[data-share-state="INVALID_ID"] .content-section,
-      body[data-share-state="NO_REPORT"] #anchor-evidence,
-      body[data-share-state="OTHER_DEVICE"] #anchor-evidence,
-      body[data-share-state="EXPIRED"] #anchor-evidence,
-      body[data-share-state="FETCH_FAIL"] #anchor-evidence,
-      body[data-share-state="INVALID_ID"] #anchor-evidence,
-      body[data-share-state="NO_REPORT"] #anchor-content,
-      body[data-share-state="OTHER_DEVICE"] #anchor-content,
-      body[data-share-state="EXPIRED"] #anchor-content,
-      body[data-share-state="FETCH_FAIL"] #anchor-content,
-      body[data-share-state="INVALID_ID"] #anchor-content,
-      body[data-share-state="NO_REPORT"] .report-footer,
-      body[data-share-state="OTHER_DEVICE"] .report-footer,
-      body[data-share-state="EXPIRED"] .report-footer,
-      body[data-share-state="FETCH_FAIL"] .report-footer,
-      body[data-share-state="INVALID_ID"] .report-footer,
-      body[data-share-state="INVALID_ID"] .recent-reports,
-      body[data-share-state="INVALID_ID"] .recent-reports-section,
-      body[data-share-state="INVALID_ID"] #recentReports,
-      body[data-share-state="INVALID_ID"] #recent-reports,
-      body[data-share-state="INVALID_ID"] #recentReportsList {
+      html.is-printing body[data-share-state="NO_REPORT"] .content-section,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] .content-section,
+      html.is-printing body[data-share-state="EXPIRED"] .content-section,
+      html.is-printing body[data-share-state="FETCH_FAIL"] .content-section,
+      html.is-printing body[data-share-state="INVALID_ID"] .content-section,
+      html.is-printing body[data-share-state="NO_REPORT"] #anchor-evidence,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] #anchor-evidence,
+      html.is-printing body[data-share-state="EXPIRED"] #anchor-evidence,
+      html.is-printing body[data-share-state="FETCH_FAIL"] #anchor-evidence,
+      html.is-printing body[data-share-state="INVALID_ID"] #anchor-evidence,
+      html.is-printing body[data-share-state="NO_REPORT"] #anchor-content,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] #anchor-content,
+      html.is-printing body[data-share-state="EXPIRED"] #anchor-content,
+      html.is-printing body[data-share-state="FETCH_FAIL"] #anchor-content,
+      html.is-printing body[data-share-state="INVALID_ID"] #anchor-content,
+      html.is-printing body[data-share-state="NO_REPORT"] .report-footer,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] .report-footer,
+      html.is-printing body[data-share-state="EXPIRED"] .report-footer,
+      html.is-printing body[data-share-state="FETCH_FAIL"] .report-footer,
+      html.is-printing body[data-share-state="INVALID_ID"] .report-footer,
+      html.is-printing body[data-share-state="INVALID_ID"] .recent-reports,
+      html.is-printing body[data-share-state="INVALID_ID"] .recent-reports-section,
+      html.is-printing body[data-share-state="INVALID_ID"] #recentReports,
+      html.is-printing body[data-share-state="INVALID_ID"] #recent-reports,
+      html.is-printing body[data-share-state="INVALID_ID"] #recentReportsList {
         display: none !important;
       }
-      body[data-share-state="NO_REPORT"] #share-status,
-      body[data-share-state="OTHER_DEVICE"] #share-status,
-      body[data-share-state="EXPIRED"] #share-status,
-      body[data-share-state="FETCH_FAIL"] #share-status,
-      body[data-share-state="INVALID_ID"] #share-status {
+      html.is-printing body[data-share-state="NO_REPORT"] #share-status,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] #share-status,
+      html.is-printing body[data-share-state="EXPIRED"] #share-status,
+      html.is-printing body[data-share-state="FETCH_FAIL"] #share-status,
+      html.is-printing body[data-share-state="INVALID_ID"] #share-status {
         display: block !important;
       }
-      body[data-share-state="NO_REPORT"] #anchor-score-explainer,
-      body[data-share-state="OTHER_DEVICE"] #anchor-score-explainer,
-      body[data-share-state="EXPIRED"] #anchor-score-explainer,
-      body[data-share-state="FETCH_FAIL"] #anchor-score-explainer,
-      body[data-share-state="INVALID_ID"] #anchor-score-explainer,
-      body[data-share-state="NO_REPORT"] .report-header,
-      body[data-share-state="OTHER_DEVICE"] .report-header,
-      body[data-share-state="EXPIRED"] .report-header,
-      body[data-share-state="FETCH_FAIL"] .report-header,
-      body[data-share-state="INVALID_ID"] .report-header,
-      body[data-share-state="NO_REPORT"] .report-header-fixed,
-      body[data-share-state="OTHER_DEVICE"] .report-header-fixed,
-      body[data-share-state="EXPIRED"] .report-header-fixed,
-      body[data-share-state="FETCH_FAIL"] .report-header-fixed,
-      body[data-share-state="INVALID_ID"] .report-header-fixed {
+      html.is-printing body[data-share-state="NO_REPORT"] #anchor-score-explainer,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] #anchor-score-explainer,
+      html.is-printing body[data-share-state="EXPIRED"] #anchor-score-explainer,
+      html.is-printing body[data-share-state="FETCH_FAIL"] #anchor-score-explainer,
+      html.is-printing body[data-share-state="INVALID_ID"] #anchor-score-explainer,
+      html.is-printing body[data-share-state="NO_REPORT"] .report-header,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] .report-header,
+      html.is-printing body[data-share-state="EXPIRED"] .report-header,
+      html.is-printing body[data-share-state="FETCH_FAIL"] .report-header,
+      html.is-printing body[data-share-state="INVALID_ID"] .report-header,
+      html.is-printing body[data-share-state="NO_REPORT"] .report-header-fixed,
+      html.is-printing body[data-share-state="OTHER_DEVICE"] .report-header-fixed,
+      html.is-printing body[data-share-state="EXPIRED"] .report-header-fixed,
+      html.is-printing body[data-share-state="FETCH_FAIL"] .report-header-fixed,
+      html.is-printing body[data-share-state="INVALID_ID"] .report-header-fixed {
         display: block !important;
       }
     }
@@ -5068,6 +5068,21 @@
         }
       }
       
+      // ✅ [PHASE 74-B][print SSOT] Non-OK detection helper (SSOT)
+      function shouldForcePrintSSOT() {
+        // Priority 1: explicit viewState SSOT (non-OK only)
+        try {
+          const s = window.__shareViewState;
+          if (typeof s === 'string' && s && s !== 'OK') return true;
+        } catch (_) {}
+        // Priority 2: DOM hints (fallback)
+        try {
+          if (document.querySelector('.report-warning-box')) return true;
+          if (document.querySelector('.report-load-failed-banner')) return true;
+        } catch (_) {}
+        return false;
+      }
+
       // ✅ [Phase 4-2 Gate] PDF 버튼 게이트 적용
       const btnExportPDF = document.getElementById('btnExportPDF');
       if (btnExportPDF) {
@@ -5075,9 +5090,51 @@
           if (!gateOrWarn("PDF 내보내기")) return;
           
           // ✅ [Phase 3-2D] PDF 생성 (print 스타일 적용)
+          if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing');
           window.print();
         });
       }
+
+      // ✅ [PHASE 74-B][print SSOT] cleanup printing flag after print (best-effort)
+      (function () {
+        try {
+          // ⌘P / 메뉴 인쇄에서도 Non-OK면 동일하게 SSOT 적용 (1회만 바인딩)
+          try {
+            if (!window.__shareBeforePrintBoundV1) {
+              window.__shareBeforePrintBoundV1 = true;
+              window.addEventListener('beforeprint', () => {
+                try { if (shouldForcePrintSSOT()) document.documentElement.classList.add('is-printing'); } catch (_) {}
+              });
+            }
+          } catch (_) {}
+
+          const cleanup = () => {
+            try { document.documentElement.classList.remove('is-printing'); } catch (_) {}
+            try {
+              const m = window.__sharePrintMqlV1;
+              const fn = window.__sharePrintMqlFnV1;
+              if (m && fn && typeof m.removeEventListener === 'function') m.removeEventListener('change', fn);
+              window.__sharePrintMqlV1 = null;
+              window.__sharePrintMqlFnV1 = null;
+            } catch (_) {}
+          };
+          const prev = window.onafterprint;
+          window.onafterprint = function () {
+            try { if (typeof prev === 'function') prev(); } catch (_) {}
+            cleanup();
+          };
+          // If a print media listener exists (or is added here), ensure it can be cleaned up
+          try {
+            const m = (typeof window.matchMedia === 'function') ? window.matchMedia('print') : null;
+            if (m && typeof m.addEventListener === 'function') {
+              const fn = (e) => { try { if (!e.matches) cleanup(); } catch (_) {} };
+              window.__sharePrintMqlV1 = m;
+              window.__sharePrintMqlFnV1 = fn;
+              m.addEventListener('change', fn);
+            }
+          } catch (_) {}
+        } catch (_) {}
+      })();
       
       // 로그인 상태일 때만 리포트 렌더링 실행
       // ✅ [Hotfix] 최초 로드 시 bootstrapShare 호출
