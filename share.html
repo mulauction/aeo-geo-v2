@@ -3059,6 +3059,11 @@
                 </div>
               </details>
             `;
+          } else if (viewState === 'INVALID_ID' || viewState === 'FETCH_FAIL') {
+            // ✅ [Phase 77-1] empty-state CTA policy (UI-only): keep Primary only
+            buttons = `
+              <a href="./home.html" class="btn-home" style="display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #fff; background: #0066cc; border: none; border-radius: 4px; text-decoration: none; cursor: pointer; transition: background 0.2s ease;">${s.actions.primaryLabel}</a>
+            `;
           } else if (viewState === 'EXPIRED') {
             buttons = `
               ${restoreButtonHtml}
@@ -3079,13 +3084,15 @@
               <div style="margin-bottom: 16px;">
                 ${buttons}
               </div>
-              <details style="margin-top: 12px; font-size: 12px; color: #666;">
-                <summary style="cursor: pointer; font-weight: 500;">더 알아보기</summary>
-                <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
-                  <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 리포트를 브라우저에만 저장합니다. 다른 기기나 브라우저에서는 리포트 데이터에 접근할 수 없습니다. 서버 저장 기능은 준비 중입니다. 해결: 홈에서 다시 분석해 최신 리포트를 생성하세요.</p>
-                  <p style="margin: 8px 0 0 0; line-height: 1.5;"><a href="#obs-lite" style="color: #0066cc; text-decoration: none; font-weight: 500;">신뢰도/사유 보기 →</a></p>
-                </div>
-              </details>
+              <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(0,0,0,0.15);">
+                <details style="margin: 0; font-size: 12px; color: #666;">
+                  <summary style="cursor: pointer; font-weight: 500;">더 알아보기</summary>
+                  <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
+                    <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 리포트를 브라우저에만 저장합니다. 다른 기기나 브라우저에서는 리포트 데이터에 접근할 수 없습니다. 서버 저장 기능은 준비 중입니다. 해결: 홈에서 다시 분석해 최신 리포트를 생성하세요.</p>
+                    <p style="margin: 8px 0 0 0; line-height: 1.5;"><a href="#obs-lite" style="color: #0066cc; text-decoration: none; font-weight: 500;">신뢰도/사유 보기 →</a></p>
+                  </div>
+                </details>
+              </div>
             </div>
           `;
         }
