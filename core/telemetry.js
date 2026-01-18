@@ -241,6 +241,7 @@ export function downloadTelemetryCSV() {
 // -----------------------------
 
 const BEFORE_KEY = "__funnel_snapshot_before_v1";
+const JUDGE_KEY = "__funnel_judgement_runs_v1";
 
 function _lsGetJSON(key) {
   try {
@@ -569,6 +570,53 @@ function compareFunnelSnapshots(before, after) {
   };
 }
 
+// -----------------------------
+// [Phase 98-1] Release judgement from repeated improvement_snapshot runs (PURE)
+// -----------------------------
+
+function judgeReleaseFromRuns(runs, opts = {}) {
+  const minComparable = Number.isFinite(Number(opts?.minComparable)) ? Number(opts.minComparable) : 5;
+  const passRate = Number.isFinite(Number(opts?.passRate)) ? Number(opts.passRate) : 0.6;
+
+  const notes = [];
+  const arr = Array.isArray(runs) ? runs : [];
+
+  let comparable = 0;
+  let improved = 0;
+  for (const r of arr) {
+    const o = (r && typeof r === 'object') ? r : {};
+    const isComparable = !!o.comparable;
+    const isImproved = !!o.improved;
+    if (isComparable) {
+      comparable += 1;
+      if (isImproved) improved += 1;
+    }
+  }
+
+  const total = arr.length;
+  const rawRate = comparable > 0 ? (improved / comparable) : 0;
+  const improvedRate = Math.round(rawRate * 100) / 100; // 2 decimals
+
+  if (comparable < minComparable) {
+    notes.push('insufficient_comparable_runs');
+    return {
+      status: "INSUFFICIENT",
+      summary: `Release judgement: INSUFFICIENT (comparable ${comparable}/${minComparable})`,
+      stats: { total, comparable, improved, improvedRate },
+      notes,
+    };
+  }
+
+  const status = improvedRate >= passRate ? "PASS" : "FAIL";
+  const pct = Math.round(improvedRate * 100);
+  return {
+    status,
+    summary: `Release judgement: ${status} (improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable})`,
+    stats: { total, comparable, improved, improvedRate },
+    notes,
+  };
+}
+
 function __debugTelemetryLast(n = 20) {
   try {
     const limit = Math.max(1, Math.min(200, Number(n) || 20));
@@ -818,6 +866,31 @@ function __debugTelemetryFunnel() {
       );
     }
 
+    let release_judgement = {
+      status: "INSUFFICIENT",
+      summary: "Release judgement: INSUFFICIENT (comparable 0/5)",
+      stats: { total: 0, comparable: 0, improved: 0, improvedRate: 0 },
+      notes: ["not_initialized"]
+    };
+    try {
+      let runs = _lsGetJSON(JUDGE_KEY);
+      runs = Array.isArray(runs) ? runs : [];
+
+      runs.push({
+        ts: Date.now(),
+        comparable: !!improvement_snapshot?.comparable,
+        improved: !!improvement_snapshot?.improved,
+        summary: String(improvement_snapshot?.summary || '')
+      });
+
+      if (runs.length > 20) runs = runs.slice(runs.length - 20);
+      _lsSetJSON(JUDGE_KEY, runs);
+
+      release_judgement = judgeReleaseFromRuns(runs);
+    } catch (_) {
+      // never throw
+    }
+
     return {
       views,
       actions,
@@ -836,7 +909,8 @@ function __debugTelemetryFunnel() {
       latest_drop_case,
       latest_human_reason,
       latest_next_action_hint,
-      improvement_snapshot
+      improvement_snapshot,
+      release_judgement
     };
   } catch (_) {
     return {
@@ -864,6 +938,12 @@ function __debugTelemetryFunnel() {
         comparable: false,
         improved: false,
         summary: "Not comparable: error",
+        notes: ["error"]
+      },
+      release_judgement: {
+        status: "INSUFFICIENT",
+        summary: "Release judgement: INSUFFICIENT (comparable 0/5)",
+        stats: { total: 0, comparable: 0, improved: 0, improvedRate: 0 },
         notes: ["error"]
       }
     };
