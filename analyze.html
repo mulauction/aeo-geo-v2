@@ -110,6 +110,7 @@
     </div>
     
     <button id="btnAnalyze" class="btn btn-primary">Analyze</button>
+    <a id="btnViewShareReport" class="btn btn-dark" href="./share.html?restore=1" style="margin-left: 12px;">리포트 공유 보기</a>
     <p style="margin: 6px 0 0 0; font-size: 12px; color: var(--muted);">
       결과가 생성되면 1회가 사용됩니다.
     </p>
@@ -174,6 +175,17 @@
           const next = location.pathname + '?' + p.toString() + (location.hash || '');
           history.replaceState(null, '', next);
         } catch (_) {}
+      } catch (_) {}
+    })();
+
+    // ✅ [Phase 100-UI] Analyze: "리포트 공유 보기" navigation (UI-only; no storage/schema changes)
+    (function () {
+      try {
+        const el = document.getElementById('btnViewShareReport');
+        if (!el) return;
+        const p = new URLSearchParams(location.search || '');
+        const hasDebug = p.get('debug') === '1';
+        el.setAttribute('href', `./share.html?restore=1${hasDebug ? '&debug=1' : ''}`);
       } catch (_) {}
     })();
 

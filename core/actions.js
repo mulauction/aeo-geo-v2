@@ -222,17 +222,34 @@ export function bindActions(root) {
         const didMark = markUsageWouldConsumeOnce({ source: "analyze", action: "result_generated" });
         if (didMark) {
           const reportId = getCurrentReportIdSafe();
-          fetch(getUsageApiBase() + '/api/usage-events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reportId,
-              source: 'analyze',
-              action: 'result_generated',
-              ts: Date.now(),
-              meta: null
-            })
-          }).catch(() => {});
+          try {
+            const p = new URLSearchParams(location.search || '');
+            const isDebug = p.get('debug') === '1';
+            const isLocalhost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
+            // Avoid noisy ERR_CONNECTION_REFUSED when backend(3001) isn't running:
+            // - On localhost: only send if the page is served by the backend itself (port 3001).
+            // - On non-localhost: keep same-origin best-effort.
+            const shouldSend = (!isLocalhost) || String(location.port || '') === '3001';
+            if (!shouldSend) {
+              if (isDebug) console.info('[usage-events] skipped (backend not present): /api/usage-events');
+              return null;
+            }
+            fetch('/api/usage-events', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                reportId,
+                source: 'analyze',
+                action: 'result_generated',
+                ts: Date.now(),
+                meta: null
+              })
+            }).catch(() => {
+              if (isDebug) console.info('[usage-events] failed: /api/usage-events');
+            });
+          } catch (_) {
+            // never throw
+          }
         }
       }
     } finally {
