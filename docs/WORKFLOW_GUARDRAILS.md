@@ -252,3 +252,17 @@ Fixes #123
 **Baseline 커밋**: `20a2ea3f04c5cb6c150681354fd71c7c7a0e4eb0`
 **Baseline 브랜치**: `reset/phase4-2-safe`
 
+## Release Gate & Branch Protection
+
+Branch protection relies on **dynamic PR status checks**.
+
+Do **not** pin required checks unless the workflow name and job name are fully frozen.
+Pinning checks too early may break merging when workflows evolve.
+
+
+Pinning checks too early may break merging when w$
+
+
+
+
+
