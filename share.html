@@ -2335,8 +2335,8 @@
       const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
       const isRestoreOpen = Boolean(openId) && isRestore;
 
-      // ✅ [openRecent] restore=1&open=<digits> 에서는 선택된 __lastV2만 사용
-      if (isRestoreOpen) {
+      // ✅ [openRecent] open=<digits>에서는 선택된 __lastV2만 사용 (restore=1 유무와 무관)
+      if (openId) {
         try {
           const v = window.__lastV2 || (() => {
             try {
@@ -2727,7 +2727,8 @@
         const openIdRaw = urlParams.get('open');
         const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
         const isRestoreOpen = Boolean(openId) && isRestore;
-        if (isRestoreOpen) {
+        if (openId) {
+          // ✅ [Phase 100-OpenFix] open=<digits> 진입 시 __currentReportId를 1회 보장 (render/resolve SSOT)
           try { localStorage.setItem('__currentReportId', String(openId)); } catch (_) {}
           try {
             const s = localStorage.getItem('__lastV2');
@@ -2935,7 +2936,7 @@
         }
 
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성 (2단계 흐름 유지)
-        const reportModel = (pre.needsLoad || isRestoreOpen) ? await loadReportModel() : null;
+        const reportModel = (pre.needsLoad || isRestoreOpen || Boolean(openId)) ? await loadReportModel() : null;
         try {
           if (reportModel && reportModel.id) {
             localStorage.setItem('__currentReportId', String(reportModel.id));
@@ -4011,8 +4012,13 @@
           const expanded = window.__recentReportsExpandedV1 === true;
           const visible = expanded ? sortedItems.slice(0, 10) : sortedItems.slice(0, 3);
           const debugOn = (function(){ try { return new URLSearchParams(location.search).get('debug') === '1'; } catch (_) { return false; } })();
-          const activeId = (reportModel && reportModel.id) ? String(reportModel.id) : null;
+          // ✅ Single SSOT: currently-open reportId (numeric timestamp string)
+          // NOTE: Recent list items may share the same reportId; ensure the "active" badge is shown only once.
+          const activeId = (function () {
+            try { return String(localStorage.getItem('__currentReportId') || ''); } catch (_) { return ''; }
+          })() || ((reportModel && reportModel.id) ? String(reportModel.id) : '');
           let __activeLogged = false;
+          let __activeMarked = false;
 
           const rows = visible.map((it) => {
             const target = (it && typeof it === 'object' && it.target) ? String(it.target) : '분석 대상 없음';
@@ -4025,7 +4031,9 @@
               : null;
           const reportIdStr = (reportId != null) ? String(reportId) : '';
           const hasNumericId = /^\d+$/.test(reportIdStr);
-          const isActive = Boolean(activeId) && (String(reportIdStr) === String(activeId));
+          const isActiveMatch = Boolean(activeId) && (String(reportIdStr) === String(activeId));
+          const isActive = isActiveMatch && !__activeMarked;
+          if (isActive) __activeMarked = true;
           const activeBadge = isActive
             ? '<span style="font-size: 12px; padding: 2px 6px; border-radius: 999px; background: #4caf50; color: #fff; margin-left: 6px;">현재 열람중</span>'
             : '';
