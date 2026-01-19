@@ -14,6 +14,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs/promises');
 const { pathToFileURL } = require('url');
+const { telemetryIngest } = require('./api/telemetryIngest');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
 const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
@@ -321,6 +322,8 @@ app.post('/api/usage-events', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR' });
   }
 });
+
+app.post('/api/telemetry/ingest', telemetryIngest);
 
 // ✅ [Phase 30-7B] Monthly usage summary (read-only, derived from append-only JSONL)
 // - 금지: 차감/차단/경고 로직, 추가 dedupe

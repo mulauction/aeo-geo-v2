@@ -6,6 +6,7 @@
   <title>AEO/GEO v2 - Analyze</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./core/styles/a11y.css">
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
@@ -97,6 +98,9 @@
     <div id="usagePlanHeader" style="margin: 12px 0 16px 0;"></div>
     
     <h1>Analyze - 콘텐츠 관찰 및 점수 계산</h1>
+    <p style="margin: 6px 0 10px 0; color: var(--muted); font-size: 12px;">
+      이전 리포트를 기준으로 다시 분석합니다.
+    </p>
     <p style="margin: 0 0 24px 0; color: var(--muted); font-size: 14px;">
       Analyze는 콘텐츠를 관찰하고 점수를 계산합니다. 생성된 콘텐츠는 점수에 영향을 주지 않습니다.
     </p>
@@ -151,7 +155,77 @@
 
   <script type="module">
     import { boot } from './core/lifecycle.js';
+    import { getSessionId, hashId, track } from './core/telemetry.js';
     
+    // ✅ [Phase 90-4][dev-only] debug=1 persistence across navigation (localhost only; UI/logic unchanged)
+    (function () {
+      try {
+        const isDev = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || String(location.origin || '').includes('localhost'));
+        if (!isDev) return;
+        const p = new URLSearchParams(location.search || '');
+        if (p.get('debug') === '1') {
+          try { sessionStorage.setItem('__aeoDebug', '1'); } catch (_) {}
+        }
+        const shouldCarry = (() => { try { return sessionStorage.getItem('__aeoDebug') === '1'; } catch (_) { return false; } })();
+        if (!shouldCarry) return;
+        if (p.get('debug') === '1') return;
+        try {
+          p.set('debug', '1');
+          const next = location.pathname + '?' + p.toString() + (location.hash || '');
+          history.replaceState(null, '', next);
+        } catch (_) {}
+      } catch (_) {}
+    })();
+
+    // ✅ [Phase 90-1C][observe-only] UX telemetry: analyze_view (no UX change; run after DOMContentLoaded)
+    (function () {
+      const runOnce = () => {
+        try {
+          const sid = (typeof getSessionId === 'function') ? getSessionId() : '';
+          const onceKey = '__telemetry_once_analyze_view_' + String(sid || '');
+          if (typeof sessionStorage !== 'undefined' && sid && sessionStorage.getItem(onceKey) === '1') return;
+          try { if (typeof sessionStorage !== 'undefined' && sid) sessionStorage.setItem(onceKey, '1'); } catch (_) {}
+          const ref = String(document.referrer || '');
+          const from = ref.includes('share.html') ? 'share' : (ref.includes('home.html') ? 'home' : 'direct');
+          let has_previous_report = false;
+          try {
+            const v = localStorage.getItem('__lastV2');
+            has_previous_report = !!(v && v.length > 10);
+          } catch (_) {}
+          track('analyze_view', { from, has_previous_report: !!has_previous_report });
+        } catch (_) {}
+      };
+      try {
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', runOnce, { once: true });
+        else runOnce();
+      } catch (_) {
+        try { runOnce(); } catch (_) {}
+      }
+    })();
+
+    // ✅ [observe-only] UX telemetry: analyze_action_run (no UX change)
+    (function () {
+      try {
+        const bind = () => {
+          try {
+            const btn = document.getElementById('btnAnalyze');
+            if (!btn) return;
+            if (btn.__telemetryBoundAnalyzeRun) return;
+            btn.__telemetryBoundAnalyzeRun = true;
+            btn.addEventListener('click', () => {
+              try {
+                const rawId = String(localStorage.getItem('__currentReportId') || '');
+                const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                track('analyze_action_run', { report_id });
+              } catch (_) {}
+            }, true);
+          } catch (_) {}
+        };
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', bind, { once: true });
+        else bind();
+      } catch (_) {}
+    })();
+
     boot();
   </script>
 </body>

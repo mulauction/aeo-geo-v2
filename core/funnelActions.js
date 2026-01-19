@@ -1,0 +1,365 @@
+// core/funnelActions.js
+// Pure rules for dev-only funnel debug recommendations.
+// - No side effects
+// - Never throws
+
+const CASE_KEYS = ['CASE_OK', 'CASE_A', 'CASE_B', 'CASE_C', 'CASE_D'];
+
+const FUNNEL_RULES = {
+  CASE_A: {
+    ids: ['A1', 'A2', 'A3'],
+    actions: [
+      'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+      '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+      '첫 실행 유도 문구를 1줄로 단순화(‘한 번만 실행해보세요’)',
+    ],
+    reason: 'Analyze 진입 대비 실행 비율이 낮습니다.',
+    how_to_verify: '다음 배포 후 counts_by_case에서 CASE_A 비중 감소 확인',
+    expected_impact: 'Analyze 진입→실행 전환 개선',
+  },
+  CASE_B: {
+    ids: ['B1', 'B2', 'B3'],
+    actions: [
+      'Analyze 완료 직후 Generate로 가는 1차 CTA를 더 크게/즉시 노출',
+      'Analyze 결과 영역 하단에 ‘다음: Generate’ 단계 표시(1→2→3)',
+      'Generate 이동을 1클릭으로(스크롤 없이) 만들기',
+    ],
+    reason: '분석 실행 후 생성 단계 전환이 끊깁니다.',
+    how_to_verify: '다음 배포 후 counts_by_case에서 CASE_B 비중 감소 확인',
+    expected_impact: 'Analyze 실행→Generate 이동 전환 개선',
+  },
+  CASE_C: {
+    ids: ['C1', 'C2', 'C3'],
+    actions: [
+      'Generate 실행 버튼을 첫 화면 안에 배치(스크롤 제로)',
+      '기본값 프리필 + ‘바로 생성’ 원클릭 제공',
+      '실행 전 기대 결과(예: 샘플 출력 3줄) 미리보기',
+    ],
+    reason: '생성 화면 진입 대비 실행이 낮습니다.',
+    how_to_verify: '다음 배포 후 counts_by_case에서 CASE_C 비중 감소 확인',
+    expected_impact: 'Generate 진입→실행 전환 개선',
+  },
+  CASE_D: {
+    ids: ['D1', 'D2', 'D3'],
+    actions: [
+      'Generate 완료 후 ‘리포트 보기’ 자동 포커스/최상단 고정',
+      '완료 토스트에 ‘Share로 이동’ 버튼 포함',
+      'Share 복귀 링크를 새 탭이 아닌 같은 탭 기본으로',
+    ],
+    reason: '생성 완료 이후 리포트 확인 단계에서 이탈합니다.',
+    how_to_verify: '다음 배포 후 counts_by_case에서 CASE_D 비중 감소 확인',
+    expected_impact: 'Generate 완료→Share 복귀(리포트 확인) 전환 개선',
+  },
+  CASE_OK: {
+    ids: ['OK1'],
+    actions: ['현재 퍼널 유지(병목 없음).'],
+    reason: '완주 비율이 우세합니다.',
+    how_to_verify: '_debugTelemetryFunnel()에서 CASE_OK 비중 유지 확인',
+    expected_impact: '완주 유지',
+  },
+};
+
+const IMPACT_LEVEL_BY_ID = {
+  A1: 'HIGH', A2: 'MED', A3: 'LOW',
+  B1: 'HIGH', B2: 'MED', B3: 'LOW',
+  C1: 'HIGH', C2: 'MED', C3: 'LOW',
+  D1: 'HIGH', D2: 'MED', D3: 'LOW',
+  OK1: 'LOW',
+};
+
+function _impactLevelFromId(id) {
+  const key = String(id || '');
+  const v = IMPACT_LEVEL_BY_ID[key];
+  return (v === 'HIGH' || v === 'MED' || v === 'LOW') ? v : 'LOW';
+}
+
+function _safeNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _getCountsByCase(input) {
+  return (input?.counts_by_case && typeof input.counts_by_case === 'object')
+    ? input.counts_by_case
+    : null;
+}
+
+function _sumCounts(counts_by_case) {
+  if (!counts_by_case) return 0;
+  let s = 0;
+  for (const k of CASE_KEYS) s += _safeNumber(counts_by_case[k]);
+  return s;
+}
+
+function _getTotalSessions(input, counts_by_case) {
+  const totalsSessionsRaw = input?.totals && typeof input.totals === 'object' ? input.totals.sessions : undefined;
+  const n = _safeNumber(totalsSessionsRaw);
+  if (n > 0) return n;
+  const sumCounts = _sumCounts(counts_by_case);
+  if (sumCounts > 0) return sumCounts;
+  return 0;
+}
+
+function _getDominantCount(dominant_drop_case, counts_by_case) {
+  if (!counts_by_case) return 0;
+  return _safeNumber(counts_by_case[dominant_drop_case]);
+}
+
+function _getTakeN(dominant_drop_case, dominantCount, totalSessions) {
+  if (dominant_drop_case === 'CASE_OK') return 1;
+  if (totalSessions > 0 && (dominantCount / totalSessions) >= 0.5) return 3;
+  return 2;
+}
+
+export function buildFunnelRecommendedActions(input = {}) {
+  try {
+    const dominant_drop_case = String(input?.dominant_drop_case || '');
+    const counts_by_case = _getCountsByCase(input);
+    const totalSessions = _getTotalSessions(input, counts_by_case);
+    const dominantCount = _getDominantCount(dominant_drop_case, counts_by_case);
+    const takeN = Math.max(1, Math.min(3, _getTakeN(dominant_drop_case, dominantCount, totalSessions)));
+
+    const fallback = {
+      recommended_actions: [
+        FUNNEL_RULES.CASE_A.actions[0],
+        FUNNEL_RULES.CASE_A.actions[1],
+      ],
+      recommendation_reason: FUNNEL_RULES.CASE_A.reason,
+    };
+
+    const rule = FUNNEL_RULES[dominant_drop_case];
+    if (!rule) return fallback;
+
+    const recommended_actions = (Array.isArray(rule.actions) ? rule.actions : []).slice(0, takeN);
+    const recommendation_reason = String(rule.reason || '').trim() || fallback.recommendation_reason;
+
+    if (!Array.isArray(recommended_actions) || recommended_actions.length === 0) return fallback;
+
+    return { recommended_actions, recommendation_reason };
+  } catch (_) {
+    return {
+      recommended_actions: [
+        'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+        '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+      ],
+      recommendation_reason: 'Analyze 진입 대비 실행 비율이 낮습니다.',
+    };
+  }
+}
+
+export function buildFunnelActionChecklist(input = {}) {
+  try {
+    const dominant_drop_case = String(input?.dominant_drop_case || '');
+    const counts_by_case = _getCountsByCase(input);
+    const totalSessions = _getTotalSessions(input, counts_by_case);
+    const dominantCount = _getDominantCount(dominant_drop_case, counts_by_case);
+
+    const fallbackRule = FUNNEL_RULES.CASE_A;
+    const fallback = {
+      action_checklist: [
+        {
+          id: 'A1',
+          action: fallbackRule.actions[0],
+          impact_level: _impactLevelFromId('A1'),
+          how_to_verify: fallbackRule.how_to_verify,
+          expected_impact: fallbackRule.expected_impact,
+        },
+        {
+          id: 'A2',
+          action: fallbackRule.actions[1],
+          impact_level: _impactLevelFromId('A2'),
+          how_to_verify: fallbackRule.how_to_verify,
+          expected_impact: fallbackRule.expected_impact,
+        },
+      ],
+      checklist_note: '우선순위: 상단부터. 다음 배포 후 counts_by_case의 병목 케이스 비중이 줄면 개선입니다.',
+    };
+
+    const rule = FUNNEL_RULES[dominant_drop_case];
+    if (!rule) return fallback;
+
+    const takeN = dominant_drop_case === 'CASE_OK'
+      ? 1
+      : Math.max(1, Math.min(3, _getTakeN(dominant_drop_case, dominantCount, totalSessions)));
+
+    const items = [];
+    const ids = Array.isArray(rule.ids) ? rule.ids : [];
+    const actions = Array.isArray(rule.actions) ? rule.actions : [];
+    for (let i = 0; i < Math.min(takeN, ids.length, actions.length); i++) {
+      const id = String(ids[i]);
+      items.push({
+        id,
+        action: String(actions[i]),
+        impact_level: _impactLevelFromId(id),
+        how_to_verify: String(rule.how_to_verify || ''),
+        expected_impact: String(rule.expected_impact || ''),
+      });
+    }
+
+    const action_checklist = items.length > 0 ? items : fallback.action_checklist;
+    const checklist_note = dominant_drop_case === 'CASE_OK'
+      ? '우선순위: 유지. 다음 배포 후 CASE_OK 비중이 유지되면 정상입니다.'
+      : '우선순위: 상단부터. 다음 배포 후 counts_by_case에서 해당 케이스 비중 감소를 확인하세요.';
+
+    return { action_checklist, checklist_note };
+  } catch (_) {
+    return {
+      action_checklist: [
+        {
+          id: 'A1',
+          action: 'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+          impact_level: 'HIGH',
+          how_to_verify: '다음 배포 후 counts_by_case에서 CASE_A 비중 감소 확인',
+          expected_impact: 'Analyze 진입→실행 전환 개선',
+        },
+        {
+          id: 'A2',
+          action: '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+          impact_level: 'MED',
+          how_to_verify: '다음 배포 후 counts_by_case에서 CASE_A 비중 감소 확인',
+          expected_impact: 'Analyze 진입→실행 전환 개선',
+        },
+      ],
+      checklist_note: '우선순위: 상단부터. 다음 배포 후 counts_by_case의 병목 케이스 비중이 줄면 개선입니다.',
+    };
+  }
+}
+
+export function pickTopActionFromChecklist({ action_checklist = [], dominant_drop_case = '' } = {}) {
+  try {
+    const arr = Array.isArray(action_checklist) ? action_checklist : [];
+    const levels = ['HIGH', 'MED', 'LOW'];
+
+    let chosen = null;
+    for (const lvl of levels) {
+      chosen = arr.find((it) => it && typeof it === 'object' && String(it.impact_level || '') === lvl) || null;
+      if (chosen) break;
+    }
+
+    if (!chosen) return { top_action: null, top_action_reason: '' };
+
+    const isOk = String(dominant_drop_case || '') === 'CASE_OK';
+    const top_action = {
+      id: String(chosen.id || ''),
+      action: String(chosen.action || ''),
+      impact_level: String(chosen.impact_level || ''),
+    };
+    const top_action_reason = isOk
+      ? '현재 병목이 없어 유지가 우선입니다.'
+      : 'dominant_drop_case 기준 최우선 병목 해소를 위한 1순위 액션입니다.';
+
+    return { top_action, top_action_reason };
+  } catch (_) {
+    return { top_action: null, top_action_reason: '' };
+  }
+}
+// core/funnelActions.js
+export function buildExecutionGuide({
+  top_action = null,
+  dominant_drop_case = '',
+  impact_level = ''
+} = {}) {
+  const base = {
+    goal: '',
+    steps: [],
+    verify: [],
+    failure_signals: []
+  };
+
+  const CASES = {
+    CASE_A: {
+      goal: 'Analyze 실행률 올리기',
+      steps: [
+        'Analyze 버튼을 상단 1순위 CTA로 고정',
+        '샘플 입력 1줄 자동 채움',
+        '실행 전 1줄 가이드 문구 추가',
+        '첫 클릭 후 즉시 실행 트리거 검토',
+        '에러/대기 상태 명확화'
+      ],
+      verify: [
+        'counts_by_case에서 CASE_A 비중 감소',
+        'CASE_OK 또는 CASE_B 증가'
+      ],
+      failure_signals: [
+        'CASE_A 비중 유지/증가',
+        'CASE_B로 이동 후 정체'
+      ]
+    },
+    CASE_B: {
+      goal: 'Analyze→Generate 전환 끊김 해소',
+      steps: [
+        'Analyze 완료 후 Generate 자동 이동',
+        'Generate CTA 고정 노출',
+        '중간 확인 모달 제거',
+        '전환 중 로딩 상태 명확화',
+        '전환 실패 시 재시도 CTA'
+      ],
+      verify: [
+        'CASE_B 감소',
+        'CASE_C 또는 CASE_OK 증가'
+      ],
+      failure_signals: [
+        'CASE_B 유지',
+        'Generate_view는 증가하나 run 미증가'
+      ]
+    },
+    CASE_C: {
+      goal: 'Generate 실행률 올리기',
+      steps: [
+        'Generate 버튼 대비 강조',
+        '기본 옵션 프리셋 적용',
+        '실행 비용/시간 안내',
+        '실행 중 진행 표시 강화',
+        '실행 실패 시 즉시 재시도'
+      ],
+      verify: [
+        'CASE_C 감소',
+        'CASE_D 또는 CASE_OK 증가'
+      ],
+      failure_signals: [
+        'Generate_view만 증가',
+        'run 비율 정체'
+      ]
+    },
+    CASE_D: {
+      goal: 'Generate→Share 복귀 끊김 해소',
+      steps: [
+        '완료 후 Share 자동 이동',
+        '“리포트 보기” CTA 상단 고정',
+        '완료 토스트에 Share 링크 포함',
+        '백그라운드 완료 시 알림',
+        '복귀 실패 시 수동 링크 제공'
+      ],
+      verify: [
+        'CASE_D 감소',
+        'CASE_OK 증가'
+      ],
+      failure_signals: [
+        'CASE_D 유지',
+        'Share_view 미증가'
+      ]
+    },
+    CASE_OK: {
+      goal: '병목 없음 유지',
+      steps: ['현 상태 유지'],
+      verify: ['CASE_OK 유지'],
+      failure_signals: []
+    }
+  };
+
+  const tpl = CASES[dominant_drop_case] || CASES.CASE_A;
+  const guide = { ...base, ...tpl };
+
+  // top_action 우선 반영
+  if (top_action?.action) {
+    guide.steps = [top_action.action, ...guide.steps];
+  }
+
+  // impact_level에 따른 길이 조절
+  const maxSteps = impact_level === 'HIGH' ? 5 : 4;
+  guide.steps = guide.steps.slice(0, maxSteps);
+
+  return guide;
+}
+
+

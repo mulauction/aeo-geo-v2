@@ -200,6 +200,12 @@ Action line must be a verb sentence that targets the top missing signal:
 - [ ] All tests: Page not blank
 - [ ] All tests: Action line visible and styled correctly
 
+## Share Restore/Open + Telemetry Regression Checklist
+
+- [ ] **A) `?restore=1`**: Recent Reports list renders, and each row **열기** opens a report (body renders)
+- [ ] **B) `?restore=1&open=<digits>`**: Must open exactly one report body; **list-only is a failure**
+- [ ] **C) `?restore=1&debug=1`**: Telemetry(debug)/Telemetry(local) sections remain **1 set only**, even after tab switch (visibilitychange)
+
 ---
 
 ## ✅ [Phase 14-0] Reliability Definition & Copy Standardization Tests

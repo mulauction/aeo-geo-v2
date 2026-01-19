@@ -1,4 +1,6 @@
 import { buildTelemetryExportCsvV1, buildTelemetryExportV1 } from './telemetryExport.js';
+import { sendTelemetryToIngestOnce } from "./telemetryIngestClient.js";
+import { buildFunnelActionChecklist, buildFunnelRecommendedActions, pickTopActionFromChecklist } from './funnelActions.js';
 // core/telemetry.js
 // Minimal, sessionStorage-only telemetry (no network by default).
 // Hard rules:
@@ -176,6 +178,7 @@ export function downloadTelemetryJSON() {
     const environment = (typeof location !== 'undefined' && location.hostname) ? String(location.hostname) : '';
     const sid = getSessionId();
     const payload = buildTelemetryExportV1(events, { url, reportId, finalState, environment, sid });
+    sendTelemetryToIngestOnce({ source: "export-json", payload });
     downloadText(
       `share-telemetry-${Date.now()}.json`,
       JSON.stringify(payload, null, 2),
@@ -229,6 +232,927 @@ export function downloadTelemetryCSV() {
     );
   } catch (_) {}
 }
+
+// -----------------------------
+// ✅ [Phase 90 debug helpers][observe-only]
+// - Dev-only helpers for sessionStorage telemetry inspection
+// - No network, no UI changes, no schema changes (read-only)
+// - Exposed only on share.html with debug=1
+// -----------------------------
+
+const BEFORE_KEY = "__funnel_snapshot_before_v1";
+const JUDGE_KEY = "__funnel_judgement_runs_v1";
+
+function _lsGetJSON(key) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+function _lsSetJSON(key, obj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(obj));
+  } catch {}
+}
+
+function _isShareDebugOn() {
+  try {
+    if (typeof location === 'undefined') return false;
+    const p = new URLSearchParams(location.search || '');
+    const isDebug = p.get('debug') === '1';
+    const isShare = String(location.pathname || '').endsWith('/share.html') || String(location.pathname || '') === '/share.html';
+    return !!(isDebug && isShare);
+  } catch (_) {
+    return false;
+  }
+}
+
+function _readRawTelemetryEvents() {
+  try {
+    if (typeof sessionStorage === 'undefined') return [];
+    const raw = sessionStorage.getItem(KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function _getSidFallback() {
+  try {
+    if (typeof sessionStorage === 'undefined') return '';
+    return String(sessionStorage.getItem(SID_KEY) || '');
+  } catch (_) {
+    return '';
+  }
+}
+
+function _fmtTs(ts) {
+  try {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return new Date(n).toISOString();
+  } catch (_) {
+    return '';
+  }
+}
+
+function _pick(o, keys) {
+  try {
+    for (const k of keys) {
+      if (o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k) && o[k] != null) return o[k];
+    }
+    return undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function _groupBySid(events) {
+  const sidFallback = _getSidFallback();
+  const map = new Map();
+  for (const ev of Array.isArray(events) ? events : []) {
+    const o = (ev && typeof ev === 'object') ? ev : {};
+    const sid = String(o.sid || sidFallback || 'unknown');
+    const arr = map.get(sid) || [];
+    arr.push(o);
+    map.set(sid, arr);
+  }
+  return map;
+}
+
+function _countByEvent(events) {
+  const counts = Object.create(null);
+  for (const ev of Array.isArray(events) ? events : []) {
+    const name = (ev && typeof ev === 'object') ? String(ev.event || '') : '';
+    if (!name) continue;
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  return counts;
+}
+
+function _pct(n, d) {
+  try {
+    const nn = Number(n);
+    const dd = Number(d);
+    if (!Number.isFinite(nn) || !Number.isFinite(dd) || dd <= 0) return '0%';
+    return `${Math.round((nn / dd) * 1000) / 10}%`;
+  } catch (_) {
+    return '0%';
+  }
+}
+
+// ✅ [Phase 91-1] Pure funnel outcome classifier (no side effects; no schema/event changes)
+// - Uses actual emitted event names (verified via rg):
+//   share_view, analyze_view, analyze_action_run, generate_view, generate_action_run
+export function computeTelemetryFunnelOutcome(events = [], _meta = null) {
+  try {
+    const arr = Array.isArray(events) ? events : [];
+    const getName = (e) => {
+      try {
+        if (!e || typeof e !== 'object') return '';
+        return String(e.event || e.name || '');
+      } catch (_) {
+        return '';
+      }
+    };
+    const has = (name) => arr.some((e) => getName(e) === name);
+
+    const hasShareView = has('share_view');
+    const hasAnalyzeView = has('analyze_view');
+    const hasAnalyzeRun = has('analyze_action_run');
+    const hasGenerateView = has('generate_view');
+    const hasGenerateRun = has('generate_action_run');
+
+    const flags = {
+      hasShareView,
+      hasAnalyzeView,
+      hasAnalyzeRun,
+      hasGenerateView,
+      hasGenerateRun,
+    };
+
+    // Priority:
+    // 1) CASE_OK
+    // 2) CASE_A
+    // 3) CASE_B
+    // 4) CASE_C
+    // 5) CASE_D
+    if (hasAnalyzeRun && hasGenerateRun && hasShareView) {
+      return {
+        dominant_drop_case: 'CASE_OK',
+        human_reason: '완주',
+        next_action_hint: '유지',
+        flags,
+      };
+    }
+    if (hasAnalyzeView && !hasAnalyzeRun) {
+      return {
+        dominant_drop_case: 'CASE_A',
+        human_reason: 'Analyze 진입했으나 실행하지 않음',
+        next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+        flags,
+      };
+    }
+    if (hasAnalyzeRun && !hasGenerateView) {
+      return {
+        dominant_drop_case: 'CASE_B',
+        human_reason: 'Analyze 실행 후 Generate로 이동 안 함',
+        next_action_hint: 'Analyze→Generate 전환 CTA 강화/자동 이동 고려',
+        flags,
+      };
+    }
+    if (hasGenerateView && !hasGenerateRun) {
+      return {
+        dominant_drop_case: 'CASE_C',
+        human_reason: 'Generate 화면은 봤으나 실행 안 함',
+        next_action_hint: 'Generate 실행 버튼 가시성/마찰 감소',
+        flags,
+      };
+    }
+    if (hasGenerateRun && !hasShareView) {
+      return {
+        dominant_drop_case: 'CASE_D',
+        human_reason: 'Generate 실행 후 Share로 돌아오지 않음',
+        next_action_hint: 'Share 복귀 유도(리포트 보기/자동 리다이렉트) 강화',
+        flags,
+      };
+    }
+
+    // Fallback (should be rare in normal Share-driven sessions)
+    return {
+      dominant_drop_case: 'CASE_A',
+      human_reason: 'Analyze 진입했으나 실행하지 않음',
+      next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+      flags: { ...flags, fallback: true, emptyEvents: arr.length === 0 },
+    };
+  } catch (_) {
+    return {
+      dominant_drop_case: 'CASE_A',
+      human_reason: 'Analyze 진입했으나 실행하지 않음',
+      next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+      flags: { fallback: true, error: true },
+    };
+  }
+}
+
+// -----------------------------
+// [Phase 97-1 / Step 1] Before vs After funnel snapshot compare (PURE)
+// - No side effects, no console, no storage, no exports required
+// -----------------------------
+
+function _safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _round1(n) {
+  return Math.round(Number(n) * 10) / 10;
+}
+
+function _pct1(count, sessions) {
+  const s = _safeNum(sessions);
+  const c = _safeNum(count);
+  if (!(s > 0)) return 0;
+  return _round1((c / s) * 100);
+}
+
+function _fmtPP(n) {
+  const v = _round1(n);
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(1)}pp`;
+}
+
+function _fmtPct(n) {
+  return `${_round1(n).toFixed(1)}%`;
+}
+
+function _dominantDropCase(counts_by_case) {
+  const c = counts_by_case && typeof counts_by_case === 'object' ? counts_by_case : {};
+  const cases = ['CASE_A', 'CASE_B', 'CASE_C', 'CASE_D'];
+
+  let bestCase = null;
+  let bestCount = -1;
+  for (const k of cases) {
+    const n = _safeNum(c[k]);
+    if (n > bestCount) {
+      bestCount = n;
+      bestCase = k;
+    }
+  }
+  if (!(bestCount > 0)) return null;
+  return bestCase;
+}
+
+function normalizeFunnelSnapshot(snapshot) {
+  const s = snapshot && typeof snapshot === 'object' ? snapshot : null;
+  const totals = s && s.totals && typeof s.totals === 'object' ? s.totals : null;
+
+  const sessionsRaw = totals ? totals.sessions : 0;
+  const sessions = Math.max(0, _safeNum(sessionsRaw));
+
+  const inCounts = s && s.counts_by_case && typeof s.counts_by_case === 'object' ? s.counts_by_case : {};
+  const counts_by_case = {
+    CASE_OK: Math.max(0, _safeNum(inCounts.CASE_OK)),
+    CASE_A: Math.max(0, _safeNum(inCounts.CASE_A)),
+    CASE_B: Math.max(0, _safeNum(inCounts.CASE_B)),
+    CASE_C: Math.max(0, _safeNum(inCounts.CASE_C)),
+    CASE_D: Math.max(0, _safeNum(inCounts.CASE_D)),
+  };
+
+  return { totals: { sessions }, counts_by_case };
+}
+
+function compareFunnelSnapshots(before, after) {
+  const notes = [];
+  const b = before ? normalizeFunnelSnapshot(before) : null;
+  const a = after ? normalizeFunnelSnapshot(after) : null;
+
+  const bSessions = b ? _safeNum(b.totals.sessions) : 0;
+  const aSessions = a ? _safeNum(a.totals.sessions) : 0;
+
+  const minSessions = 30;
+
+  const comparable = !!(b && a && bSessions > 0 && aSessions > 0 && bSessions >= minSessions && aSessions >= minSessions);
+  if (!b) notes.push('before snapshot missing');
+  if (!a) notes.push('after snapshot missing');
+  if (b && !(bSessions > 0)) notes.push('before.sessions==0');
+  if (a && !(aSessions > 0)) notes.push('after.sessions==0');
+  if (b && bSessions > 0 && bSessions < minSessions) notes.push(`before.sessions<${minSessions}`);
+  if (a && aSessions > 0 && aSessions < minSessions) notes.push(`after.sessions<${minSessions}`);
+
+  const bCounts = b ? b.counts_by_case : { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
+  const aCounts = a ? a.counts_by_case : { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
+
+  const beforeOkRate = _pct1(bCounts.CASE_OK, bSessions);
+  const afterOkRate = _pct1(aCounts.CASE_OK, aSessions);
+
+  const beforeDomCase = _dominantDropCase(bCounts);
+  const afterDomCase = _dominantDropCase(aCounts);
+
+  const beforeDomRate = beforeDomCase ? _pct1(bCounts[beforeDomCase], bSessions) : 0;
+  const afterDomRate = afterDomCase ? _pct1(aCounts[afterDomCase], aSessions) : 0;
+
+  const deltasByCase = {
+    CASE_A: _round1(_pct1(aCounts.CASE_A, aSessions) - _pct1(bCounts.CASE_A, bSessions)),
+    CASE_B: _round1(_pct1(aCounts.CASE_B, aSessions) - _pct1(bCounts.CASE_B, bSessions)),
+    CASE_C: _round1(_pct1(aCounts.CASE_C, aSessions) - _pct1(bCounts.CASE_C, bSessions)),
+    CASE_D: _round1(_pct1(aCounts.CASE_D, aSessions) - _pct1(bCounts.CASE_D, bSessions)),
+    CASE_OK: _round1(afterOkRate - beforeOkRate),
+  };
+
+  const okDelta = deltasByCase.CASE_OK;
+  const dominantDelta = _round1(afterDomRate - beforeDomRate);
+
+  const improved = !!(comparable && okDelta >= 0.5 && dominantDelta <= -0.5);
+
+  const summary = comparable
+    ? `CASE_OK ${_fmtPct(beforeOkRate)}→${_fmtPct(afterOkRate)}(${_fmtPP(okDelta)}), dominant ${beforeDomCase || 'n/a'} ${_fmtPct(beforeDomRate)}→${_fmtPct(afterDomRate)}(${_fmtPP(dominantDelta)}) — ${improved ? 'improved' : 'not improved'}`
+    : `Not comparable: before.sessions=${_safeNum(bSessions)}, after.sessions=${_safeNum(aSessions)}`;
+
+  return {
+    comparable,
+    improved,
+    summary,
+    rates: {
+      before: { CASE_OK: beforeOkRate, dominant_drop_case: beforeDomCase, dominant_drop_rate: beforeDomRate },
+      after: { CASE_OK: afterOkRate, dominant_drop_case: afterDomCase, dominant_drop_rate: afterDomRate },
+    },
+    deltas: {
+      CASE_OK: okDelta,
+      dominant_drop_rate: dominantDelta,
+      by_case: deltasByCase,
+    },
+    notes,
+  };
+}
+
+// -----------------------------
+// [Phase 98-1] Release judgement from repeated improvement_snapshot runs (PURE)
+// -----------------------------
+
+function judgeReleaseFromRuns(runs, opts = {}) {
+  const defaultMinComparable = 5;
+  const defaultPassRate = 0.6;
+  const defaultRecencyAlpha = 0.85;
+  const defaultDaysWindow = 7;
+
+  let minComparable = Number.isFinite(Number(opts?.minComparable)) ? Number(opts.minComparable) : defaultMinComparable;
+  if (minComparable < 1) minComparable = 1;
+
+  const passRateRaw = Number.isFinite(Number(opts?.passRate)) ? Number(opts.passRate) : defaultPassRate;
+  const passRate = (passRateRaw >= 0 && passRateRaw <= 1) ? passRateRaw : defaultPassRate;
+
+  const alphaRaw = Number.isFinite(Number(opts?.recencyAlpha)) ? Number(opts.recencyAlpha) : defaultRecencyAlpha;
+  const recencyAlpha = (alphaRaw > 0 && alphaRaw <= 1) ? alphaRaw : defaultRecencyAlpha;
+
+  const notes = [];
+  const arrRaw = Array.isArray(runs) ? runs : [];
+
+  // Days window filter (dev-only judgement stability):
+  // - Filter out old runs by ts (ms)
+  // - Allow deterministic testing via opts.nowTs
+  const nowTsRaw = Number.isFinite(Number(opts?.nowTs)) ? Number(opts.nowTs) : Date.now();
+  const daysWindowRaw = Number.isFinite(Number(opts?.daysWindow)) ? Number(opts.daysWindow) : defaultDaysWindow;
+  const daysWindow = (daysWindowRaw >= 1 && daysWindowRaw <= 90) ? daysWindowRaw : defaultDaysWindow;
+  const cutoffTs = nowTsRaw - (daysWindow * 24 * 60 * 60 * 1000);
+
+  const arr = arrRaw.filter((r) => {
+    try {
+      if (!r || typeof r !== 'object') return false;
+      const t = Number(r.ts);
+      if (!Number.isFinite(t)) return false;
+      return t >= cutoffTs;
+    } catch (_) {
+      return false;
+    }
+  });
+
+  let comparable = 0;
+  let improved = 0;
+  for (const r of arr) {
+    const o = (r && typeof r === 'object') ? r : {};
+    const isComparable = !!o.comparable;
+    const isImproved = !!o.improved;
+    if (isComparable) {
+      comparable += 1;
+      if (isImproved) improved += 1;
+    }
+  }
+
+  const total = arr.length;
+  // Weighted improvedRate:
+  // - runs order may be unknown, so sort by ts ascending first
+  // - apply weights from latest: alpha^k (k=0 for latest)
+  let weightedComparable = 0;
+  let weightedImproved = 0;
+  let stable_dominant_drop_case = null;
+  let stable_dominant_share = null;
+  try {
+    const sorted = arr.slice().sort((a, b) => {
+      const ta = (a && typeof a === 'object') ? Number(a.ts) : NaN;
+      const tb = (b && typeof b === 'object') ? Number(b.ts) : NaN;
+      const na = Number.isFinite(ta) ? ta : 0;
+      const nb = Number.isFinite(tb) ? tb : 0;
+      return na - nb;
+    });
+    const comparableRuns = sorted.filter((r) => r && typeof r === 'object' && !!r.comparable);
+    const score = { CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
+    for (let i = comparableRuns.length - 1, k = 0; i >= 0; i--, k++) {
+      const r = comparableRuns[i];
+      const w = Math.pow(recencyAlpha, k);
+      weightedComparable += w;
+      if (r.improved) weightedImproved += w;
+
+      const c = String(r.dominant_drop_case || '');
+      if (c === 'CASE_A' || c === 'CASE_B' || c === 'CASE_C' || c === 'CASE_D') {
+        score[c] += w;
+      }
+    }
+
+    if (comparable >= minComparable) {
+      const totalScore = score.CASE_A + score.CASE_B + score.CASE_C + score.CASE_D;
+      if (totalScore > 0) {
+        let bestCase = null;
+        let bestScore = -1;
+        for (const c of ['CASE_A', 'CASE_B', 'CASE_C', 'CASE_D']) {
+          if (score[c] > bestScore) {
+            bestScore = score[c];
+            bestCase = c;
+          }
+        }
+        const bestShare = bestScore > 0 ? (bestScore / totalScore) : 0;
+        const share2 = Math.round(bestShare * 100) / 100;
+        stable_dominant_share = share2;
+        stable_dominant_drop_case = (bestShare >= 0.5) ? bestCase : null;
+        if (!stable_dominant_drop_case) stable_dominant_share = null;
+      }
+    }
+  } catch (_) {
+    weightedComparable = 0;
+    weightedImproved = 0;
+    stable_dominant_drop_case = null;
+    stable_dominant_share = null;
+  }
+  const weightedRate = weightedComparable > 0 ? (weightedImproved / weightedComparable) : 0;
+  const improvedRate = Math.round(weightedRate * 100) / 100; // 2 decimals
+
+  if (comparable < minComparable) {
+    notes.push('insufficient_comparable_runs');
+    return {
+      status: "INSUFFICIENT",
+      summary: `Release judgement: INSUFFICIENT (comparable ${comparable}/${minComparable}, window=${daysWindow}d)`,
+      stats: { total, comparable, improved, improvedRate },
+      stable_dominant_drop_case: null,
+      stable_dominant_share: null,
+      notes,
+    };
+  }
+
+  const status = weightedRate >= passRate ? "PASS" : "FAIL";
+  const pct = Math.round(improvedRate * 100);
+  return {
+    status,
+    summary: `Release judgement: ${status} (weighted improved ${improved}/${comparable}=${pct}%, comparable>=${minComparable}, window=${daysWindow}d)`,
+    stats: { total, comparable, improved, improvedRate },
+    stable_dominant_drop_case,
+    stable_dominant_share,
+    notes,
+  };
+}
+
+function __debugTelemetryLast(n = 20) {
+  try {
+    const limit = Math.max(1, Math.min(200, Number(n) || 20));
+    const events = _readRawTelemetryEvents().slice(-limit);
+    const sidFallback = _getSidFallback();
+    const rows = events.map((e) => {
+      const o = (e && typeof e === 'object') ? e : {};
+      const sid = String(o.sid || sidFallback || '');
+      const report_id = _pick(o, ['report_id', 'reportIdHash']);
+      const share_state = _pick(o, ['share_state', 'finalState', 'preState']);
+      const from = _pick(o, ['from']);
+      const has_previous_report = _pick(o, ['has_previous_report']);
+      return {
+        event: String(o.event || ''),
+        ts: _fmtTs(o.ts),
+        sid,
+        has_report_id: !!report_id,
+        report_id: report_id != null ? String(report_id) : '',
+        share_state: share_state != null ? String(share_state) : '',
+        from: from != null ? String(from) : '',
+        has_previous_report: typeof has_previous_report === 'boolean' ? has_previous_report : '',
+      };
+    });
+    console.table(rows);
+    return rows;
+  } catch (_) {
+    return [];
+  }
+}
+
+function __debugTelemetryFunnel() {
+  try {
+    const events = _readRawTelemetryEvents();
+    const bySid = _groupBySid(events);
+    const sidsAll = Array.from(bySid.keys());
+
+    const hasEvent = (arr, name) => {
+      try {
+        return (arr || []).some((e) => e && typeof e === 'object' && String(e.event || '') === name);
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const sidHasShare = new Set();
+    const sidHasCopy = new Set();
+    const sidHasPdf = new Set();
+    const sidHasAnalyze = new Set();
+    const sidHasAnalyzeView = new Set();
+    const sidHasGenerateView = new Set();
+    const sidHasAnalyzeRun = new Set();
+    const sidHasGenerateRun = new Set();
+
+    for (const sid of sidsAll) {
+      const arr = bySid.get(sid) || [];
+      if (hasEvent(arr, 'share_view')) sidHasShare.add(sid);
+      if (hasEvent(arr, 'share_action_copy_link')) sidHasCopy.add(sid);
+      if (hasEvent(arr, 'share_action_pdf')) sidHasPdf.add(sid);
+      if (hasEvent(arr, 'share_action_analyze')) sidHasAnalyze.add(sid);
+      if (hasEvent(arr, 'analyze_view')) sidHasAnalyzeView.add(sid);
+      if (hasEvent(arr, 'generate_view')) sidHasGenerateView.add(sid);
+      if (hasEvent(arr, 'analyze_action_run')) sidHasAnalyzeRun.add(sid);
+      if (hasEvent(arr, 'generate_action_run')) sidHasGenerateRun.add(sid);
+    }
+
+    const counts = _countByEvent(events);
+    const views = {
+      share_view: counts.share_view || 0,
+      analyze_view: counts.analyze_view || 0,
+      generate_view: counts.generate_view || 0,
+    };
+    const actions = {
+      share_action_copy_link: counts.share_action_copy_link || 0,
+      share_action_pdf: counts.share_action_pdf || 0,
+      share_action_analyze: counts.share_action_analyze || 0,
+      analyze_action_run: counts.analyze_action_run || 0,
+      generate_action_run: counts.generate_action_run || 0,
+    };
+
+    const shareSessions = sidHasShare.size;
+    const analyzeClickSessions = sidHasAnalyze.size;
+    const funnel = [
+      { metric: 'share_view sessions', value: shareSessions },
+      { metric: 'copy_link sessions', value: sidHasCopy.size, rate: _pct(sidHasCopy.size, shareSessions) },
+      { metric: 'pdf sessions', value: sidHasPdf.size, rate: _pct(sidHasPdf.size, shareSessions) },
+      { metric: 'analyze_click sessions', value: sidHasAnalyze.size, rate: _pct(sidHasAnalyze.size, shareSessions) },
+      { metric: 'analyze_run sessions', value: sidHasAnalyzeRun.size, rate: _pct(sidHasAnalyzeRun.size, shareSessions), rate_from_analyze_click: _pct(sidHasAnalyzeRun.size, analyzeClickSessions) },
+      { metric: 'generate_run sessions', value: sidHasGenerateRun.size, rate: _pct(sidHasGenerateRun.size, shareSessions), rate_from_analyze_click: _pct(sidHasGenerateRun.size, analyzeClickSessions) },
+    ];
+
+    // ✅ [Phase 91-2] Latest-session outcome (representative session = latest sid by max ts)
+    let latest_drop_case = '';
+    let latest_human_reason = '';
+    let latest_next_action_hint = '';
+    try {
+      let latestSid = '';
+      let latestTs = -1;
+      for (const sid of sidsAll) {
+        const arr = bySid.get(sid) || [];
+        for (const e of arr) {
+          const t = (e && typeof e === 'object') ? Number(e.ts) : NaN;
+          if (Number.isFinite(t) && t > latestTs) {
+            latestTs = t;
+            latestSid = sid;
+          }
+        }
+      }
+      const representativeEvents = latestSid ? (bySid.get(latestSid) || []) : events;
+      const outcome = computeTelemetryFunnelOutcome(representativeEvents);
+      latest_drop_case = String(outcome?.dominant_drop_case || '');
+      latest_human_reason = String(outcome?.human_reason || '');
+      latest_next_action_hint = String(outcome?.next_action_hint || '');
+    } catch (e) {
+      try { console.warn('[telemetry] outcome compute failed'); } catch (_) {}
+    }
+
+    // ✅ [Phase 92-1] Aggregate-session dominant outcome (by sid counts; drop-case tie-break)
+    const counts_by_case = { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 };
+    let dominant_drop_case = 'CASE_A';
+    let human_reason = 'Analyze 진입했으나 실행하지 않음';
+    let next_action_hint = 'Analyze 실행 CTA/가이드 강화';
+    const dominant_basis = 'aggregate_sessions';
+    let recommended_actions = [];
+    let recommendation_reason = '';
+    let action_checklist = [];
+    let checklist_note = '';
+    let top_action = null;
+    let top_action_reason = '';
+    try {
+      for (const sid of sidsAll) {
+        const arr = bySid.get(sid) || [];
+        const o = computeTelemetryFunnelOutcome(arr);
+        const c = String(o?.dominant_drop_case || '');
+        if (Object.prototype.hasOwnProperty.call(counts_by_case, c)) counts_by_case[c] += 1;
+      }
+
+      const priority = ['CASE_D', 'CASE_C', 'CASE_B', 'CASE_A', 'CASE_OK'];
+      let maxCount = -1;
+      let chosen = 'CASE_A';
+      for (const c of priority) {
+        const n = Number(counts_by_case[c] || 0);
+        if (n > maxCount) {
+          maxCount = n;
+          chosen = c;
+        }
+      }
+      // If no sessions exist (all 0), keep safe defaults per spec
+      if (maxCount > 0) {
+        dominant_drop_case = chosen;
+        if (chosen === 'CASE_OK') {
+          human_reason = '완주';
+          next_action_hint = '유지';
+        } else if (chosen === 'CASE_A') {
+          human_reason = 'Analyze 진입했으나 실행하지 않음';
+          next_action_hint = 'Analyze 실행 CTA/가이드 강화';
+        } else if (chosen === 'CASE_B') {
+          human_reason = 'Analyze 실행 후 Generate로 이동 안 함';
+          next_action_hint = 'Analyze→Generate 전환 CTA 강화/자동 이동 고려';
+        } else if (chosen === 'CASE_C') {
+          human_reason = 'Generate 화면은 봤으나 실행 안 함';
+          next_action_hint = 'Generate 실행 버튼 가시성/마찰 감소';
+        } else if (chosen === 'CASE_D') {
+          human_reason = 'Generate 실행 후 Share로 돌아오지 않음';
+          next_action_hint = 'Share 복귀 유도(리포트 보기/자동 리다이렉트) 강화';
+        }
+      }
+    } catch (e) {
+      try { console.warn('[telemetry] outcome aggregate failed'); } catch (_) {}
+    }
+
+    // ✅ [Phase 93-1] Dev-only recommended UX actions (pure rules; no UI/track/store changes)
+    try {
+      const rec = buildFunnelRecommendedActions({
+        dominant_drop_case,
+        counts_by_case,
+        totals: { sessions: sidsAll.length },
+      });
+      recommended_actions = Array.isArray(rec?.recommended_actions) ? rec.recommended_actions : [];
+      recommendation_reason = String(rec?.recommendation_reason || '');
+    } catch (_) {
+      recommended_actions = [
+        'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+        '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+      ];
+      recommendation_reason = 'Analyze 진입 대비 실행 비율이 낮습니다.';
+    }
+
+    // ✅ [Phase 94-1] Dev-only action checklist (pure rules; no UI/track/store changes)
+    try {
+      const checklist = buildFunnelActionChecklist({
+        dominant_drop_case,
+        counts_by_case,
+        totals: { sessions: shareSessions },
+      });
+      action_checklist = Array.isArray(checklist?.action_checklist) ? checklist.action_checklist : [];
+      checklist_note = String(checklist?.checklist_note || '');
+    } catch (_) {
+      action_checklist = [];
+      checklist_note = '';
+    }
+
+    // ✅ [Phase 95-1] Dev-only Top-1 action (derived from checklist; no UI/track/store changes)
+    try {
+      const top = pickTopActionFromChecklist({ action_checklist, dominant_drop_case });
+      top_action = top?.top_action || null;
+      top_action_reason = String(top?.top_action_reason || '');
+    } catch (_) {
+      top_action = null;
+      top_action_reason = '';
+    }
+
+    console.groupCollapsed('[telemetry] funnel summary');
+    console.table([{ kind: 'views', ...views }]);
+    console.table([{ kind: 'actions', ...actions }]);
+    console.table(funnel);
+    try {
+      console.table([{
+        kind: 'recommended_actions',
+        recommendation_reason,
+        recommended_actions: (Array.isArray(recommended_actions) ? recommended_actions : []).join(' | '),
+      }]);
+    } catch (_) {}
+    console.groupEnd();
+
+    const sessions = sidsAll.length;
+    const afterSnapshot = {
+      totals: { sessions },
+      counts_by_case
+    };
+
+    const beforeSnapshot = _lsGetJSON(BEFORE_KEY);
+
+    let improvement_snapshot;
+
+    if (!beforeSnapshot) {
+      _lsSetJSON(BEFORE_KEY, afterSnapshot);
+      improvement_snapshot = {
+        comparable: false,
+        improved: false,
+        summary: "Baseline saved (before). Re-run to compare.",
+        notes: ["baseline_saved"]
+      };
+    } else {
+      improvement_snapshot = compareFunnelSnapshots(
+        beforeSnapshot,
+        afterSnapshot
+      );
+    }
+
+    let release_judgement = {
+      status: "INSUFFICIENT",
+      summary: "Release judgement: INSUFFICIENT (comparable 0/5)",
+      stats: { total: 0, comparable: 0, improved: 0, improvedRate: 0 },
+      notes: ["not_initialized"]
+    };
+    try {
+      let runs = _lsGetJSON(JUDGE_KEY);
+      runs = Array.isArray(runs) ? runs : [];
+
+      runs.push({
+        ts: Date.now(),
+        comparable: !!improvement_snapshot?.comparable,
+        improved: !!improvement_snapshot?.improved,
+        summary: String(improvement_snapshot?.summary || ''),
+        dominant_drop_case
+      });
+
+      if (runs.length > 20) runs = runs.slice(runs.length - 20);
+      _lsSetJSON(JUDGE_KEY, runs);
+
+      release_judgement = judgeReleaseFromRuns(runs);
+    } catch (_) {
+      // never throw
+    }
+
+    return {
+      views,
+      actions,
+      funnel,
+      dominant_drop_case,
+      human_reason,
+      next_action_hint,
+      recommended_actions,
+      recommendation_reason,
+      action_checklist,
+      checklist_note,
+      top_action,
+      top_action_reason,
+      dominant_basis,
+      counts_by_case,
+      latest_drop_case,
+      latest_human_reason,
+      latest_next_action_hint,
+      improvement_snapshot,
+      release_judgement
+    };
+  } catch (_) {
+    return {
+      views: {},
+      actions: {},
+      funnel: [],
+      dominant_drop_case: 'CASE_A',
+      human_reason: 'Analyze 진입했으나 실행하지 않음',
+      next_action_hint: 'Analyze 실행 CTA/가이드 강화',
+      recommended_actions: [
+        'Analyze 실행 버튼(CTA) 시각적 강조(상단 고정/대비 강화)',
+        '입력 예시/샘플 버튼 제공으로 첫 실행 마찰 제거',
+      ],
+      recommendation_reason: 'Analyze 진입 대비 실행 비율이 낮습니다.',
+      action_checklist: [],
+      checklist_note: '',
+      top_action: null,
+      top_action_reason: '',
+      dominant_basis: 'aggregate_sessions',
+      counts_by_case: { CASE_OK: 0, CASE_A: 0, CASE_B: 0, CASE_C: 0, CASE_D: 0 },
+      latest_drop_case: '',
+      latest_human_reason: '',
+      latest_next_action_hint: '',
+      improvement_snapshot: {
+        comparable: false,
+        improved: false,
+        summary: "Not comparable: error",
+        notes: ["error"]
+      },
+      release_judgement: {
+        status: "INSUFFICIENT",
+        summary: "Release judgement: INSUFFICIENT (comparable 0/5)",
+        stats: { total: 0, comparable: 0, improved: 0, improvedRate: 0 },
+        notes: ["error"]
+      }
+    };
+  }
+}
+
+// Attach only for share.html?debug=1
+try {
+  if (typeof window !== 'undefined' && _isShareDebugOn()) {
+    if (typeof window.__debugTelemetryLast !== 'function') window.__debugTelemetryLast = __debugTelemetryLast;
+    if (typeof window.__debugTelemetryFunnel !== 'function') window.__debugTelemetryFunnel = __debugTelemetryFunnel;
+  }
+} catch (_) {}
+
+// === DEBUG HELPERS ATTACH (Share only; debug=1) ==========
+export function __attachTelemetryDebugHelpers() {
+  try {
+    if (typeof window === 'undefined') return;
+
+    const p = new URLSearchParams(location.search);
+    if (p.get('debug') !== '1') return;
+    const isShare = String(location.pathname || '').endsWith('/share.html') || String(location.pathname || '') === '/share.html';
+    if (!isShare) return;
+
+    if (window.__telemetryDebugAttached) return;
+    window.__telemetryDebugAttached = true;
+
+    // Attach only when helpers exist
+    if (typeof __debugTelemetryLast === 'function') window.__debugTelemetryLast = __debugTelemetryLast;
+    if (typeof __debugTelemetryFunnel === 'function') window.__debugTelemetryFunnel = __debugTelemetryFunnel;
+    // aliases (guard against user typos)
+    if (typeof __debugTelemetryLast === 'function') window._debugTelemetryLast = __debugTelemetryLast;
+    if (typeof __debugTelemetryFunnel === 'function') window._debugTelemetryFunnel = __debugTelemetryFunnel;
+
+    window.__resetFunnelSnapshotBeforeV1 = function __resetFunnelSnapshotBeforeV1() {
+      try {
+        localStorage.removeItem("__funnel_snapshot_before_v1");
+        return { cleared: true, key: "__funnel_snapshot_before_v1" };
+      } catch (e) {
+        return { cleared: false, key: "__funnel_snapshot_before_v1" };
+      }
+    };
+
+    window.__resetFunnelJudgementRunsV1 = function __resetFunnelJudgementRunsV1() {
+      try {
+        localStorage.removeItem("__funnel_judgement_runs_v1");
+        return { cleared: true, key: "__funnel_judgement_runs_v1" };
+      } catch (e) {
+        return { cleared: false, key: "__funnel_judgement_runs_v1" };
+      }
+    };
+
+    window.__debugTelemetryReleaseLine = function __debugTelemetryReleaseLine() {
+      try {
+        const fn = (typeof __debugTelemetryFunnel === 'function')
+          ? __debugTelemetryFunnel
+          : (typeof _debugTelemetryFunnel === 'function' ? _debugTelemetryFunnel : null);
+        if (!fn) return "INSUFFICIENT";
+        const r = fn();
+        const s = r && r.release_judgement && r.release_judgement.status;
+        return (s === "PASS" || s === "FAIL" || s === "INSUFFICIENT") ? s : "INSUFFICIENT";
+      } catch (e) {
+        return "INSUFFICIENT";
+      }
+    };
+
+    window.__debugTelemetryReleaseJSON = function __debugTelemetryReleaseJSON() {
+      try {
+        const fn = (typeof __debugTelemetryFunnel === 'function')
+          ? __debugTelemetryFunnel
+          : (typeof _debugTelemetryFunnel === 'function' ? _debugTelemetryFunnel : null);
+        if (!fn) return { status: "INSUFFICIENT" };
+        const r = fn();
+        const j = r && r.release_judgement ? r.release_judgement : null;
+        if (!j) return { status: "INSUFFICIENT" };
+        return {
+          status: (j.status === "PASS" || j.status === "FAIL" || j.status === "INSUFFICIENT") ? j.status : "INSUFFICIENT",
+          summary: j.summary,
+          stats: j.stats,
+          stable_dominant_drop_case: j.stable_dominant_drop_case,
+          stable_dominant_share: j.stable_dominant_share
+        };
+      } catch (e) {
+        return { status: "INSUFFICIENT" };
+      }
+    };
+
+    console.info('[telemetry] debug helpers attached');
+  } catch (_) {}
+}
+
+// --- Phase 90 debug helpers: attach once on module load (Share only; debug=1; fail-quiet)
+function isDebugMode() {
+  try {
+    const p = new URLSearchParams(location.search || '');
+    return p.get('debug') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function _isSharePage() {
+  try {
+    const path = String(location.pathname || '');
+    return path.endsWith('/share.html') || path === '/share.html';
+  } catch (_) {
+    return false;
+  }
+}
+
+function attachTelemetryDebugHelpersOnce() {
+  try {
+    if (typeof window === 'undefined') return;
+    if (!isDebugMode()) return;
+    if (!_isSharePage()) return;
+    if (window.__telemetryDebugAttached) return;
+    __attachTelemetryDebugHelpers();
+  } catch (_) {}
+}
+
+try { attachTelemetryDebugHelpersOnce(); } catch (_) {}
 
 export function summarize() {
   try {

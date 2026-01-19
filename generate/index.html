@@ -100,6 +100,12 @@
     <div id="header"></div>
     
     <h1>Generate - AI용 콘텐츠 생성</h1>
+    <p style="margin: 6px 0 10px 0; color: var(--muted); font-size: 12px;">
+      이 단계는 분석 결과를 바탕으로 콘텐츠를 생성합니다.
+    </p>
+    <div style="margin: 0 0 12px 0;">
+      <button type="button" class="btn btn-secondary" id="btnBackToShare">리포트 보기</button>
+    </div>
     <p style="margin: 0 0 24px 0; color: var(--muted); font-size: 14px;">
       Generate는 콘텐츠 생성만 수행합니다. 생성된 콘텐츠는 점수에 영향을 주지 않습니다.
     </p>
@@ -275,9 +281,124 @@
     import { setModals, requireLogin, requireCredit } from '../core/gate.js';
     import { spendCredit } from '../core/credit.js';
     import { getState, setState } from '../core/state.js';
+    import { getSessionId, hashId, track } from '../core/telemetry.js';
     import { calculateUrlPreviewScore } from './core/urlPreview.js';
 
     const LS_KEY_URL = '__urlStructureV1';
+
+    // ✅ [Phase 90-4][dev-only] debug=1 persistence across navigation (localhost only; UI/logic unchanged)
+    function __isDevLocalhost() {
+      try {
+        return location.hostname === 'localhost' || location.hostname === '127.0.0.1' || String(location.origin || '').includes('localhost');
+      } catch (_) {
+        return false;
+      }
+    }
+    function getDevDebugQuery(targetUrl) {
+      try {
+        if (!__isDevLocalhost()) return '';
+        if (typeof sessionStorage === 'undefined') return '';
+        if (sessionStorage.getItem('__aeoDebug') !== '1') return '';
+        const s = String(targetUrl || '');
+        return s.includes('?') ? '&debug=1' : '?debug=1';
+      } catch (_) {
+        return '';
+      }
+    }
+    (function () {
+      try {
+        if (!__isDevLocalhost()) return;
+        const p = new URLSearchParams(location.search || '');
+        if (p.get('debug') === '1') {
+          try { sessionStorage.setItem('__aeoDebug', '1'); } catch (_) {}
+        }
+        const shouldCarry = (() => { try { return sessionStorage.getItem('__aeoDebug') === '1'; } catch (_) { return false; } })();
+        if (!shouldCarry) return;
+        if (p.get('debug') === '1') return;
+        try {
+          p.set('debug', '1');
+          const next = location.pathname + '?' + p.toString() + (location.hash || '');
+          history.replaceState(null, '', next);
+        } catch (_) {}
+      } catch (_) {}
+    })();
+
+    // ✅ [Phase 90-4] Generate → Share (minimal)
+    (function () {
+      try {
+        const btn = document.getElementById('btnBackToShare');
+        if (!btn) return;
+        let rid = '';
+        try { rid = String(localStorage.getItem('__currentReportId') || ''); } catch (_) { rid = ''; }
+        if (!rid) {
+          try { btn.disabled = true; } catch (_) {}
+        }
+        btn.addEventListener('click', () => {
+          try {
+            let reportId = '';
+            try { reportId = String(localStorage.getItem('__currentReportId') || ''); } catch (_) { reportId = ''; }
+            const ts = String(Date.now());
+            if (!reportId) {
+              const targetHome = '../home.html' + getDevDebugQuery('../home.html');
+              location.assign(targetHome);
+              return;
+            }
+            const base = '../share.html?id=' + encodeURIComponent(reportId) + '&r=' + encodeURIComponent(ts);
+            const target = base + getDevDebugQuery(base);
+            location.assign(target);
+          } catch (_) {}
+        }, true);
+      } catch (_) {}
+    })();
+
+    // ✅ [Phase 90-1C][observe-only] UX telemetry: generate_view (no UX change; run after DOMContentLoaded)
+    (function () {
+      const runOnce = () => {
+        try {
+          const sid = (typeof getSessionId === 'function') ? getSessionId() : '';
+          const onceKey = '__telemetry_once_generate_view_' + String(sid || '');
+          if (typeof sessionStorage !== 'undefined' && sid && sessionStorage.getItem(onceKey) === '1') return;
+          try { if (typeof sessionStorage !== 'undefined' && sid) sessionStorage.setItem(onceKey, '1'); } catch (_) {}
+          const ref = String(document.referrer || '');
+          const from = ref.includes('analyze.html') ? 'analyze' : 'direct';
+          track('generate_view', { from });
+        } catch (_) {}
+      };
+      try {
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', runOnce, { once: true });
+        else runOnce();
+      } catch (_) {
+        try { runOnce(); } catch (_) {}
+      }
+    })();
+
+    // ✅ [observe-only] UX telemetry: generate_action_run (no UX change)
+    (function () {
+      try {
+        const bind = () => {
+          try {
+            const bindOne = (id) => {
+              const btn = document.getElementById(id);
+              if (!btn) return;
+              const key = '__telemetryBoundGenerateRun_' + String(id);
+              if (btn[key]) return;
+              btn[key] = true;
+              btn.addEventListener('click', () => {
+                try {
+                  const rawId = String(localStorage.getItem('__currentReportId') || '');
+                  const report_id = (typeof hashId === 'function') ? hashId(rawId) : '';
+                  track('generate_action_run', { report_id });
+                } catch (_) {}
+              }, true);
+            };
+            bindOne('btnGen');
+            bindOne('btnGen4');
+          } catch (_) {}
+        };
+        if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', bind, { once: true });
+        else bind();
+      } catch (_) {}
+    })();
 
     const root = {
       product: document.getElementById("product"),
