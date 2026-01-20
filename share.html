@@ -195,6 +195,19 @@
       color: #0066cc;
       margin-right: 6px;
     }
+    /* Explainability 1줄 */
+    .report-explainability {
+      margin: 20px 0;
+      padding: 12px 16px;
+      background: rgba(0, 102, 204, 0.02);
+      border-left: 2px solid #0066cc;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.7;
+      color: #444;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
     /* 분석 조건 표 */
     .report-conditions {
       margin: 24px 0;
@@ -1183,6 +1196,19 @@
         color: #0066cc;
         margin-right: 4px;
       }
+      /* Explainability 1줄 - 인쇄 스타일 */
+      .report-explainability {
+        margin: 12px 0 14px 0;
+        padding: 10px 12px;
+        background: #f0f7ff;
+        border-left: 2px solid #0066cc;
+        border-radius: 3px;
+        font-size: 11pt;
+        line-height: 1.7;
+        color: #333;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       /* 분석 조건 표 - 인쇄 스타일 */
       .report-conditions {
         margin: 12px 0 14px 0;
@@ -1932,6 +1958,10 @@
       <div class="report-executive-summary__line"><span class="report-executive-summary__label">현재 상태:</span>본 리포트는 AI 검색·추천 환경에서의 상품 인식 가능성을 구조 기준으로 점검한 결과입니다.</div>
       <div class="report-executive-summary__line"><span class="report-executive-summary__label">핵심 리스크:</span>구조·콘텐츠·브랜드 신호가 부족할 경우 AI 이해 및 추천 과정에서 누락 요인이 될 수 있습니다.</div>
       <div class="report-executive-summary__line"><span class="report-executive-summary__label">다음 액션:</span>상단 KPI와 WHY 항목의 우선순위 개선 후 동일 URL로 재측정해 변화를 확인하세요.</div>
+    </div>
+    
+    <div id="reportExplainability" class="report-explainability">
+      <!-- Explainability 1줄은 JavaScript로 동적 렌더링 -->
     </div>
     
     <div id="reportConditions" class="report-conditions">
@@ -3837,6 +3867,21 @@
               container.innerHTML = '';
             }
             
+            // ✅ [Phase C-0-3] Explainability 1줄 렌더링
+            const explainabilityContainer = document.getElementById('reportExplainability');
+            if (explainabilityContainer) {
+              let explainabilityText = '';
+              if (snapshotAvailable === 'yes') {
+                explainabilityText = '근거: 동일 입력 재현 가능한 스냅샷 기반으로 요약/근거(evidence)를 구성했습니다.';
+              } else if (snapshotAvailable === 'no') {
+                explainabilityText = '근거: 현 시점 측정값을 기반으로 요약/근거(evidence)를 구성했으며 일부 변동될 수 있습니다.';
+              } else {
+                explainabilityText = '근거: 사용 가능한 근거 범위 내에서 요약/근거(evidence)를 구성했습니다(재현성 판단 필요).';
+              }
+              
+              explainabilityContainer.innerHTML = esc(explainabilityText);
+            }
+            
             // ✅ [Phase C-0-2] Reproducibility Policy 표 렌더링
             const policyContainer = document.getElementById('reportReproducibilityPolicy');
             if (policyContainer) {
@@ -3862,6 +3907,10 @@
           } catch (e) {
             // 에러 발생 시 빈 상태로 유지
             container.innerHTML = '';
+            const explainabilityContainer = document.getElementById('reportExplainability');
+            if (explainabilityContainer) {
+              explainabilityContainer.innerHTML = '';
+            }
             const policyContainer = document.getElementById('reportReproducibilityPolicy');
             if (policyContainer) {
               policyContainer.innerHTML = '';
