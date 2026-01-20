@@ -1503,10 +1503,10 @@ export function renderEvidenceContent(evidenceParam = null, stateParam = null) {
         : "비교보기는 '선택 버전 vs 이전 버전' 구조 변화를 요약합니다. 최종 리포트 공유/출력은 Share 화면을 사용하세요.";
       const compareHintHtml = `<div style="margin-top: 6px; margin-bottom: 8px; font-size: 12px; color: var(--muted);">${esc(compareHintText)}</div>`;
       
-      // ✅ [Phase 7-7] 최종 리포트(Share) 열기 버튼 (history >= 2일 때만 표시)
+      // ✅ [Phase C-1-3] 최종 리포트(Share) 열기 버튼 (history >= 2일 때만 표시, 로컬 복원 기반)
       const shareButtonHtml = historyLength >= 2 ? `
         <div style="margin-top: 6px; margin-bottom: 8px; display: flex; justify-content: flex-end;">
-          <button onclick="(() => { const r = new URLSearchParams(location.search).get('r'); location.href = r ? 'share.html?r=' + encodeURIComponent(r) : 'share.html'; })()" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">최종 리포트(Share) 열기</button>
+          <button onclick="(() => { const urlParams = new URLSearchParams(location.search); const isDebug = urlParams.get('debug') === '1'; const debugParam = isDebug ? '&debug=1' : ''; const currentReportId = localStorage.getItem('__currentReportId') || (window.__lastV2 && (window.__lastV2.id || window.__lastV2.meta?.id || window.__lastV2.reportId || String(window.__lastV2.generatedAt || Date.now()))); const targetUrl = currentReportId ? 'share.html?restore=1&open=' + encodeURIComponent(currentReportId) + debugParam : 'share.html?restore=1' + debugParam; if (isDebug) console.info('[analyze] share nav', { target: targetUrl, reportId: currentReportId }); location.href = targetUrl; })()" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">최종 리포트(Share) 열기</button>
         </div>
       ` : '';
       

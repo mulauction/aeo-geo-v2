@@ -260,6 +260,61 @@
       color: #0066cc;
       letter-spacing: 0.5px;
     }
+    .report-conditions__reference-ids {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .report-conditions__reference-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .report-conditions__reference-label {
+      font-weight: 500;
+      color: #555;
+      white-space: nowrap;
+    }
+    .report-conditions__reference-value {
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 11px;
+      color: #333;
+      background: rgba(0, 0, 0, 0.03);
+      padding: 2px 6px;
+      border-radius: 3px;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .report-conditions__reference-value.not-available {
+      color: #999;
+      font-style: italic;
+    }
+    .report-conditions__copy-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      cursor: pointer;
+      color: #333;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .report-conditions__copy-btn:hover:not(:disabled) {
+      background: #e0e0e0;
+    }
+    .report-conditions__copy-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .report-conditions__copy-btn.copied {
+      background: #4caf50;
+      color: white;
+      border-color: #4caf50;
+    }
     /* Reproducibility Policy 섹션 */
     .report-reproducibility-policy {
       margin: 20px 0;
@@ -1252,6 +1307,15 @@
       }
       .report-conditions__fingerprint {
         font-size: 8pt;
+      }
+      .report-conditions__copy-btn {
+        display: none !important;
+      }
+      .report-conditions__reference-value {
+        max-width: none;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
       }
       /* Reproducibility Policy - 인쇄 스타일 */
       .report-reproducibility-policy {
@@ -3929,24 +3993,78 @@
             }
             rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(displayFingerprint)}</td></tr>`);
             
-            // Reference IDs
+            // Reference IDs (C-1-3: open/r/id 3행 분리)
+            const localReportId = urlParams.get('open') || null;
             const reportKey = urlParams.get('r') || null;
             const snapshotKey = urlParams.get('id') || null;
-            let referenceIdsText = '';
-            if (reportKey && snapshotKey) {
-              if (reportKey === snapshotKey) {
-                referenceIdsText = `Report key: ${esc(reportKey)} (available; source: URL param r) / Snapshot key: same (available; source: URL param id)`;
-              } else {
-                referenceIdsText = `Report key: ${esc(reportKey)} (available; source: URL param r) / Snapshot key: ${esc(snapshotKey)} (available; source: URL param id)`;
-              }
-            } else if (reportKey) {
-              referenceIdsText = `Report key: ${esc(reportKey)} (available; source: URL param r) / Snapshot key: not available`;
-            } else if (snapshotKey) {
-              referenceIdsText = `Report key: not available / Snapshot key: ${esc(snapshotKey)} (available; source: URL param id)`;
+            
+            // Reference IDs HTML 구성
+            const referenceItems = [];
+            
+            // Local report id (primary, MVP)
+            if (localReportId) {
+              const localReportIdDisplay = localReportId.length > 30 ? localReportId.substring(0, 30) + '…' : localReportId;
+              referenceItems.push(`
+                <div class="report-conditions__reference-item">
+                  <span class="report-conditions__reference-label">Local report id (primary):</span>
+                  <span class="report-conditions__reference-value">${esc(localReportIdDisplay)}</span>
+                  <span style="font-size: 10px; color: #666;">(available; source: URL param open)</span>
+                  <button class="report-conditions__copy-btn" data-copy-value="${esc(localReportId)}" data-copy-type="local">Copy local report id</button>
+                </div>
+              `);
             } else {
-              referenceIdsText = 'Report key: not available / Snapshot key: not available';
+              referenceItems.push(`
+                <div class="report-conditions__reference-item">
+                  <span class="report-conditions__reference-label">Local report id (primary):</span>
+                  <span class="report-conditions__reference-value not-available">not available</span>
+                  <button class="report-conditions__copy-btn" disabled>Copy local report id</button>
+                </div>
+              `);
             }
-            rows.push(`<tr><td>Reference IDs</td><td>${referenceIdsText}</td></tr>`);
+            
+            // Report key (server share)
+            if (reportKey) {
+              const reportKeyDisplay = reportKey.length > 30 ? reportKey.substring(0, 30) + '…' : reportKey;
+              referenceItems.push(`
+                <div class="report-conditions__reference-item">
+                  <span class="report-conditions__reference-label">Report key (server share):</span>
+                  <span class="report-conditions__reference-value">${esc(reportKeyDisplay)}</span>
+                  <span style="font-size: 10px; color: #666;">(available; source: URL param r)</span>
+                  <button class="report-conditions__copy-btn" data-copy-value="${esc(reportKey)}" data-copy-type="report">Copy report key</button>
+                </div>
+              `);
+            } else {
+              referenceItems.push(`
+                <div class="report-conditions__reference-item">
+                  <span class="report-conditions__reference-label">Report key (server share):</span>
+                  <span class="report-conditions__reference-value not-available">not available</span>
+                  <button class="report-conditions__copy-btn" disabled>Copy report key</button>
+                </div>
+              `);
+            }
+            
+            // Snapshot key
+            if (snapshotKey) {
+              const snapshotKeyDisplay = snapshotKey.length > 30 ? snapshotKey.substring(0, 30) + '…' : snapshotKey;
+              referenceItems.push(`
+                <div class="report-conditions__reference-item">
+                  <span class="report-conditions__reference-label">Snapshot key:</span>
+                  <span class="report-conditions__reference-value">${esc(snapshotKeyDisplay)}</span>
+                  <span style="font-size: 10px; color: #666;">(available; source: URL param id)</span>
+                  <button class="report-conditions__copy-btn" data-copy-value="${esc(snapshotKey)}" data-copy-type="snapshot">Copy snapshot key</button>
+                </div>
+              `);
+            } else {
+              referenceItems.push(`
+                <div class="report-conditions__reference-item">
+                  <span class="report-conditions__reference-label">Snapshot key:</span>
+                  <span class="report-conditions__reference-value not-available">not available</span>
+                  <button class="report-conditions__copy-btn" disabled>Copy snapshot key</button>
+                </div>
+              `);
+            }
+            
+            rows.push(`<tr><td>Reference IDs</td><td><div class="report-conditions__reference-ids">${referenceItems.join('')}</div></td></tr>`);
             
             if (rows.length > 0) {
               // Note 영역 구성
@@ -3983,6 +4101,43 @@
                 </table>
                 ${noteHtml}
               `;
+              
+              // Copy 버튼 이벤트 리스너 설정
+              const copyButtons = container.querySelectorAll('.report-conditions__copy-btn[data-copy-value]');
+              copyButtons.forEach(btn => {
+                btn.addEventListener('click', async () => {
+                  const value = btn.getAttribute('data-copy-value');
+                  if (!value) return;
+                  
+                  try {
+                    // navigator.clipboard 우선 사용
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                      await navigator.clipboard.writeText(value);
+                    } else {
+                      // Fallback: 임시 textarea 사용
+                      const textarea = document.createElement('textarea');
+                      textarea.value = value;
+                      textarea.style.position = 'fixed';
+                      textarea.style.opacity = '0';
+                      document.body.appendChild(textarea);
+                      textarea.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(textarea);
+                    }
+                    
+                    // 성공 시 버튼 텍스트를 "Copied"로 변경 후 1초 후 원복
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                      btn.textContent = originalText;
+                      btn.classList.remove('copied');
+                    }, 1000);
+                  } catch (e) {
+                    // 복사 실패 시 무시 (사용자에게 알림 없음)
+                  }
+                });
+              });
             } else {
               container.innerHTML = '';
             }

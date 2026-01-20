@@ -329,46 +329,23 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __currentReportId to localStorage:', e);
       }
       
-      // ✅ [Phase 26-0B] Snapshot 저장 후 share.html?id= 이동
+      // ✅ [Phase C-1-3] 로컬 복원 기반 네비게이션 (restore=1&open=)
       Promise.resolve().then(async () => {
-        // localStorage 저장이 완료된 후 스냅샷 저장 시도
-        try {
-          // POST /api/snapshot으로 저장 (dev fallback 포함)
-          const res = await fetchSnapshotApi("/api/snapshot", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            body: JSON.stringify({
-              reportModel: lastV2,
-              source: "analyze"
-            })
-          });
-
-          if (res && res.ok) {
-            const json = await res.json();
-            if (json && json.id) {
-              // 성공: share.html?id= 이동
-              window.location.href = `./share.html?id=${encodeURIComponent(json.id)}`;
-              return;
-            }
-          }
-        } catch (e) {
-          // 실패 시 조용히 처리 (콘솔 에러 남발 금지)
+        // debug=1 유지
+        const urlParams = new URLSearchParams(window.location.search);
+        const isDebug = urlParams.get('debug') === '1';
+        const debugParam = isDebug ? '&debug=1' : '';
+        
+        // reportId가 있으면 open= 파라미터 추가, 없으면 restore=1만
+        const targetUrl = reportId 
+          ? `./share.html?restore=1&open=${encodeURIComponent(reportId)}${debugParam}`
+          : `./share.html?restore=1${debugParam}`;
+        
+        if (isDebug) {
+          console.info('[analyze] share nav', { target: targetUrl, reportId });
         }
-
-        // 실패 시 사용자에게 알림 표시 후 fallback
-        try {
-          // showToast 함수가 있으면 사용, 없으면 alert
-          if (typeof showToast === 'function') {
-            showToast('공유 링크 생성 실패', false);
-          } else {
-            alert('공유 링크 생성에 실패했습니다. 기존 방식으로 공유합니다.');
-          }
-        } catch (toastErr) {
-          // 토스트 표시 실패 시 조용히 무시
-        }
-
-        // fallback: 기존 방식 (localStorage 기반)
-        window.location.href = `./share.html?r=${encodeURIComponent(reportId)}`;
+        
+        window.location.href = targetUrl;
       });
     }
     
