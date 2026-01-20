@@ -3902,6 +3902,13 @@
                 noteParts.push('Brand 미입력 시 fingerprint는 URL 기반으로만 계산됩니다.');
               }
               
+              // Snapshot available 판단 신호 안내
+              if (snapshotAvailable === 'yes') {
+                noteParts.push('Snapshot available=yes (signal: shareSnapshotLoaded OR url param id present)');
+              } else if (snapshotAvailable === 'no') {
+                noteParts.push('Snapshot available=no (signal: no shareSnapshotLoaded AND no url param id)');
+              }
+              
               const noteHtml = noteParts.length > 0
                 ? `<div class="report-conditions__note">${noteParts.join('<br>')}</div>`
                 : '';
