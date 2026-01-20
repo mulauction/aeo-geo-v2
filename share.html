@@ -239,6 +239,44 @@
       color: #0066cc;
       letter-spacing: 0.5px;
     }
+    /* Reproducibility Policy 섹션 */
+    .report-reproducibility-policy {
+      margin: 20px 0;
+      padding: 16px 18px;
+      background: rgba(0, 102, 204, 0.03);
+      border: 1px solid rgba(0, 102, 204, 0.15);
+      border-radius: 4px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .report-reproducibility-policy__title {
+      font-weight: 600;
+      font-size: 13px;
+      margin: 0 0 12px 0;
+      color: #1a1a1a;
+    }
+    .report-reproducibility-policy__table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .report-reproducibility-policy__table td {
+      padding: 8px 10px;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      line-height: 1.6;
+    }
+    .report-reproducibility-policy__table td:first-child {
+      font-weight: 600;
+      color: #555;
+      width: 140px;
+    }
+    .report-reproducibility-policy__table td:last-child {
+      color: #333;
+    }
+    .report-reproducibility-policy__table tr:last-child td {
+      border-bottom: none;
+    }
     /* 리포트 메타 행 */
     .report-meta-row {
       margin: 0 0 24px 0;
@@ -1173,6 +1211,31 @@
       .report-conditions__fingerprint {
         font-size: 8pt;
       }
+      /* Reproducibility Policy - 인쇄 스타일 */
+      .report-reproducibility-policy {
+        margin: 12px 0 14px 0;
+        padding: 10px 12px;
+        background: #f0f7ff;
+        border: 1px solid #b3d9ff;
+        border-radius: 3px;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-reproducibility-policy__title {
+        font-size: 10pt;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        color: #1a1a1a;
+      }
+      .report-reproducibility-policy__table {
+        font-size: 8.5pt;
+      }
+      .report-reproducibility-policy__table td {
+        padding: 6px 8px;
+      }
+      .report-reproducibility-policy__table td:first-child {
+        width: 120px;
+      }
       /* 리포트 메타 행 - 인쇄 스타일 */
       .report-meta-row {
         margin: 0 0 16px 0;
@@ -1873,6 +1936,10 @@
     
     <div id="reportConditions" class="report-conditions">
       <!-- 분석 조건 표는 JavaScript로 동적 렌더링 -->
+    </div>
+    
+    <div id="reportReproducibilityPolicy" class="report-reproducibility-policy">
+      <!-- Reproducibility Policy 표는 JavaScript로 동적 렌더링 -->
     </div>
     
     <div class="report-meta-row">
@@ -3769,9 +3836,36 @@
             } else {
               container.innerHTML = '';
             }
+            
+            // ✅ [Phase C-0-2] Reproducibility Policy 표 렌더링
+            const policyContainer = document.getElementById('reportReproducibilityPolicy');
+            if (policyContainer) {
+              let policyText = '';
+              if (snapshotAvailable === 'yes') {
+                policyText = '동일 입력이면 결과 재현 가능성이 높습니다(설명/방어 용이).';
+              } else if (snapshotAvailable === 'no') {
+                policyText = '측정 시점/환경에 따라 일부 변동될 수 있습니다(비교 시 동일 조건 권장).';
+              } else {
+                policyText = '재현성 판단이 어렵습니다(측정/근거 필요).';
+              }
+              
+              policyContainer.innerHTML = `
+                <div class="report-reproducibility-policy__title">Reproducibility Policy</div>
+                <table class="report-reproducibility-policy__table">
+                  <tr>
+                    <td>재현성</td>
+                    <td>${esc(policyText)}</td>
+                  </tr>
+                </table>
+              `;
+            }
           } catch (e) {
             // 에러 발생 시 빈 상태로 유지
             container.innerHTML = '';
+            const policyContainer = document.getElementById('reportReproducibilityPolicy');
+            if (policyContainer) {
+              policyContainer.innerHTML = '';
+            }
           }
         }
 
