@@ -146,6 +146,25 @@
     .delivery-notice__body p:last-child {
       margin-bottom: 0;
     }
+    /* 사용 목적 블록 */
+    .report-purpose {
+      margin: 20px 0;
+      padding: 14px 18px;
+      background: rgba(0, 102, 204, 0.04);
+      border-left: 3px solid #0066cc;
+      border-radius: 4px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .report-purpose__line {
+      margin: 0 0 6px 0;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #444;
+    }
+    .report-purpose__line:last-child {
+      margin-bottom: 0;
+    }
     /* Executive Summary (요약 블록) */
     .report-executive-summary {
       margin: 32px 0;
@@ -1033,6 +1052,25 @@
       .delivery-notice__body p:last-child {
         margin-bottom: 0;
       }
+      /* 사용 목적 블록 - 인쇄 스타일 */
+      .report-purpose {
+        margin: 12px 0 14px 0;
+        padding: 10px 12px;
+        background: #f0f7ff;
+        border-left: 2px solid #0066cc;
+        border-radius: 3px;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-purpose__line {
+        margin: 0 0 5px 0;
+        font-size: 8.5pt;
+        line-height: 1.5;
+        color: #333;
+      }
+      .report-purpose__line:last-child {
+        margin-bottom: 0;
+      }
       /* Executive Summary - 인쇄 스타일 */
       .report-executive-summary {
         margin: 14px 0 16px 0;
@@ -1745,6 +1783,11 @@
         <p>- 모든 점수와 코멘트는 페이지 구조·콘텐츠에 대한 근거(evidence)에 기반합니다.</p>
         <p>- 플랫폼 정책·경쟁 환경에 따라 결과는 변동될 수 있으며, 노출·매출을 보장하지 않습니다.</p>
       </div>
+    </div>
+    
+    <div class="report-purpose">
+      <div class="report-purpose__line">사용 목적: 본 리포트는 개선 우선순위 확인을 위한 분석 자료입니다.</div>
+      <div class="report-purpose__line">(개인 셀러는 내부 참고용, 대행사/납품 목적은 PRO 이상 권장)</div>
     </div>
     
     <div class="report-executive-summary">
@@ -3920,8 +3963,8 @@
           const proCtaCopy = buildProCtaCopyKR();
           return `
             <div class="content-section" style="margin-top: 24px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;">
-              <h3 style="margin: 0 0 10px 0;">PRO 기능</h3>
-              <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">준비 중: 리포트 비교(2개), PDF 자동 생성</p>
+              <h3 style="margin: 0 0 10px 0;">대행사 납품용 플랜</h3>
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted);">고객 전달 및 반복 측정을 전제로 리포트를 활용할 수 있는 플랜입니다.</p>
               <button type="button" class="btn" data-share-upgrade-cta="1" style="opacity: 0.75;">${esc(proCtaCopy.ctaText)}</button>
             </div>
           `;
