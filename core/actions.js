@@ -397,7 +397,7 @@ export function bindActions(root) {
   document.addEventListener("click", (event) => {
     if (event.target && event.target.id === "btnShareReport") {
       event.preventDefault();
-      if (!gateOrWarn("리포트 공유 보기")) return;
+      if (!gateOrWarn("최근 리포트 보기")) return;
       
       // ✅ [inputs 복구] 리포트 공유 전에 __lastV2 생성 및 저장
       const state = getState();
@@ -462,11 +462,11 @@ export function bindActions(root) {
         const isDebug = urlParams.get('debug') === '1';
         const debugParam = isDebug ? '&debug=1' : '';
         
-        // restore=1 단일 경로로 통일 (open= 제거)
+        // restore=1 단일 경로로 통일 (최근 리포트 목록)
         const targetUrl = `./share.html?restore=1${debugParam}`;
         
         if (isDebug) {
-          console.info('[analyze] share nav', { target: targetUrl, reportId });
+          console.info('[analyze] share nav', { target: targetUrl });
         }
         
         window.location.href = targetUrl;
