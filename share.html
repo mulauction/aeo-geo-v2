@@ -195,6 +195,50 @@
       color: #0066cc;
       margin-right: 6px;
     }
+    /* 분석 조건 표 */
+    .report-conditions {
+      margin: 24px 0;
+      padding: 16px 18px;
+      background: rgba(0, 0, 0, 0.02);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 4px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .report-conditions__title {
+      font-weight: 600;
+      font-size: 13px;
+      margin: 0 0 12px 0;
+      color: #1a1a1a;
+    }
+    .report-conditions__table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .report-conditions__table td {
+      padding: 6px 8px;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    .report-conditions__table td:first-child {
+      font-weight: 600;
+      color: #555;
+      width: 140px;
+    }
+    .report-conditions__table td:last-child {
+      color: #333;
+      word-break: break-all;
+    }
+    .report-conditions__table tr:last-child td {
+      border-bottom: none;
+    }
+    .report-conditions__fingerprint {
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 11px;
+      color: #0066cc;
+      letter-spacing: 0.5px;
+    }
     /* 리포트 메타 행 */
     .report-meta-row {
       margin: 0 0 24px 0;
@@ -1101,6 +1145,34 @@
         color: #0066cc;
         margin-right: 4px;
       }
+      /* 분석 조건 표 - 인쇄 스타일 */
+      .report-conditions {
+        margin: 12px 0 14px 0;
+        padding: 10px 12px;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-conditions__title {
+        font-size: 10pt;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        color: #1a1a1a;
+      }
+      .report-conditions__table {
+        font-size: 8.5pt;
+      }
+      .report-conditions__table td {
+        padding: 4px 6px;
+      }
+      .report-conditions__table td:first-child {
+        width: 120px;
+      }
+      .report-conditions__fingerprint {
+        font-size: 8pt;
+      }
       /* 리포트 메타 행 - 인쇄 스타일 */
       .report-meta-row {
         margin: 0 0 16px 0;
@@ -1753,6 +1825,8 @@
 
           // ✅ 기존 파이프라인 "그대로" 쓰기 위해 주입
           localStorage.setItem("__lastV2", JSON.stringify(snapshot.reportModel));
+          // ✅ [Phase C-0-1] snapshot 로드 플래그 설정
+          window.__shareSnapshotLoaded = true;
           // __currentReportId는 r 파라미터(숫자 timestamp)로 유지 (snapshot.id 해시 사용 안 함)
           const rParam = params.get("r");
           if (rParam) {
@@ -1795,6 +1869,10 @@
       <div class="report-executive-summary__line"><span class="report-executive-summary__label">현재 상태:</span>본 리포트는 AI 검색·추천 환경에서의 상품 인식 가능성을 구조 기준으로 점검한 결과입니다.</div>
       <div class="report-executive-summary__line"><span class="report-executive-summary__label">핵심 리스크:</span>구조·콘텐츠·브랜드 신호가 부족할 경우 AI 이해 및 추천 과정에서 누락 요인이 될 수 있습니다.</div>
       <div class="report-executive-summary__line"><span class="report-executive-summary__label">다음 액션:</span>상단 KPI와 WHY 항목의 우선순위 개선 후 동일 URL로 재측정해 변화를 확인하세요.</div>
+    </div>
+    
+    <div id="reportConditions" class="report-conditions">
+      <!-- 분석 조건 표는 JavaScript로 동적 렌더링 -->
     </div>
     
     <div class="report-meta-row">
@@ -3577,6 +3655,125 @@
           // Quota badge copy는 reportHeader DOM 주입 이후에만 적용한다 (호출 위치 단일화)
           applyQuotaBadgeCopyKR();
         };
+        
+        /**
+         * ✅ [Phase C-0-1] 분석 조건 표 렌더링
+         * reportModel에서 정보를 추출하여 분석 조건 표를 렌더링하고 fingerprint를 계산
+         */
+        async function renderReportConditions() {
+          const container = document.getElementById('reportConditions');
+          if (!container) return;
+          
+          // HTML 이스케이프 함수
+          function esc(v) {
+            if (v === null || v === undefined) return '';
+            return String(v)
+              .replaceAll("&", "&amp;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;")
+              .replaceAll('"', "&quot;")
+              .replaceAll("'", "&#39;");
+          }
+          
+          try {
+            // reportModel 가져오기
+            const reportModel = window.__lastV2 || (() => {
+              try {
+                const str = localStorage.getItem('__lastV2');
+                return str ? JSON.parse(str) : null;
+              } catch {
+                return null;
+              }
+            })();
+            
+            if (!reportModel || typeof reportModel !== 'object') {
+              container.innerHTML = '';
+              return;
+            }
+            
+            // URL 정규화 함수
+            const normalizeUrl = (url) => {
+              if (!url || typeof url !== 'string') return null;
+              return url.trim().replace(/\/+$/, '').replace(/\s+/g, ' ');
+            };
+            
+            // Target URL
+            const targetUrl = normalizeUrl(reportModel.input || reportModel.inputs?.product || null);
+            const normalizedUrl = targetUrl; // 정규화는 이미 normalizeUrl에서 수행
+            
+            // Analyzed at
+            let analyzedAt = null;
+            if (reportModel.createdAt) {
+              try {
+                const date = new Date(reportModel.createdAt);
+                if (!isNaN(date.getTime())) {
+                  analyzedAt = date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+                }
+              } catch (_) {}
+            }
+            
+            // Snapshot available 판단 (중립적 표현)
+            const urlParams = new URLSearchParams(location.search);
+            const hasId = Boolean(urlParams.get('id'));
+            const hasSnapshotSource = Boolean(window.__shareSnapshotLoaded);
+            let snapshotAvailable = 'unknown';
+            if (hasSnapshotSource || hasId) {
+              snapshotAvailable = 'yes';
+            } else if (reportModel && !hasSnapshotSource) {
+              snapshotAvailable = 'no';
+            }
+            
+            // Input fingerprint 계산 (입력값 기반만, createdAt 제외)
+            const fingerprintParts = [];
+            if (targetUrl) fingerprintParts.push(`url:${targetUrl}`);
+            if (reportModel.inputs?.brand) fingerprintParts.push(`brand:${reportModel.inputs.brand}`);
+            
+            let fingerprint = 'unknown';
+            if (fingerprintParts.length > 0) {
+              try {
+                const fingerprintStr = fingerprintParts.join('|');
+                const encoder = new TextEncoder();
+                const data = encoder.encode(fingerprintStr);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                fingerprint = hashHex.substring(0, 12);
+              } catch (e) {
+                // crypto.subtle가 지원되지 않으면 'unknown' 유지
+              }
+            }
+            
+            // 표 렌더링
+            const rows = [];
+            if (targetUrl) {
+              rows.push(`<tr><td>Target URL</td><td>${esc(targetUrl)}</td></tr>`);
+              if (normalizedUrl && normalizedUrl !== targetUrl) {
+                rows.push(`<tr><td>정규화 URL</td><td>${esc(normalizedUrl)}</td></tr>`);
+              }
+            }
+            if (analyzedAt) {
+              rows.push(`<tr><td>Analyzed at</td><td>${esc(analyzedAt)}</td></tr>`);
+            }
+            if (snapshotAvailable !== 'unknown') {
+              rows.push(`<tr><td>Snapshot available</td><td>${esc(snapshotAvailable)}</td></tr>`);
+            }
+            rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(fingerprint)}</td></tr>`);
+            
+            if (rows.length > 0) {
+              container.innerHTML = `
+                <div class="report-conditions__title">분석 조건 (재현성)</div>
+                <table class="report-conditions__table">
+                  ${rows.join('')}
+                </table>
+              `;
+            } else {
+              container.innerHTML = '';
+            }
+          } catch (e) {
+            // 에러 발생 시 빈 상태로 유지
+            container.innerHTML = '';
+          }
+        }
 
         const reportHeader = `
           ${viewState === 'OK' ? '<div class="muted small" style="margin: 0 0 10px 0;">이 화면은 분석 리포트 요약입니다. 필요하면 PDF로 저장하거나 링크를 복사해 공유하세요.</div>' : ''}
@@ -3987,6 +4184,8 @@
             okWhyPanel.innerHTML = '';
           }
           setReportHeaderHtml(reportHeader);
+          // ✅ [Phase C-0-1] 분석 조건 표 렌더링
+          renderReportConditions();
           const shareContentEl = document.getElementById('shareContent');
           // ✅ [Phase 18-A] EXPIRED 상태에서도 신뢰 카피 블록 표시
           shareContentEl.innerHTML = scoreExplainerBlock + shareCtaSlotHtml;
@@ -4690,6 +4889,8 @@
         }
         
         setReportHeaderHtml(reportHeader);
+        // ✅ [Phase C-0-1] 분석 조건 표 렌더링
+        renderReportConditions();
         renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
         // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
