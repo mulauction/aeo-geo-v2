@@ -2301,18 +2301,51 @@
     (function() {
       if (window.__shareCtaCaptureBound) return;
       
-      // scrollToTarget: 타겟 요소로 스크롤
+      // scrollToTarget: 타겟 요소로 스크롤 (고정 종착점 보장, 절대 위치 기반)
       function scrollToTarget(selector) {
         if (!selector || !selector.startsWith('#')) return false;
-        try {
-          const el = document.querySelector(selector);
-          if (!el) return false;
-          const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-          return true;
-        } catch (e) {
-          return false;
+        
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const scrollBehavior = reduce ? 'auto' : 'smooth';
+        const headerOffset = 16; // sticky header 보정 오프셋 (최소값)
+        
+        function attemptScroll(retryCount = 0) {
+          try {
+            const el = document.querySelector(selector);
+            if (!el) {
+              // 요소가 없으면 재시도 (최대 2회)
+              if (retryCount < 2) {
+                requestAnimationFrame(() => attemptScroll(retryCount + 1));
+                return false;
+              }
+              // 재시도 실패 시 debug=1에서만 경고
+              const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+              if (isDebug) {
+                console.warn('[helper-link] scroll target not found:', selector);
+              }
+              return false;
+            }
+            
+            // 절대 위치 기반 스크롤 (누적 이동 방지)
+            const rect = el.getBoundingClientRect();
+            const y = window.scrollY + rect.top - headerOffset;
+            window.scrollTo({ top: y, behavior: scrollBehavior });
+            
+            return true;
+          } catch (e) {
+            if (retryCount < 2) {
+              requestAnimationFrame(() => attemptScroll(retryCount + 1));
+              return false;
+            }
+            const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+            if (isDebug) {
+              console.warn('[helper-link] scroll error:', e);
+            }
+            return false;
+          }
         }
+        
+        return attemptScroll();
       }
 
       // ✅ [Phase31 UI-only] <a href="#obs-lite"> 해시 점프를 부드러운 스크롤로 대체 (다른 링크/CTA 영향 금지)
@@ -2381,10 +2414,10 @@
           let targetSelector = null;
           
           if (state === 'OK') {
-            // OK: 신뢰도 사유 보기 → #obs-lite로 스크롤
-            if (selector === '#obs-lite' || (ctaType === 'reliability' && linkText.includes('신뢰도 사유 보기'))) {
+            // OK: 신뢰도 사유 보기 → #reliability-reasons-anchor로 스크롤
+            if (selector === '#reliability-reasons-anchor' || (ctaType === 'reliability' && linkText.includes('신뢰도 사유 보기'))) {
               shouldScroll = true;
-              targetSelector = '#obs-lite';
+              targetSelector = '#reliability-reasons-anchor';
             } else if (selector && selector.startsWith('#')) {
               // 다른 data-target이 있으면 스크롤
               shouldScroll = true;
@@ -3599,7 +3632,7 @@
         // ✅ [Phase 18-B] AI 추천 준비도 리포트 신뢰 카피 블록 (모든 상태에서 표시)
         // ✅ [Phase24-3] Helper link UX: viewState별 렌더링 조건 분리
         const ctaLink = viewState === 'OK' 
-          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#obs-lite" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
+          ? '<a href="javascript:void(0)" id="score-explainer-cta" data-cta="reliability" data-target="#reliability-reasons-anchor" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">신뢰도 사유 보기 →</a>'
           : viewState === 'EXPIRED'
           ? `<a href="javascript:void(0)" id="score-explainer-cta" data-cta="why-report" data-target="#expired-banner" style="display: inline-block; margin-top: 12px; font-size: 13px; color: #0066cc; text-decoration: none; font-weight: 500; cursor: pointer;">${getShareHelperCopyKR('WHY_LABEL')}</a>`
           : viewState === 'OTHER_DEVICE'
@@ -5791,6 +5824,11 @@
         if (reliabilityBadgeSlot) {
           // reliabilityResult는 이미 위에서 계산됨
           renderReliabilityBadge(reliabilityBadgeSlot, reliabilityResult);
+          // ✅ [Phase C-1-6] 고정 스크롤 앵커 추가 (마크업만)
+          const badgeContainer = reliabilityBadgeSlot.querySelector('.reliability-badge-container');
+          if (badgeContainer && !badgeContainer.id) {
+            badgeContainer.id = 'reliability-reasons-anchor';
+          }
         }
         
         // ✅ [Phase 14-1] WHY 패널 렌더링 (viewState === 'OK'일 때만)
