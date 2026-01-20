@@ -1259,6 +1259,30 @@
         color: #0066cc;
         margin-right: 4px;
       }
+      .report-local-restore-notice {
+        margin: 12px 0;
+        padding: 8px 12px;
+        background: rgba(0, 102, 204, 0.05);
+        border-left: 3px solid #0066cc;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #333;
+        line-height: 1.5;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-local-restore-notice {
+        margin: 10px 0;
+        padding: 6px 10px;
+        background: rgba(0, 102, 204, 0.05);
+        border-left: 3px solid #0066cc;
+        border-radius: 3px;
+        font-size: 10pt;
+        color: #333;
+        line-height: 1.4;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       /* Explainability 1줄 - 인쇄 스타일 */
       .report-explainability {
         margin: 12px 0 14px 0;
@@ -2031,6 +2055,10 @@
     <div class="report-purpose">
       <div class="report-purpose__line">사용 목적: 본 리포트는 개선 우선순위 확인을 위한 분석 자료입니다.</div>
       <div class="report-purpose__line">(개인 셀러는 내부 참고용, 대행사/납품 목적은 PRO 이상 권장)</div>
+    </div>
+    
+    <div id="localRestoreNotice" class="report-local-restore-notice" style="display: none; margin: 12px 0; padding: 8px 12px; background: rgba(0, 102, 204, 0.05); border-left: 3px solid #0066cc; border-radius: 4px; font-size: 12px; color: #333; line-height: 1.5;">
+      현재 리포트는 로컬 복원(restore/open) 기반으로 열렸습니다.
     </div>
     
     <div class="report-executive-summary">
@@ -3607,9 +3635,8 @@
               <details class="no-report-why" style="margin-top: 16px; font-size: 13px;">
                 <summary style="cursor: pointer; color: #0066cc; text-decoration: none; font-weight: 500; display: inline-block; padding: 4px 0;">${getShareHelperCopyKR('WHY_LABEL')}</summary>
                 <div style="margin-top: 12px; padding-left: 8px; border-left: 2px solid #ffc107;">
-                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">이 공유 링크는 동일 브라우저/기기에서만 리포트 데이터를 찾을 수 있습니다.</p>
-                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">다른 브라우저/시크릿 모드에서는 접근할 수 없습니다.</p>
-                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">참고: 서버에 저장된 공유 스냅샷이 없는 링크일 수 있습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">서버 공유(r)·스냅샷(id)은 MVP에서 비활성일 수 있습니다.</p>
+                  <p style="margin: 8px 0; line-height: 1.6; color: #333;">로컬에서 열려면 restore=1로 접근하세요.</p>
                 </div>
               </details>
             `;
@@ -3634,21 +3661,11 @@
           return `
             <div id="expired-banner" class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
               <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">이 공유 링크는 서버 저장형 링크가 아닙니다</h3>
-              <div class="muted small" style="margin: 0 0 10px 0;">이 리포트는 현재 브라우저에 저장된 결과에서만 열 수 있습니다. 서버 저장형 공유 링크는 이 환경에서 사용할 수 없습니다.</div>
-              <div class="muted small" style="margin: 0 0 10px 0;">리포트: ${validEsc(title)}</div>
-              <div class="muted small" style="margin: 0 0 10px 0;">이 상태에서는 최근 리포트를 열거나 다시 분석할 수 있습니다.</div>
+              <div class="muted small" style="margin: 0 0 10px 0;">서버 공유(r)·스냅샷(id)은 MVP에서 비활성일 수 있습니다.</div>
+              <div class="muted small" style="margin: 0 0 10px 0;">로컬에서 열려면 restore=1로 접근하세요.</div>
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${validEsc(message)}</p>
               <div style="margin-bottom: 16px;">
                 ${buttons}
-              </div>
-              <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(0,0,0,0.15);">
-                <details style="margin: 0; font-size: 12px; color: #666;">
-                <summary style="cursor: pointer; font-weight: 500;">더 알아보기</summary>
-                <div style="margin-top: 8px; padding-left: 8px; border-left: 2px solid #ffc107;">
-                  <p style="margin: 8px 0; line-height: 1.5;">현재 버전은 리포트를 브라우저에만 저장합니다. 다른 기기나 브라우저에서는 리포트 데이터에 접근할 수 없습니다. 서버 저장 기능은 준비 중입니다. 해결: 홈에서 다시 분석해 최신 리포트를 생성하세요.</p>
-                  <p style="margin: 8px 0 0 0; line-height: 1.5;"><a href="#obs-lite" style="color: #0066cc; text-decoration: none; font-weight: 500;">신뢰도/사유 보기 →</a></p>
-                </div>
-              </details>
               </div>
             </div>
           `;
@@ -4006,16 +4023,16 @@
               const localReportIdDisplay = localReportId.length > 30 ? localReportId.substring(0, 30) + '…' : localReportId;
               referenceItems.push(`
                 <div class="report-conditions__reference-item">
-                  <span class="report-conditions__reference-label">Local report id (primary):</span>
+                  <span class="report-conditions__reference-label">Local report id:</span>
                   <span class="report-conditions__reference-value">${esc(localReportIdDisplay)}</span>
-                  <span style="font-size: 10px; color: #666;">(available; source: URL param open)</span>
+                  <span style="font-size: 10px; color: #666;">(primary; source: open)</span>
                   <button class="report-conditions__copy-btn" data-copy-value="${esc(localReportId)}" data-copy-type="local">Copy local report id</button>
                 </div>
               `);
             } else {
               referenceItems.push(`
                 <div class="report-conditions__reference-item">
-                  <span class="report-conditions__reference-label">Local report id (primary):</span>
+                  <span class="report-conditions__reference-label">Local report id:</span>
                   <span class="report-conditions__reference-value not-available">not available</span>
                   <button class="report-conditions__copy-btn" disabled>Copy local report id</button>
                 </div>
@@ -4027,16 +4044,16 @@
               const reportKeyDisplay = reportKey.length > 30 ? reportKey.substring(0, 30) + '…' : reportKey;
               referenceItems.push(`
                 <div class="report-conditions__reference-item">
-                  <span class="report-conditions__reference-label">Report key (server share):</span>
+                  <span class="report-conditions__reference-label">Report key:</span>
                   <span class="report-conditions__reference-value">${esc(reportKeyDisplay)}</span>
-                  <span style="font-size: 10px; color: #666;">(available; source: URL param r)</span>
+                  <span style="font-size: 10px; color: #666;">(server share; source: r)</span>
                   <button class="report-conditions__copy-btn" data-copy-value="${esc(reportKey)}" data-copy-type="report">Copy report key</button>
                 </div>
               `);
             } else {
               referenceItems.push(`
                 <div class="report-conditions__reference-item">
-                  <span class="report-conditions__reference-label">Report key (server share):</span>
+                  <span class="report-conditions__reference-label">Report key:</span>
                   <span class="report-conditions__reference-value not-available">not available</span>
                   <button class="report-conditions__copy-btn" disabled>Copy report key</button>
                 </div>
@@ -4050,7 +4067,7 @@
                 <div class="report-conditions__reference-item">
                   <span class="report-conditions__reference-label">Snapshot key:</span>
                   <span class="report-conditions__reference-value">${esc(snapshotKeyDisplay)}</span>
-                  <span style="font-size: 10px; color: #666;">(available; source: URL param id)</span>
+                  <span style="font-size: 10px; color: #666;">(snapshot; source: id)</span>
                   <button class="report-conditions__copy-btn" data-copy-value="${esc(snapshotKey)}" data-copy-type="snapshot">Copy snapshot key</button>
                 </div>
               `);
@@ -4601,6 +4618,15 @@
             okWhyPanel.style.display = 'none';
             okWhyPanel.innerHTML = '';
           }
+          
+          // ✅ [Phase C-1-4] 로컬 복원 안내 표시 (restore=1일 때만)
+          const urlParamsForNotice = new URLSearchParams(window.location.search);
+          const isRestoreForNotice = urlParamsForNotice.get('restore') === '1';
+          const localRestoreNotice = document.getElementById('localRestoreNotice');
+          if (localRestoreNotice) {
+            localRestoreNotice.style.display = isRestoreForNotice ? 'block' : 'none';
+          }
+          
           setReportHeaderHtml(reportHeader);
           // ✅ [Phase C-0-1] 분석 조건 표 렌더링
           renderReportConditions();
@@ -5041,6 +5067,14 @@
         // ✅ [Phase 8-3A-1] Reliability 결과 계산 (완성도 규칙 기반)
         const lastV2 = window.__lastV2 || null;
         const reliabilityResult = computeReliability(reportModel || { analysis: { scores: {} } }, lastV2);
+        
+        // ✅ [Phase C-1-4] 로컬 복원 안내 표시 (restore=1일 때만, OK 상태에서도)
+        const urlParamsForNotice = new URLSearchParams(window.location.search);
+        const isRestoreForNotice = urlParamsForNotice.get('restore') === '1';
+        const localRestoreNotice = document.getElementById('localRestoreNotice');
+        if (localRestoreNotice) {
+          localRestoreNotice.style.display = isRestoreForNotice ? 'block' : 'none';
+        }
         
         // ✅ [Phase 14-0] 측정 필요 CTA 생성 (1줄 요약만) - 표준화된 문구 사용
         let measurementCta = '';
