@@ -3885,8 +3885,25 @@
             rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(fingerprint)}</td></tr>`);
             
             if (rows.length > 0) {
-              const noteHtml = normalizedDisplayUrl && normalizedDisplayUrl !== targetUrl
-                ? '<div class="report-conditions__note">정규화는 표시 일관성을 위한 것이며 분석/점수에는 영향을 주지 않습니다.</div>'
+              // Note 영역 구성
+              const noteParts = [];
+              
+              // 정규화 안내 (정규화된 경우에만)
+              if (normalizedDisplayUrl && normalizedDisplayUrl !== targetUrl) {
+                noteParts.push('정규화는 표시 일관성을 위한 것이며 분석/점수에는 영향을 주지 않습니다.');
+              }
+              
+              // Fingerprint 계산 기준 안내
+              const brandValue = reportModel.inputs?.brand;
+              if (brandValue) {
+                noteParts.push('Input fingerprint = Target URL (as provided) + Brand(입력값)');
+              } else {
+                noteParts.push('Input fingerprint = Target URL (as provided) + Brand(입력값)');
+                noteParts.push('Brand 미입력 시 fingerprint는 URL 기반으로만 계산됩니다.');
+              }
+              
+              const noteHtml = noteParts.length > 0
+                ? `<div class="report-conditions__note">${noteParts.join('<br>')}</div>`
                 : '';
               container.innerHTML = `
                 <div class="report-conditions__title">분석 조건 (재현성)</div>
