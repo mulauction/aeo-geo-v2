@@ -5022,36 +5022,36 @@
               const id = (btn && btn.getAttribute) ? (btn.getAttribute('data-recent-id') || '') : '';
               const idStr = String(id || '');
               if (!/^\d+$/.test(idStr)) return;
-              // ✅ [openRecent] 선택된 로컬 리포트를 __lastV2로 주입 후 이동 (debug=1 only logs)
+              // ✅ [openRecent] entry.v2를 __lastV2로 주입 후 restore=1로 이동 (open= 제거)
               try {
                 const debug = new URLSearchParams(location.search).get('debug') === '1';
-                shareDebugLog('[share][openRecent] picked', { open: idStr });
                 const items = loadRecentReports();
                 const hit = items.find((x) => x && typeof x === 'object' && String(x.reportId || x.id || x.r || '') === String(idStr));
                 const v2 = hit && typeof hit === 'object' ? (hit.v2 || hit.__lastV2 || null) : null;
-                  if (v2 && typeof v2 === 'object') {
-                    try { if (!v2.id) v2.id = String(idStr); } catch (_) {}
-                    try { if (!v2.reportId) v2.reportId = String(idStr); } catch (_) {}
-                    try { localStorage.setItem('__lastV2', JSON.stringify(v2)); } catch (_) {}
-                    try { localStorage.setItem('__currentReportId', String(idStr)); } catch (_) {}
-                    try { window.__lastV2 = v2; } catch (_) {}
-                    shareDebugLog('[share][openRecent] wrote __lastV2', { open: idStr });
-                  }
-                const u = new URL(location.href);
-                u.searchParams.set('restore', '1');
-                u.searchParams.set('open', idStr);
-                u.searchParams.delete('r');
-                u.searchParams.delete('id');
-                shareDebugLog('[share][openRecent] navigate', { url: u.toString() });
-                location.assign(u.toString());
-                return;
-              } catch (_) {}
-              const u = new URL(location.href);
-              u.searchParams.set('restore', '1');
-              u.searchParams.set('open', idStr);
-              u.searchParams.delete('r');
-              u.searchParams.delete('id');
-              location.assign(u.toString());
+                const rid = hit && typeof hit === 'object' ? (hit.reportId || hit.id || null) : null;
+                
+                if (!v2 || !rid) {
+                  alert('리포트 데이터가 없습니다. 다시 분석해주세요.');
+                  return;
+                }
+                
+                try { if (!v2.id) v2.id = String(rid); } catch (_) {}
+                try { if (!v2.reportId) v2.reportId = String(rid); } catch (_) {}
+                try { localStorage.setItem('__lastV2', JSON.stringify(v2)); } catch (_) {}
+                try { localStorage.setItem('__currentReportId', String(rid)); } catch (_) {}
+                try { window.__lastV2 = v2; } catch (_) {}
+                
+                const debugParam = debug ? '&debug=1' : '';
+                const targetUrl = `./share.html?restore=1${debugParam}`;
+                
+                if (debug) {
+                  console.info('[share][openRecent] injected and navigate', { reportId: rid, target: targetUrl });
+                }
+                
+                location.href = targetUrl;
+              } catch (e) {
+                alert('리포트 데이터가 없습니다. 다시 분석해주세요.');
+              }
             });
           });
         };
