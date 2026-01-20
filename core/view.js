@@ -176,7 +176,7 @@ export function render(root, state) {
               }
             })()}
           </div>
-          <button id="btnShareReport" class="btn btn-primary" style="width: 100%;">리포트 공유 보기</button>
+          <button id="btnShareReport" class="btn btn-primary" style="width: 100%;">최근 리포트 보기</button>
           ${(() => {
             const loggedIn = isLoggedIn();
             return `
