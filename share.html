@@ -3904,6 +3904,15 @@
               }
             }
             
+            // Input fingerprint 표시값 정규화 (lowercase + ellipsis)
+            let displayFingerprint = fingerprint;
+            if (fingerprint && fingerprint !== 'unknown') {
+              displayFingerprint = fingerprint.toLowerCase();
+              if (displayFingerprint.length >= 12) {
+                displayFingerprint = displayFingerprint.slice(0, 12) + '…';
+              }
+            }
+            
             // 표 렌더링
             const rows = [];
             if (targetUrl) {
@@ -3918,7 +3927,7 @@
             if (snapshotAvailable !== 'unknown') {
               rows.push(`<tr><td>Snapshot available</td><td>${esc(snapshotAvailable)}</td></tr>`);
             }
-            rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(fingerprint)}</td></tr>`);
+            rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(displayFingerprint)}</td></tr>`);
             
             if (rows.length > 0) {
               // Note 영역 구성
