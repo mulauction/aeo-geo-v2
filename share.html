@@ -3825,15 +3825,51 @@
               normalizedDisplayUrl = normalized || null;
             }
             
-            // Analyzed at
+            // Analyzed at (KST + UTC 병기)
             let analyzedAt = null;
             if (reportModel.createdAt) {
               try {
                 const date = new Date(reportModel.createdAt);
                 if (!isNaN(date.getTime())) {
-                  analyzedAt = date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+                  // KST 포맷: YYYY-MM-DD HH:mm
+                  const kstFormatter = new Intl.DateTimeFormat('ko-KR', {
+                    timeZone: 'Asia/Seoul',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  });
+                  const kstParts = kstFormatter.formatToParts(date);
+                  const kstYear = kstParts.find(p => p.type === 'year')?.value || '';
+                  const kstMonth = kstParts.find(p => p.type === 'month')?.value || '';
+                  const kstDay = kstParts.find(p => p.type === 'day')?.value || '';
+                  const kstHour = kstParts.find(p => p.type === 'hour')?.value || '';
+                  const kstMinute = kstParts.find(p => p.type === 'minute')?.value || '';
+                  const kstStr = `${kstYear}-${kstMonth}-${kstDay} ${kstHour}:${kstMinute}`;
+                  
+                  // UTC 포맷: HH:mm
+                  const utcFormatter = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'UTC',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  });
+                  const utcParts = utcFormatter.formatToParts(date);
+                  const utcHour = utcParts.find(p => p.type === 'hour')?.value || '';
+                  const utcMinute = utcParts.find(p => p.type === 'minute')?.value || '';
+                  const utcStr = `${utcHour}:${utcMinute}`;
+                  
+                  analyzedAt = `${kstStr} KST / ${utcStr} UTC`;
+                } else {
+                  // 파싱 실패 시 기존 문자열 그대로 출력
+                  analyzedAt = String(reportModel.createdAt);
                 }
-              } catch (_) {}
+              } catch (_) {
+                // 파싱 실패 시 기존 문자열 그대로 출력
+                analyzedAt = String(reportModel.createdAt);
+              }
             }
             
             // Snapshot available 판단 (중립적 표현)
