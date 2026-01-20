@@ -146,6 +146,36 @@
     .delivery-notice__body p:last-child {
       margin-bottom: 0;
     }
+    /* Executive Summary (요약 블록) */
+    .report-executive-summary {
+      margin: 32px 0;
+      padding: 18px 20px;
+      background: rgba(0, 0, 0, 0.02);
+      border-left: 3px solid #0066cc;
+      border-radius: 4px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .report-executive-summary__title {
+      font-weight: 600;
+      font-size: 14px;
+      margin: 0 0 12px 0;
+      color: #1a1a1a;
+    }
+    .report-executive-summary__line {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #333;
+    }
+    .report-executive-summary__line:last-child {
+      margin-bottom: 0;
+    }
+    .report-executive-summary__label {
+      font-weight: 600;
+      color: #0066cc;
+      margin-right: 6px;
+    }
     /* 리포트 메타 행 */
     .report-meta-row {
       margin: 0 0 24px 0;
@@ -894,6 +924,26 @@
         display: none !important;
       }
       
+      /* ✅ [Phase B-1] PDF 납품물에서 불필요한 UI 숨김 */
+      #recentReportsMount {
+        display: none !important;
+      }
+      
+      .share-policy {
+        display: none !important;
+      }
+      
+      #quotaBadgePlan,
+      #quotaBadgeRemaining,
+      #quotaBadgeWarn {
+        display: none !important;
+      }
+      
+      /* 쿼터 배지 래퍼 숨김 */
+      .print-hide {
+        display: none !important;
+      }
+      
       /* 인쇄 시 신뢰도 사유는 항상 표시 */
       .reliability-details {
         display: block !important;
@@ -982,6 +1032,36 @@
       }
       .delivery-notice__body p:last-child {
         margin-bottom: 0;
+      }
+      /* Executive Summary - 인쇄 스타일 */
+      .report-executive-summary {
+        margin: 14px 0 16px 0;
+        padding: 12px 14px;
+        background: #f8f8f8;
+        border-left: 2px solid #0066cc;
+        border-radius: 3px;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-executive-summary__title {
+        font-size: 11pt;
+        font-weight: 600;
+        margin: 0 0 10px 0;
+        color: #1a1a1a;
+      }
+      .report-executive-summary__line {
+        margin: 0 0 8px 0;
+        font-size: 9pt;
+        line-height: 1.6;
+        color: #333;
+      }
+      .report-executive-summary__line:last-child {
+        margin-bottom: 0;
+      }
+      .report-executive-summary__label {
+        font-weight: 600;
+        color: #0066cc;
+        margin-right: 4px;
       }
       /* 리포트 메타 행 - 인쇄 스타일 */
       .report-meta-row {
@@ -1397,18 +1477,8 @@
         break-inside: avoid;
       }
       
-      /* 페이지 나누기 제어 */
-      .report-header,
-      .kpi-bars,
-      .next-actions-section,
-      .score-criteria-toggle,
-      .trust-statements,
-      .market-context,
-      .content-section,
-      .notice-card,
-      .compare-notice,
-      .action-grid,
-      .report-footer {
+      /* 페이지 나누기 제어 (선택적 적용) */
+      .report-header {
         page-break-inside: avoid;
       }
       
@@ -1677,10 +1747,17 @@
       </div>
     </div>
     
+    <div class="report-executive-summary">
+      <div class="report-executive-summary__title">Executive Summary</div>
+      <div class="report-executive-summary__line"><span class="report-executive-summary__label">현재 상태:</span>본 리포트는 AI 검색·추천 환경에서의 상품 인식 가능성을 구조 기준으로 점검한 결과입니다.</div>
+      <div class="report-executive-summary__line"><span class="report-executive-summary__label">핵심 리스크:</span>구조·콘텐츠·브랜드 신호가 부족할 경우 AI 이해 및 추천 과정에서 누락 요인이 될 수 있습니다.</div>
+      <div class="report-executive-summary__line"><span class="report-executive-summary__label">다음 액션:</span>상단 KPI와 WHY 항목의 우선순위 개선 후 동일 URL로 재측정해 변화를 확인하세요.</div>
+    </div>
+    
     <div class="report-meta-row">
-      <span class="report-meta-row__item">리포트 생성일: YYYY-MM-DD</span>
+      <span class="report-meta-row__item">리포트 생성일: 리포트 상단 표기 기준</span>
       <span class="report-meta-row__item">리포트 버전: v2</span>
-      <span class="report-meta-row__item">분석 대상: 이 브라우저의 최근 리포트에서 확인</span>
+      <span class="report-meta-row__item">분석 대상: 상품 상세 페이지(URL 1건)</span>
     </div>
     
     <div id="shareContent">
@@ -3471,7 +3548,7 @@
           </div>
           <!-- ✅ [Phase 29-1] Quota badge placeholders (UI-only, KR pricing/quota policy) -->
           <!-- - 표시용 자리만 제공: 실제 잔여 계산/차감/결제/로그인/스토리지 로직 절대 추가 금지 -->
-          <div style="margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--muted, #444); background: rgba(0,0,0,0.03); padding: 8px 10px; border-radius: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+          <div class="print-hide" style="margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--muted, #444); background: rgba(0,0,0,0.03); padding: 8px 10px; border-radius: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
             <span id="quotaBadgePlan">—</span>
             <span id="quotaBadgeRemaining">—</span>
             <span id="quotaBadgeWarn" style="margin-left:8px; font-size:12px; color:#b45309; display:none;">이번 달 사용량이 거의 소진되었습니다</span>
