@@ -246,6 +246,14 @@
     .report-conditions__table tr:last-child td {
       border-bottom: none;
     }
+    .report-conditions__note {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+      font-size: 11px;
+      color: #666;
+      line-height: 1.5;
+    }
     .report-conditions__fingerprint {
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
       font-size: 11px;
@@ -1233,6 +1241,14 @@
       }
       .report-conditions__table td:first-child {
         width: 120px;
+      }
+      .report-conditions__note {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #ddd;
+        font-size: 8pt;
+        color: #666;
+        line-height: 1.4;
       }
       .report-conditions__fingerprint {
         font-size: 8pt;
@@ -3788,15 +3804,26 @@
               return;
             }
             
-            // URL 정규화 함수
-            const normalizeUrl = (url) => {
-              if (!url || typeof url !== 'string') return null;
-              return url.trim().replace(/\/+$/, '').replace(/\s+/g, ' ');
-            };
+            // Target URL (원본)
+            const rawTargetUrl = reportModel.input || reportModel.inputs?.product || null;
+            const targetUrl = rawTargetUrl && typeof rawTargetUrl === 'string' ? rawTargetUrl.trim() : null;
             
-            // Target URL
-            const targetUrl = normalizeUrl(reportModel.input || reportModel.inputs?.product || null);
-            const normalizedUrl = targetUrl; // 정규화는 이미 normalizeUrl에서 수행
+            // Target URL (표시용 정규화)
+            let normalizedDisplayUrl = null;
+            if (targetUrl) {
+              const raw = String(targetUrl).trim();
+              let normalized = raw;
+              // hash fragment 제거
+              const hashIndex = normalized.indexOf('#');
+              if (hashIndex >= 0) {
+                normalized = normalized.substring(0, hashIndex);
+              }
+              // trailing slash 제거 (길이가 1보다 크고 '/'로 끝나는 경우)
+              if (normalized.length > 1 && normalized.endsWith('/')) {
+                normalized = normalized.slice(0, -1);
+              }
+              normalizedDisplayUrl = normalized || null;
+            }
             
             // Analyzed at
             let analyzedAt = null;
@@ -3821,6 +3848,7 @@
             }
             
             // Input fingerprint 계산 (입력값 기반만, createdAt 제외)
+            // fingerprint는 원본 targetUrl 사용 (정규화된 표시용 URL 아님)
             const fingerprintParts = [];
             if (targetUrl) fingerprintParts.push(`url:${targetUrl}`);
             if (reportModel.inputs?.brand) fingerprintParts.push(`brand:${reportModel.inputs.brand}`);
@@ -3843,9 +3871,9 @@
             // 표 렌더링
             const rows = [];
             if (targetUrl) {
-              rows.push(`<tr><td>Target URL</td><td>${esc(targetUrl)}</td></tr>`);
-              if (normalizedUrl && normalizedUrl !== targetUrl) {
-                rows.push(`<tr><td>정규화 URL</td><td>${esc(normalizedUrl)}</td></tr>`);
+              rows.push(`<tr><td>Target URL (as provided)</td><td>${esc(targetUrl)}</td></tr>`);
+              if (normalizedDisplayUrl) {
+                rows.push(`<tr><td>Target URL (normalized for display)</td><td>${esc(normalizedDisplayUrl)}</td></tr>`);
               }
             }
             if (analyzedAt) {
@@ -3857,11 +3885,15 @@
             rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(fingerprint)}</td></tr>`);
             
             if (rows.length > 0) {
+              const noteHtml = normalizedDisplayUrl && normalizedDisplayUrl !== targetUrl
+                ? '<div class="report-conditions__note">정규화는 표시 일관성을 위한 것이며 분석/점수에는 영향을 주지 않습니다.</div>'
+                : '';
               container.innerHTML = `
                 <div class="report-conditions__title">분석 조건 (재현성)</div>
                 <table class="report-conditions__table">
                   ${rows.join('')}
                 </table>
+                ${noteHtml}
               `;
             } else {
               container.innerHTML = '';
