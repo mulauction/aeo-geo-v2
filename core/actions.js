@@ -279,6 +279,69 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __lastV2 to localStorage:', e);
       }
 
+      // ✅ [Phase C-1-5] Recent Reports 저장 (Share가 읽는 __recentReportsV1 갱신)
+      try {
+        const reportId = String(v2Summary.generatedAt || Date.now());
+        // __currentReportId 동기화 (Share가 기대하는 값)
+        try {
+          localStorage.setItem('__currentReportId', reportId);
+        } catch (_) {}
+        
+        // analysisTarget 추출 (input에서 HTML 제거, 최대 80자)
+        let analysisTarget = '분석 대상 없음';
+        if (finalState.input) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = finalState.input;
+          let textContent = tempDiv.textContent || tempDiv.innerText || '';
+          textContent = textContent.trim();
+          if (textContent.length > 80) {
+            analysisTarget = textContent.substring(0, 80) + '...';
+          } else {
+            analysisTarget = textContent || 'HTML 콘텐츠';
+          }
+        }
+        
+        // Best KPI score 계산
+        const getBestKpiScore = () => {
+          const candidates = [
+            analysisScores.branding?.score,
+            analysisScores.contentStructureV2?.score,
+            analysisScores.urlStructureV1?.score
+          ].filter(v => typeof v === 'number' && Number.isFinite(v));
+          if (!candidates.length) return null;
+          return Math.max(...candidates);
+        };
+        
+        const entry = {
+          id: reportId,
+          reportId: reportId,
+          target: analysisTarget,
+          createdAt: v2Summary.generatedAt || Date.now(),
+          score: getBestKpiScore(),
+          url: location.origin + location.pathname,
+          v2: v2Summary
+        };
+        
+        // 기존 목록 로드 및 중복 제거 후 맨 앞에 추가 (최대 10개)
+        const RECENT_KEY = '__recentReportsV1';
+        const loadRecentReports = () => {
+          try {
+            const raw = localStorage.getItem(RECENT_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+          } catch {
+            return [];
+          }
+        };
+        const existing = loadRecentReports();
+        const deduped = existing.filter(it => it && typeof it === 'object' && it.id !== entry.id);
+        const next = [entry, ...deduped].slice(0, 10);
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      } catch (e) {
+        // 실패 안전: recent reports 저장 실패는 조용히 무시
+        console.warn('[actions] Failed to save recent reports:', e);
+      }
+
       // ✅ [Phase 30-5C] Log-only usage trigger (no deduction, no server)
       // - Must NOT fire for programmatic .click()
       if (event && event.isTrusted) {
@@ -392,17 +455,15 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __currentReportId to localStorage:', e);
       }
       
-      // ✅ [Phase C-1-3] 로컬 복원 기반 네비게이션 (restore=1&open=)
+      // ✅ [Phase C-1-3] 로컬 복원 기반 네비게이션 (restore=1 단일 경로)
       Promise.resolve().then(async () => {
         // debug=1 유지
         const urlParams = new URLSearchParams(window.location.search);
         const isDebug = urlParams.get('debug') === '1';
         const debugParam = isDebug ? '&debug=1' : '';
         
-        // reportId가 있으면 open= 파라미터 추가, 없으면 restore=1만
-        const targetUrl = reportId 
-          ? `./share.html?restore=1&open=${encodeURIComponent(reportId)}${debugParam}`
-          : `./share.html?restore=1${debugParam}`;
+        // restore=1 단일 경로로 통일 (open= 제거)
+        const targetUrl = `./share.html?restore=1${debugParam}`;
         
         if (isDebug) {
           console.info('[analyze] share nav', { target: targetUrl, reportId });
