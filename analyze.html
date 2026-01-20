@@ -158,6 +158,17 @@
     import { boot } from './core/lifecycle.js';
     import { getSessionId, hashId, track } from './core/telemetry.js';
     
+    // ✅ Snapshot POST 실패 시 알림 메시지 오버라이드 (UI-only)
+    (function() {
+      const originalAlert = window.alert;
+      window.alert = function(message) {
+        if (message === '공유 링크 생성에 실패했습니다. 기존 방식으로 공유합니다.') {
+          return originalAlert('이 환경에서는 서버 저장 공유가 비활성화되어 있습니다.\n현재 브라우저 기준으로 리포트를 표시합니다.');
+        }
+        return originalAlert.apply(this, arguments);
+      };
+    })();
+    
     // ✅ [Phase 90-4][dev-only] debug=1 persistence across navigation (localhost only; UI/logic unchanged)
     (function () {
       try {

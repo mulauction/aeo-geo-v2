@@ -118,6 +118,52 @@
       opacity: 0.72;
       font-size: 12px;
     }
+    /* 납품용 안내 박스 */
+    .delivery-notice {
+      margin: 20px 0 32px 0;
+      padding: 16px 20px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.02);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .delivery-notice__title {
+      font-weight: 600;
+      font-size: 14px;
+      margin: 0 0 12px 0;
+      color: #1a1a1a;
+    }
+    .delivery-notice__body {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #444;
+    }
+    .delivery-notice__body p {
+      margin: 0 0 8px 0;
+    }
+    .delivery-notice__body p:last-child {
+      margin-bottom: 0;
+    }
+    /* 리포트 메타 행 */
+    .report-meta-row {
+      margin: 0 0 24px 0;
+      padding: 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #666;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .report-meta-row__item {
+      display: inline;
+    }
+    .report-meta-row__item:not(:last-child)::after {
+      content: ' · ';
+      margin: 0 8px;
+      color: #999;
+    }
     /* Recent Reports "열기" button: keyboard focus feedback (focus-visible only) */
     button[data-cta="openRecent"]:focus-visible {
       outline: 2px solid #4caf50;
@@ -774,6 +820,18 @@
       margin: 0 0 4px 0;
     }
     
+    /* 리포트 면책 조항 */
+    .report-disclaimer {
+      margin-top: 24px;
+      padding-top: 16px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #888;
+      text-align: center;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    
     #btnExportPDF {
       margin-top: 24px;
       padding: 12px 24px;
@@ -897,6 +955,44 @@
       .share-policy__sub {
         font-size: 8pt;
         margin-top: 2px;
+      }
+      /* 납품용 안내 박스 - 인쇄 스타일 */
+      .delivery-notice {
+        margin: 16px 0 20px 0;
+        padding: 12px 16px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: #f8f8f8;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .delivery-notice__title {
+        font-size: 11pt;
+        margin: 0 0 10px 0;
+        font-weight: 600;
+        color: #1a1a1a;
+      }
+      .delivery-notice__body {
+        font-size: 9pt;
+        line-height: 1.5;
+        color: #333;
+      }
+      .delivery-notice__body p {
+        margin: 0 0 6px 0;
+      }
+      .delivery-notice__body p:last-child {
+        margin-bottom: 0;
+      }
+      /* 리포트 메타 행 - 인쇄 스타일 */
+      .report-meta-row {
+        margin: 0 0 16px 0;
+        font-size: 9pt;
+        color: #555;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .report-meta-row__item::after {
+        color: #999;
       }
       /* ✅ [Phase 11-2] Share 상태 표시 영역 - 인쇄 스타일 */
       #share-status {
@@ -1315,6 +1411,16 @@
       .report-footer {
         page-break-inside: avoid;
       }
+      
+      /* 리포트 면책 조항 - 인쇄 스타일 */
+      .report-disclaimer {
+        margin-top: 20px;
+        padding-top: 12px;
+        font-size: 8pt;
+        color: #666;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
 
       /* ✅ [PHASE 73-2][SSOT] Print/PDF 품질 고정 (print only; screen 영향 0) */
       html, body { height: auto !important; }
@@ -1562,12 +1668,31 @@
       <!-- 리포트 헤더는 JavaScript로 동적 렌더링 -->
     </div>
     
+    <div class="delivery-notice">
+      <div class="delivery-notice__title">납품용 안내 · AI 검색/추천 환경 기준 분석</div>
+      <div class="delivery-notice__body">
+        <p>- 본 리포트는 광고·SEO 성과 예측이 아닌, AI가 상품 정보를 이해하는 구조(AEO/GEO)를 기준으로 분석합니다.</p>
+        <p>- 모든 점수와 코멘트는 페이지 구조·콘텐츠에 대한 근거(evidence)에 기반합니다.</p>
+        <p>- 플랫폼 정책·경쟁 환경에 따라 결과는 변동될 수 있으며, 노출·매출을 보장하지 않습니다.</p>
+      </div>
+    </div>
+    
+    <div class="report-meta-row">
+      <span class="report-meta-row__item">리포트 생성일: YYYY-MM-DD</span>
+      <span class="report-meta-row__item">리포트 버전: v2</span>
+      <span class="report-meta-row__item">분석 대상: 이 브라우저의 최근 리포트에서 확인</span>
+    </div>
+    
     <div id="shareContent">
       <!-- 리포트 콘텐츠는 JavaScript로 동적 렌더링 -->
     </div>
     
     <div id="reportFooter" class="report-footer">
       <!-- 리포트 푸터는 JavaScript로 동적 렌더링 -->
+    </div>
+    
+    <div class="report-disclaimer">
+      본 리포트는 참고용 분석 자료이며, 플랫폼 정책·경쟁 환경 변화에 따른 결과 변동 및 성과에 대해 보장하지 않습니다.
     </div>
     
     <button id="btnExportPDF" class="btn btn-primary">PDF로 내보내기</button>
@@ -3133,9 +3258,10 @@
 
           return `
             <div id="expired-banner" class="report-load-failed-banner" style="margin: 16px 0 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
-              <div class="muted small" style="margin: 0 0 10px 0;">이 링크로는 리포트를 열 수 없습니다. 아래 버튼으로 다시 분석하거나, 이 브라우저의 최근 리포트를 열어보세요.</div>
+              <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">이 공유 링크는 서버 저장형 링크가 아닙니다</h3>
+              <div class="muted small" style="margin: 0 0 10px 0;">이 리포트는 현재 브라우저에 저장된 결과에서만 열 수 있습니다. 서버 저장형 공유 링크는 이 환경에서 사용할 수 없습니다.</div>
+              <div class="muted small" style="margin: 0 0 10px 0;">리포트: ${validEsc(title)}</div>
               <div class="muted small" style="margin: 0 0 10px 0;">이 상태에서는 최근 리포트를 열거나 다시 분석할 수 있습니다.</div>
-              <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">${validEsc(title)}</h3>
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${validEsc(message)}</p>
               <div style="margin-bottom: 16px;">
                 ${buttons}
