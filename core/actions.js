@@ -27,11 +27,74 @@ async function fetchSnapshotApi(path, options = {}) {
   // 정적 서버(5500~5509)면 무조건 localhost:3001로 바로 실행 (same-origin 시도 금지)
   if (isDevStaticServer) {
     const fallbackUrl = `http://localhost:3001${path}`;
-    return fetch(fallbackUrl, options);
+    // ✅ [Phase C-1-6] Network error는 catch해서 조용히 처리
+    try {
+      return await fetch(fallbackUrl, options);
+    } catch (e) {
+      // ECONNREFUSED 등 network error는 조용히 throw하지 않음
+      // 호출부에서 처리하도록 Promise.reject로 전달 (호출부에서 catch 필요)
+      return Promise.reject(e);
+    }
   }
 
   // 정적 서버가 아닐 때는 same-origin으로 시도
-  return fetch(path, options);
+  // ✅ [Phase C-1-6] Network error는 catch해서 조용히 처리
+  try {
+    return await fetch(path, options);
+  } catch (e) {
+    // ECONNREFUSED 등 network error는 조용히 throw하지 않음
+    return Promise.reject(e);
+  }
+}
+
+/**
+ * ✅ [Phase C-1-6] Snapshot API 호출 안전 래퍼 (backend 없을 때 에러 방지)
+ * @param {Object} payload - Snapshot POST payload
+ * @returns {Promise<{ok: true, id: string} | null>} 성공 시 {ok: true, id}, 실패 시 null
+ */
+async function trySnapshot(payload) {
+  const urlParams = new URLSearchParams(window.location.search || '');
+  const isDebug = urlParams.get('debug') === '1';
+  const isLocalhost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
+  
+  // Backend not present 판단 (usage-events와 동일한 로직 재사용)
+  const shouldSend = (!isLocalhost) || String(location.port || '') === '3001';
+  if (!shouldSend) {
+    if (!window.__shareSnapshotSkippedLogged) {
+      window.__shareSnapshotSkippedLogged = true;
+      if (isDebug) console.info('[snapshot] skipped (backend not present): /api/snapshot');
+    }
+    return null;
+  }
+  
+  try {
+    const res = await fetchSnapshotApi('/api/snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (res && res.ok) {
+      const json = await res.json();
+      if (json && json.id) {
+        return { ok: true, id: json.id };
+      }
+    }
+    
+    // 실패 시 조용히 null 반환
+    if (!window.__shareSnapshotFailedLogged) {
+      window.__shareSnapshotFailedLogged = true;
+      if (isDebug) console.info('[snapshot] failed: /api/snapshot');
+    }
+    return null;
+  } catch (e) {
+    // Network error (ECONNREFUSED 등)는 조용히 null 반환
+    if (!window.__shareSnapshotFailedLogged) {
+      window.__shareSnapshotFailedLogged = true;
+      if (isDebug) console.info('[snapshot] failed (network error): /api/snapshot');
+    }
+    return null;
+  }
 }
 
 
