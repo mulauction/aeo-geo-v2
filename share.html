@@ -2135,6 +2135,37 @@
         return false;
       }
     }
+    
+    // ✅ [Phase C-1-5] Share 로그 헬퍼 함수 (debug=1일 때만 출력, 중복 억제)
+    function shareDebugLog(...args) {
+      if (!isDebugOn()) return;
+      console.log(...args);
+    }
+    
+    function shareDebugInfo(...args) {
+      if (!isDebugOn()) return;
+      console.info(...args);
+    }
+    
+    function shareLogOnce(key, ...args) {
+      if (!isDebugOn()) return;
+      if (!window.__shareLogOnce) {
+        window.__shareLogOnce = new Set();
+      }
+      if (window.__shareLogOnce.has(key)) return;
+      window.__shareLogOnce.add(key);
+      console.log(...args);
+    }
+    
+    function shareInfoOnce(key, ...args) {
+      if (!isDebugOn()) return;
+      if (!window.__shareLogOnce) {
+        window.__shareLogOnce = new Set();
+      }
+      if (window.__shareLogOnce.has(key)) return;
+      window.__shareLogOnce.add(key);
+      console.info(...args);
+    }
 
     // ✅ [Phase 90-4][dev-only] debug=1 persistence across navigation (localhost only; UI/logic unchanged)
     function __isDevLocalhost() {
@@ -2885,14 +2916,14 @@
       // ✅ [Phase22] viewState가 OK가 아니면 snapshot fetch 금지
       const currentViewState = window.__shareViewState;
       if (currentViewState && currentViewState !== 'OK') {
-        console.log('[loadReportModel] viewState is not OK, skipping fetch:', currentViewState);
+        shareDebugLog('[loadReportModel] viewState is not OK, skipping fetch:', currentViewState);
         return null;
       }
       
       // ✅ [Phase22] r 파라미터가 테스트 상태면 fetch 금지
       const testStates = ['EXPIRED', 'OTHER_DEVICE', 'NO_REPORT'];
       if (rParam && testStates.includes(rParam)) {
-        console.log('[loadReportModel] r is test state, skipping fetch:', rParam);
+        shareDebugLog('[loadReportModel] r is test state, skipping fetch:', rParam);
         return null;
       }
       
@@ -3149,7 +3180,7 @@
       async function bootstrapShare() {
         if (window.__shareBootstrapInFlight) {
           const debug = new URLSearchParams(window.location.search).get('debug') === '1';
-          if (debug) console.log('[share] bootstrap skipped: in-flight');
+          shareDebugLog('[share] bootstrap skipped: in-flight');
           return;
         }
         window.__shareBootstrapInFlight = true;
@@ -3176,14 +3207,14 @@
           const __isDebug = (new URLSearchParams(location.search).get('debug') === '1');
           const __shouldSkip = __sameKey && (__bootGuard.inFlight === true || __bootDt < __cooldownMs);
           if (__shouldSkip) {
-            if (__isDebug) console.log('[ShareViewState:bootstrap] skipped (cooldown)', { reason: (__bootGuard.inFlight === true ? 'in_flight' : 'cooldown'), key: __bootKey, dt: __bootDt });
+            shareDebugLog('[ShareViewState:bootstrap] skipped (cooldown)', { reason: (__bootGuard.inFlight === true ? 'in_flight' : 'cooldown'), key: __bootKey, dt: __bootDt });
             return;
           }
           __bootGuard.lastAt = __now;
           __bootGuard.lastKey = __bootKey;
           __bootGuard.inFlight = true;
           window.__shareBootstrapGuardV1 = __bootGuard;
-          if (__isDebug) console.log('[ShareViewState:bootstrap] running (guard ok)', { reason: (__sameKey ? 'cooldown_passed' : 'key_changed'), key: __bootKey, dt: __bootDt });
+          shareDebugLog('[ShareViewState:bootstrap] running (guard ok)', { reason: (__sameKey ? 'cooldown_passed' : 'key_changed'), key: __bootKey, dt: __bootDt });
         } catch (_) {}
 
         try {
@@ -3193,9 +3224,9 @@
         }
 
         if (__shareInitialized) {
-          console.log('[ShareViewState:bootstrap] Re-initializing Share page');
+          shareLogOnce('bootstrap-reinit', '[ShareViewState:bootstrap] Re-initializing Share page');
         } else {
-          console.log('[ShareViewState:bootstrap] Initializing Share page');
+          shareLogOnce('bootstrap-init', '[ShareViewState:bootstrap] Initializing Share page');
           __shareInitialized = true;
         }
         
@@ -3333,7 +3364,7 @@
               try {
                 if (debugOn && !window.__shareUrlNormalizeSkipLoggedV1) {
                   window.__shareUrlNormalizeSkipLoggedV1 = true;
-                  console.log('[share][url] skip normalize: open present', { open: openKeep });
+                  shareDebugLog('[share][url] skip normalize: open present', { open: openKeep });
                 }
               } catch (_) {}
               return;
@@ -3341,7 +3372,7 @@
             try {
               if (debugOn && !window.__shareUrlNormalizeLoggedV1) {
                 window.__shareUrlNormalizeLoggedV1 = true;
-                console.log('[share][url] normalize restore url', { next });
+                shareDebugLog('[share][url] normalize restore url', { next });
               }
             } catch (_) {}
             history.replaceState(null, '', next);
@@ -3357,18 +3388,18 @@
         const getOnly = (!forceWrite) && Boolean(rParam) && !isRestore && (hasId || !isNumericR);
         
         if (getOnly) {
-          console.log('[share] view mode: GET only');
+          shareDebugLog('[share] view mode: GET only');
         }
 
         // ✅ [Phase 51][debug] query parsing observability (debug=1 only)
         try {
-          if (debug === '1') console.log('[share] parsed params:', { id: idParam, r: rParam, debug });
+          shareDebugLog('[share] parsed params:', { id: idParam, r: rParam, debug });
         } catch (_) {}
         
         // ✅ [Phase 26-2C-2] id 파라미터가 있으면 snapshot 플로우 허용 (r-only 규칙 적용 금지)
         if (hasId && !window.__shareIdParamFlowLogged) {
           window.__shareIdParamFlowLogged = true;
-          console.log('[share] id param present – allowing snapshot flow');
+          shareDebugLog('[share] id param present – allowing snapshot flow');
         }
         
         // ✅ [Phase 26-2B] force 파라미터 (dev harness input only; state 결정은 deriveShareViewState로만)
@@ -3454,13 +3485,13 @@
             (invalidFromHead && invalidFromHead.source === 'id') ? invalidFromHead :
             (!isValidIdParam ? { source: 'id', value: String(idParam) } : { source: 'r', value: String(rParam) });
           window.__shareInvalidShareId = invalid;
-          console.info('[ShareViewState:invalid-id]', { source: invalid.source, note: 'Invalid share id – skipping snapshot fetch' });
+          shareDebugInfo('[ShareViewState:invalid-id]', { source: invalid.source, note: 'Invalid share id – skipping snapshot fetch' });
         } else if (pre.reason === 'FORCED') {
           console.warn('[ShareViewState:force]', { force: forceParam, viewState, note: 'Forced state - skipping loadReportModel and fetch' });
         } else if (pre.reason === 'TEST_STATE') {
           console.warn('[ShareViewState:test]', { r: rParam, viewState, note: 'Test state - skipping loadReportModel and fetch' });
         } else if (pre.reason === 'NO_REPORT') {
-            console.log('[ShareViewState:no-report]', { r: null, hasLastV2: false, hasCurrentReportId: false, viewState: 'NO_REPORT' });
+            shareDebugLog('[ShareViewState:no-report]', { r: null, hasLastV2: false, hasCurrentReportId: false, viewState: 'NO_REPORT' });
         }
 
         // ✅ [Share 복원 로직] reportModel 복원 후 payload 생성 (2단계 흐름 유지)
@@ -3489,7 +3520,7 @@
         const restore = isRestore;
         // ✅ [Phase 26-2C-LogPolish] force=<state>일 때는 r-only 감지 로그를 출력하지 않음 (동작은 동일)
         if (!forceParam && isROnly && !restore) {
-          console.log('[share] r-only param detected – disabling localStorage fallback');
+          shareDebugLog('[share] r-only param detected – disabling localStorage fallback');
         }
         
         let hasLastV2 = false;
@@ -3516,7 +3547,7 @@
               const currentReportId = localStorage.getItem('__currentReportId');
               if (currentReportId !== rParam) {
                 localStorage.setItem('__currentReportId', rParam);
-                console.log('[ShareViewState:sync] __currentReportId synchronized to r:', rParam);
+                shareDebugLog('[ShareViewState:sync] __currentReportId synchronized to r:', rParam);
               }
             }
           } catch (e) {
@@ -3538,7 +3569,7 @@
           window.__shareViewState = viewState;
         }
         document.body.dataset.shareState = viewState;
-        console.info('[ShareViewState]', viewState);
+        shareDebugInfo('[ShareViewState]', viewState);
         __ctaPolicyFinalState = viewState;
 
         // ✅ [Phase 31-1][telemetry] final state
@@ -3663,6 +3694,7 @@
               <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">이 공유 링크는 서버 저장형 링크가 아닙니다</h3>
               <div class="muted small" style="margin: 0 0 10px 0;">서버 공유(r)·스냅샷(id)은 MVP에서 비활성일 수 있습니다.</div>
               <div class="muted small" style="margin: 0 0 10px 0;">로컬에서 열려면 restore=1로 접근하세요.</div>
+              <div class="muted small" style="margin: 0 0 10px 0;">이 상태에서는 최근 리포트를 열거나 다시 분석할 수 있습니다.</div>
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">${validEsc(message)}</p>
               <div style="margin-bottom: 16px;">
                 ${buttons}
@@ -3777,7 +3809,7 @@
             if (!shouldFetch) return;
             if (debug && !window.__shareUsageFetchEnabledLoggedV1) {
               window.__shareUsageFetchEnabledLoggedV1 = true;
-              console.info('[share] usage summary: fetch enabled');
+              shareDebugInfo('[share] usage summary: fetch enabled');
             }
 
             // prevent duplicate in-flight fetches; allow retry on failure
@@ -4871,7 +4903,7 @@
             const isDebug = new URLSearchParams(location.search).get('debug') === '1';
             if (isDebug && !window.__shareRecentNormalizeLogged) {
               const s = normalizeRecentReports.__last || {};
-              console.log('[share] recent normalize: in=' + String(s.inCount ?? items.length) + ' out=' + String(s.outCount ?? normalizedItems.length) + ' dropped=' + String(s.droppedCount ?? 0) + ' deduped=' + String(s.dedupedCount ?? 0));
+              shareDebugLog('[share] recent normalize: in=' + String(s.inCount ?? items.length) + ' out=' + String(s.outCount ?? normalizedItems.length) + ' dropped=' + String(s.droppedCount ?? 0) + ' deduped=' + String(s.dedupedCount ?? 0));
               window.__shareRecentNormalizeLogged = true;
             }
           } catch (_) {}
@@ -4894,7 +4926,7 @@
             const isDebug = new URLSearchParams(location.search).get('debug') === '1';
             if (isDebug) {
               const top3 = sortedItems.slice(0, 3).map((x) => (x && typeof x === 'object') ? (x.id || x.reportId || x.r || '') : '').join(',');
-              console.log('[share] recent sort key=' + sortKey + ' top3=' + top3);
+              shareDebugLog('[share] recent sort key=' + sortKey + ' top3=' + top3);
             }
           } catch (_) {}
 
@@ -4932,7 +4964,7 @@
           try {
             if (debugOn && isActive && !__activeLogged) {
               __activeLogged = true;
-              console.log('[share][restoreList] activeRow', { activeId, reportId: reportIdStr });
+              shareDebugLog('[share][restoreList] activeRow', { activeId, reportId: reportIdStr });
             }
           } catch (_) {}
             return `
@@ -4978,7 +5010,7 @@
               try { localStorage.removeItem(RECENT_KEY); } catch {}
               try { localStorage.setItem(RECENT_CLEARED_KEY, '1'); } catch {}
               try { localStorage.setItem(RECENT_CLEARED_FOR_ID_KEY, String(recentId || '')); } catch {}
-              console.log('[share][recent] cleared:', RECENT_KEY, 'flagged:', RECENT_CLEARED_KEY);
+              shareDebugLog('[share][recent] cleared:', RECENT_KEY, 'flagged:', RECENT_CLEARED_KEY);
 
               window.__recentReportsExpandedV1 = false;
               renderRecentReportsSection();
@@ -4993,7 +5025,7 @@
               // ✅ [openRecent] 선택된 로컬 리포트를 __lastV2로 주입 후 이동 (debug=1 only logs)
               try {
                 const debug = new URLSearchParams(location.search).get('debug') === '1';
-                if (debug) console.log('[share][openRecent] picked', { open: idStr });
+                shareDebugLog('[share][openRecent] picked', { open: idStr });
                 const items = loadRecentReports();
                 const hit = items.find((x) => x && typeof x === 'object' && String(x.reportId || x.id || x.r || '') === String(idStr));
                 const v2 = hit && typeof hit === 'object' ? (hit.v2 || hit.__lastV2 || null) : null;
@@ -5003,14 +5035,14 @@
                     try { localStorage.setItem('__lastV2', JSON.stringify(v2)); } catch (_) {}
                     try { localStorage.setItem('__currentReportId', String(idStr)); } catch (_) {}
                     try { window.__lastV2 = v2; } catch (_) {}
-                    if (debug) console.log('[share][openRecent] wrote __lastV2', { open: idStr });
+                    shareDebugLog('[share][openRecent] wrote __lastV2', { open: idStr });
                   }
                 const u = new URL(location.href);
                 u.searchParams.set('restore', '1');
                 u.searchParams.set('open', idStr);
                 u.searchParams.delete('r');
                 u.searchParams.delete('id');
-                if (debug) console.log('[share][openRecent] navigate', { url: u.toString() });
+                shareDebugLog('[share][openRecent] navigate', { url: u.toString() });
                 location.assign(u.toString());
                 return;
               } catch (_) {}
@@ -5565,7 +5597,7 @@
             const getOnly = (!forceWrite) && Boolean(currentRParam);
             
             // 검증 로그 (개발용)
-            console.log('[share] forceWrite=', forceWrite, 'getOnly=', getOnly);
+            shareDebugLog('[share] forceWrite=', forceWrite, 'getOnly=', getOnly);
             
             if (getOnly) {
               // 공유 링크로 진입한 경우 (forceWrite가 아닐 때): POST 차단, 로컬 복사만 허용
@@ -5606,7 +5638,7 @@
             }
             
             // 공유 링크가 아니거나 forceWrite인 경우: POST 허용 (저장 액션)
-            console.log('[share] save action: POST');
+            shareDebugLog('[share] save action: POST');
             const originalText = copyBtn.textContent;
             
             try {
@@ -6020,14 +6052,14 @@
                   }
                 })();
                 if (window.__ctaPolicyAppliedV1 === true) {
-                  if (__isDebug) console.log('[CTA_POLICY] skip state=' + String(__ctaPolicyFinalState) + ' reason=already_applied' + ' applyCount=' + String(__applyCount));
+                  shareDebugLog('[CTA_POLICY] skip state=' + String(__ctaPolicyFinalState) + ' reason=already_applied' + ' applyCount=' + String(__applyCount));
                 } else {
                   window.__ctaPolicyAppliedV1 = true;
                   __applyCount = __applyCount + 1;
                   try { window.__ctaPolicyApplyCountV1 = __applyCount; } catch (_) {}
                   window.__applyCtaPolicyV1(__ctaPolicyFinalState);
                   if (__isDebug) {
-                    console.log('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' applyCount=' + String(__applyCount));
+                    shareDebugLog('[CTA_POLICY] applied state=' + String(__ctaPolicyFinalState) + ' applyCount=' + String(__applyCount));
                     try {
                       if (!window.__debugCtaPolicyCheckV1) {
                         window.__debugCtaPolicyCheckV1 = function(){
@@ -6044,7 +6076,7 @@
                               (els || []).forEach(function(el){ if (el && el.hidden === true) hidden++; });
                             } catch (_) {}
                             var visible = total - hidden;
-                            console.log('[CTA_CHECK] state=' + String(state) + ' total=' + String(total) + ' visible=' + String(visible) + ' hidden=' + String(hidden));
+                            shareDebugLog('[CTA_CHECK] state=' + String(state) + ' total=' + String(total) + ' visible=' + String(visible) + ' hidden=' + String(hidden));
                             return { state: String(state), total: total, visible: visible, hidden: hidden };
                           } catch (_) {
                             return { state: 'unknown', total: 0, visible: 0, hidden: 0 };
@@ -6183,14 +6215,14 @@
       // ✅ [Hotfix] pageshow 이벤트 처리 (bfcache/뒤로가기 대응)
       window.addEventListener('pageshow', (event) => {
         // persisted 여부와 관계없이 항상 재렌더 (bfcache 복원 및 일반 페이지 전환 모두 대응)
-        console.log('[ShareViewState:pageshow] Page shown, re-initializing', { persisted: event.persisted });
+        shareLogOnce('pageshow-reinit', '[ShareViewState:pageshow] Page shown, re-initializing', { persisted: event.persisted });
         bootstrapShare();
       });
       
       // ✅ [Hotfix] visibilitychange 이벤트 처리 (탭 전환/복귀 대응)
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-          console.log('[ShareViewState:visibilitychange] Page became visible, re-initializing');
+          shareLogOnce('visibilitychange-reinit', '[ShareViewState:visibilitychange] Page became visible, re-initializing');
           bootstrapShare();
         }
       });
