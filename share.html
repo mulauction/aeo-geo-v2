@@ -3929,6 +3929,26 @@
             }
             rows.push(`<tr><td>Input fingerprint</td><td class="report-conditions__fingerprint">${esc(displayFingerprint)}</td></tr>`);
             
+            // Reference IDs
+            const reportId = urlParams.get('r') || urlParams.get('id') || null;
+            const snapshotId = urlParams.get('id') || null;
+            let referenceIdsText = '';
+            if (reportId) {
+              referenceIdsText = `Report ID: ${esc(reportId)} (available)`;
+              if (snapshotId && snapshotId === reportId) {
+                referenceIdsText += ' / Snapshot ID: same (available)';
+              } else if (snapshotId) {
+                referenceIdsText += ` / Snapshot ID: ${esc(snapshotId)} (available)`;
+              } else {
+                referenceIdsText += ' / Snapshot ID: not available';
+              }
+            } else if (snapshotId) {
+              referenceIdsText = `Report ID: not available / Snapshot ID: ${esc(snapshotId)} (available)`;
+            } else {
+              referenceIdsText = 'Report ID: not available / Snapshot ID: not available';
+            }
+            rows.push(`<tr><td>Reference IDs</td><td>${referenceIdsText}</td></tr>`);
+            
             if (rows.length > 0) {
               // Note 영역 구성
               const noteParts = [];
