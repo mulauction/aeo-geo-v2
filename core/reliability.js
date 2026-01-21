@@ -174,33 +174,37 @@ export function computeReliabilityV2(reportModel, opts = {}) {
     reliabilityLevel = reverseMap[newLevelValue] || reliabilityLevel;
   }
   
-  // ✅ [Phase 8-2B] Reason line 생성 ("BRAND 미측정 · CONTENT 측정됨 · URL 측정됨" 형태)
-  // ✅ [Phase 8-3A-1] reason 문구 명확화: "3개 항목 모두 측정 + 최소 기준 충족 시에만 '높음' 가능"
-  // ✅ [Phase 114] Add quantitative evidence-based reasons
-  let reasonText = `BRAND ${brandStatus} · CONTENT ${contentStatus} · URL ${urlStatus}`;
+  // ✅ [Phase 116] Reason lines 생성 (최대 3줄, 비중복, 외부 공유 최적화)
+  const reasonLines = [];
   
-  // Add evidence count (always if available)
+  // Line 1: Measurement line
+  const measuredItems = [];
+  if (brandStatus === '측정됨') measuredItems.push('BRAND');
+  if (contentStatus === '측정됨') measuredItems.push('CONTENT');
+  if (urlStatus === '측정됨') measuredItems.push('URL');
+  
+  if (measuredItems.length > 0) {
+    reasonLines.push(`측정 완료: ${measuredItems.join(', ')}`);
+  } else {
+    reasonLines.push('측정 부족: BRAND/CONTENT/URL 중 일부 누락');
+  }
+  
+  // Line 2: Evidence line (only if contentEvidenceCount > 0)
   if (contentEvidenceCount > 0) {
-    reasonText += ` · 콘텐츠 근거: ${contentEvidenceCount}개`;
-  }
-  
-  // Add severe evidence count (only if > 0)
-  if (severeEvidenceCount > 0) {
-    reasonText += ` · 치명 결함: ${severeEvidenceCount}개`;
-  }
-  
-  if (reliabilityLevel === '높음') {
-    // '높음'인 경우: 3개 항목 모두 측정 + 최소 기준 충족
-    reasonText += ' · 3개 항목 모두 측정 + 최소 기준 충족';
-  } else if (!canBeHigh) {
-    // Gate를 통과하지 못한 경우: 미측정/더미/최소 기준 미충족
-    if (missingCount > 0) {
-      // 미측정 항목이 있는 경우는 이미 brandStatus 등에 표시되므로 추가 문구 생략
+    if (severeEvidenceCount > 0) {
+      reasonLines.push(`콘텐츠 근거 ${contentEvidenceCount}개 · 치명 ${severeEvidenceCount}개`);
     } else {
-      // 측정은 되었지만 최소 기준 미충족 또는 기타 이유
-      reasonText += ' · 미측정/더미가 포함되면 "높음" 불가';
+      reasonLines.push(`콘텐츠 근거 ${contentEvidenceCount}개`);
     }
   }
+  
+  // Line 3: Optional guardrail line (only if evidencePenalty > 0)
+  if (evidencePenalty > 0) {
+    reasonLines.push('결함이 많아 신뢰도 보정 적용');
+  }
+  
+  // Join reason lines (max 3 lines)
+  const reasonText = reasonLines.slice(0, 3).join('\n');
   
   // ✅ [Phase 114] Generate concise summary line for external sharing
   let summaryLine = '';
