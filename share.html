@@ -2346,7 +2346,16 @@
         
         function attemptScroll(retryCount = 0) {
           try {
-            const el = document.querySelector(selector);
+            let el = document.querySelector(selector);
+            
+            // ✅ [Phase 120-reliability-fix] #reliability-reasons-anchor 폴백 로직
+            if (!el && selector === '#reliability-reasons-anchor') {
+              // 우선순위: #reliability-reasons-anchor → #anchor-reliability-reasons → #anchor-reliability
+              el = document.getElementById('reliability-reasons-anchor') ||
+                   document.getElementById('anchor-reliability-reasons') ||
+                   document.getElementById('anchor-reliability');
+            }
+            
             if (!el) {
               // 요소가 없으면 재시도 (최대 2회)
               if (retryCount < 2) {
@@ -5193,11 +5202,31 @@
         let scoreCriteriaToggle = '';
         let trustStatements = '';
         let marketContext = '';
+        let reliabilityReasonsSection = '';
         
         if (viewState === 'OK') {
           // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
+          // ✅ [Phase 120-reliability] Reliability Reasons 섹션 생성
+          try {
+            if (reliabilityResultV2 && reliabilityResultV2.reasonText) {
+              // reasonText는 newline으로 구분된 문자열 (Phase 116)
+              const reasonLines = reliabilityResultV2.reasonText.split('\n').filter(line => line.trim().length > 0);
+              if (reasonLines.length > 0) {
+                reliabilityReasonsSection = `
+                  <div class="content-section" style="margin-top: 20px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+                    <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: #333;">신뢰도 판단 근거</h3>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #555; line-height: 1.6;">
+                      ${reasonLines.map(line => `<li style="margin-bottom: 6px;">${esc(line.trim())}</li>`).join('')}
+                    </ul>
+                  </div>
+                `;
+              }
+            }
+          } catch (e) {
+            // Reliability Reasons 생성 실패 시 무시
+          }
           
           kpiBars = `
             <div class="kpi-bars" id="anchor-reliability">
@@ -5210,6 +5239,8 @@
   신뢰도는 측정 완료 항목 수 기준입니다.
 </div>
             <div id="reliability-badge-slot"></div>
+            <div id="anchor-reliability-reasons" style="height:0;"></div>
+            <div id="reliability-reasons-anchor" style="height:0;"></div>
             <div id="anchor-why"></div>
             <div id="why-panel" class="why-panel" data-why="fallback"></div>
             <div class="why-panel" data-why="ok" style="display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
@@ -5449,7 +5480,7 @@
         renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
         // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
-        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
+        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + reliabilityReasonsSection + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         updateShareCtaSlot(viewState);
         
         // ✅ [Phase 119] Action Line을 고정 앵커 기준으로 삽입 (재렌더 안정화, DOM 기반)
@@ -5625,6 +5656,20 @@
                         if (anchorWhy) {
                           targetEl = anchorWhy;
                           selectorFound = 'anchor-why (IMPROVEMENTS fallback)';
+                        }
+                      }
+                    } else if (firstSource.from === 'reliability') {
+                      // ✅ [Phase 120-reliability] Reliability Reasons 섹션으로 스크롤
+                      const anchorReliabilityReasons = document.getElementById('anchor-reliability-reasons');
+                      if (anchorReliabilityReasons) {
+                        targetEl = anchorReliabilityReasons;
+                        selectorFound = 'anchor-reliability-reasons';
+                      } else {
+                        // anchor-reliability-reasons가 없으면 anchor-reliability로 폴백
+                        const anchorReliability = document.getElementById('anchor-reliability');
+                        if (anchorReliability) {
+                          targetEl = anchorReliability;
+                          selectorFound = 'anchor-reliability (fallback)';
                         }
                       }
                     }
