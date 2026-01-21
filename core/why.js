@@ -203,6 +203,74 @@ function isReportLoadFailed(reportModel) {
 }
 
 /**
+ * ✅ [Phase 112] Evidence impact scoring helper (heuristic-based, text-only)
+ * Assigns impact score (0-100) to evidence strings based on severity keywords
+ * @param {string} evidenceText - Evidence string from contentStructureV2
+ * @returns {number} Impact score (0-100, higher = more severe)
+ */
+function scoreEvidenceImpact(evidenceText) {
+  if (!evidenceText || typeof evidenceText !== 'string') return 30; // 기본값 30
+  
+  const text = evidenceText.toLowerCase();
+  let impact = 30; // 기본값 30
+  
+  // Very high impact: "부재" / "없음" / "문단 없음" / "리스트 부재" / "0개" => 90~100
+  if (text.includes('부재') || text.includes('없음') || text.includes('문단 없음') || text.includes('리스트 부재') || text.match(/0개/)) {
+    impact = 95; // 기본 90~100 범위의 중간값
+    
+    // "문단 없음" / "리스트 부재" -> high (90~100)
+    if (text.includes('문단 없음') || text.includes('리스트 부재')) {
+      impact = 95;
+    }
+  }
+  
+  // "충족률 XX%" 처리
+  if (text.includes('충족률')) {
+    const ratioMatch = text.match(/충족률\s*(\d+)%/);
+    if (ratioMatch) {
+      const ratio = parseInt(ratioMatch[1], 10);
+      if (ratio >= 0 && ratio <= 49) {
+        impact = 90; // 80~95 범위의 중간값
+      } else if (ratio >= 50 && ratio <= 79) {
+        impact = 65; // 50~79 범위의 중간값
+      } else {
+        impact = 25; // >=80 => 10~40 범위의 중간값
+      }
+    }
+  }
+  
+  // "H1" 관련 결함 => +20 가산 (최대 100)
+  if (text.includes('h1')) {
+    impact = Math.min(100, impact + 20);
+  }
+  
+  return Math.max(0, Math.min(100, impact));
+}
+
+/**
+ * ✅ [Phase 112] Rank contentStructureV2 evidence by impact and return top N
+ * @param {string[]} evidenceArray - Evidence strings from contentStructureV2
+ * @param {number} topN - Number of top items to return (default 3)
+ * @returns {Array<{text: string, impact: number}>} Top N evidence items sorted by impact descending
+ */
+function getTopImpactEvidence(evidenceArray, topN = 3) {
+  if (!Array.isArray(evidenceArray) || evidenceArray.length === 0) {
+    return [];
+  }
+  
+  // Compute impact for each evidence string
+  const withImpact = evidenceArray.map(text => ({
+    text: String(text),
+    impact: scoreEvidenceImpact(text)
+  }));
+  
+  // Sort by impact descending, then take top N
+  return withImpact
+    .sort((a, b) => b.impact - a.impact)
+    .slice(0, topN);
+}
+
+/**
  * ✅ [Phase 13-0B] WHY 패널 이유 생성 함수 (evidence-driven)
  * @param {Object} reportModel - 리포트 모델 객체
  * @returns {Object} { level: 'high'|'mid'|'low', reasons: Array<{ key, title, detail }> }
@@ -296,23 +364,51 @@ export function buildWhyReasons(reportModel) {
   }
 
   // ✅ [Phase 13-0E] (콘텐츠) 콘텐츠 구조 점수 미측정 또는 근거 부족
+  // ✅ [Phase 112] Prioritize top 3 highest-impact evidence items
   if (facts.missingSignals.includes('content')) {
-    let detail = '';
-    if (facts.contentStructureV2IsNull) {
-      detail = '콘텐츠 구조 점수 측정 필요';
-    } else if (facts.contentEvidenceCount === null) {
-      detail = '콘텐츠 구조 근거 확인 불가';
-    } else if (facts.contentEvidenceCount === 0) {
-      detail = '콘텐츠 구조 근거 0개';
-    } else {
-      detail = `콘텐츠 구조 근거 ${facts.contentEvidenceCount}개 부족`;
-    }
+    const scores = safeModel?.analysis?.scores || safeModel?.scores || {};
+    const contentEvidence = scores?.contentStructureV2?.evidence;
     
-    allReasons.push({
-      key: 'content',
-      title: '콘텐츠 구조',
-      detail: detail
-    });
+    // If we have evidence array, prioritize top 3 by impact
+    if (Array.isArray(contentEvidence) && contentEvidence.length > 0) {
+      const topEvidence = getTopImpactEvidence(contentEvidence, 3);
+      
+      // Create individual reasons for top 3 evidence items
+      topEvidence.forEach((item, index) => {
+        allReasons.push({
+          key: `content_evidence_${index}`,
+          title: '콘텐츠 구조',
+          detail: item.text
+        });
+      });
+      
+      // If there are more than 3 evidence items, add a summary reason
+      if (contentEvidence.length > 3) {
+        allReasons.push({
+          key: 'content',
+          title: '콘텐츠 구조',
+          detail: `기타 구조 이슈 ${contentEvidence.length - 3}개`
+        });
+      }
+    } else {
+      // Fallback: no evidence array available, use generic reason
+      let detail = '';
+      if (facts.contentStructureV2IsNull) {
+        detail = '콘텐츠 구조 점수 측정 필요';
+      } else if (facts.contentEvidenceCount === null) {
+        detail = '콘텐츠 구조 근거 확인 불가';
+      } else if (facts.contentEvidenceCount === 0) {
+        detail = '콘텐츠 구조 근거 0개';
+      } else {
+        detail = `콘텐츠 구조 근거 ${facts.contentEvidenceCount}개 부족`;
+      }
+      
+      allReasons.push({
+        key: 'content',
+        title: '콘텐츠 구조',
+        detail: detail
+      });
+    }
   }
 
   // ✅ [Phase 13-0E] (URL) URL 측정 미실행 또는 연결 미확인
@@ -337,19 +433,24 @@ export function buildWhyReasons(reportModel) {
     });
   }
 
-  // level별 노출 필터링 (최대 3개, 가장 blocking한 항목 우선)
+  // ✅ [Phase 112] level별 노출 필터링 (최대 3개, 가장 blocking한 항목 우선)
+  // Top 3 contentStructureV2 evidence items (content_evidence_*) are already prioritized first in allReasons
   let reasons = [];
   if (normalizedLevelValue === 'high') {
     // high면 reasons를 비우고, UI는 "현재 데이터는 충분합니다"만 표시
     reasons = [];
   } else if (normalizedLevelValue === 'mid') {
-    // mid면 reasons를 최대 2개로 제한(brand, content 우선)
-    reasons = allReasons
-      .filter(r => r.key === 'brand' || r.key === 'content')
-      .slice(0, 2);
+    // mid면 reasons를 최대 2개로 제한
+    // content_evidence_* items (top 3 prioritized) appear first, then brand/content
+    const evidenceReasons = allReasons.filter(r => r.key.startsWith('content_evidence_'));
+    const otherReasons = allReasons.filter(r => r.key === 'brand' || r.key === 'content');
+    reasons = [...evidenceReasons, ...otherReasons].slice(0, 2);
   } else {
-    // low면 reasons 최대 3개(brand/content/url, 우선순위 순서)
-    reasons = allReasons.slice(0, 3);
+    // low면 reasons 최대 3개
+    // Top 3 contentStructureV2 evidence items (content_evidence_*) appear first
+    const evidenceReasons = allReasons.filter(r => r.key.startsWith('content_evidence_'));
+    const otherReasons = allReasons.filter(r => r.key === 'brand' || r.key === 'content' || r.key === 'url');
+    reasons = [...evidenceReasons, ...otherReasons].slice(0, 3);
   }
 
   return {
