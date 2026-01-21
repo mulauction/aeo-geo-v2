@@ -2332,42 +2332,103 @@
       } catch (_) {}
     })();
     
-    // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
-    (function() {
-      if (window.__shareCtaCaptureBound) return;
+    // ✅ [Phase 120-scroll-unify] 단일 스크롤 유틸 함수 (오프셋 포함, 정확한 위치 보장)
+    // IIFE 밖에 선언하여 helper-link와 Action Line 핸들러 모두에서 접근 가능
+    const SCROLL_OFFSET = 16; // sticky header 보정 오프셋 (통일된 상수)
+    
+    function scrollToElWithOffset(el, { offset = SCROLL_OFFSET, behavior = 'smooth' } = {}) {
+      if (!el) return false;
       
-      // ✅ [Phase 120-scroll-unify] 단일 스크롤 유틸 함수 (오프셋 포함, 정확한 위치 보장)
-      const SCROLL_OFFSET = 16; // sticky header 보정 오프셋 (통일된 상수)
-      
-      function scrollToElWithOffset(el, { offset = SCROLL_OFFSET, behavior = 'smooth' } = {}) {
-        if (!el) return false;
+      try {
+        const rect = el.getBoundingClientRect();
+        const y = window.scrollY + rect.top - offset;
+        const finalY = Math.max(0, y);
         
+        window.scrollTo({ top: finalY, behavior });
+        
+        // debug=1에서만 로그 출력
+        const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+        if (isDebug) {
+          console.info('[scroll]', { id: el.id || null, y: finalY, offset });
+        }
+        
+        return true;
+      } catch (e) {
+        const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+        if (isDebug) {
+          console.warn('[scroll] error:', e);
+        }
+        return false;
+      }
+    }
+    
+    // ✅ [Action Cards] Document delegation 핸들러 (렌더 이전 바인딩 문제 해결, scrollToElWithOffset fallback)
+    (function() {
+      // Idempotent 가드
+      if (document.__actionCardsDelegatedBound) return;
+      document.__actionCardsDelegatedBound = true;
+      
+      function onActionCardClick(e) {
         try {
-          const rect = el.getBoundingClientRect();
-          const y = window.scrollY + rect.top - offset;
-          const finalY = Math.max(0, y);
+          // data-action-card 속성을 가진 가장 가까운 요소 찾기
+          const card = e.target.closest('[data-action-card]');
+          if (!card) return;
           
-          window.scrollTo({ top: finalY, behavior });
+          e.preventDefault();
+          e.stopPropagation();
           
-          // debug=1에서만 로그 출력
-          const isDebug = new URLSearchParams(location.search).get('debug') === '1';
-          if (isDebug) {
-            console.info('[scroll]', { id: el.id || null, y: finalY, offset });
+          const cardType = card.getAttribute('data-action-card'); // 'quick', 'next', 'advanced'
+          let targetId = null;
+          let targetEl = null;
+          
+          // 라우팅: QUICK ACTIONS -> #anchor-improvements, NEXT STEPS -> #anchor-why (fallback: #anchor-improvements), ADVANCED -> #anchor-improvements
+          if (cardType === 'quick' || cardType === 'advanced') {
+            targetId = 'anchor-improvements';
+            targetEl = document.getElementById(targetId);
+          } else if (cardType === 'next') {
+            // NEXT STEPS: #anchor-why 우선, 없으면 #anchor-improvements
+            targetEl = document.getElementById('anchor-why');
+            if (targetEl) {
+              targetId = 'anchor-why';
+            } else {
+              targetId = 'anchor-improvements';
+              targetEl = document.getElementById(targetId);
+            }
           }
           
-          return true;
-        } catch (e) {
-          const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+          const urlParams = new URLSearchParams(location.search || '');
+          const isDebug = urlParams.get('debug') === '1';
+          
           if (isDebug) {
-            console.warn('[scroll] error:', e);
+            console.info('[action-cards] intercepted', { cardType, targetId, found: !!targetEl });
           }
-          return false;
+          
+          if (targetEl) {
+            // scrollToElWithOffset이 있으면 사용, 없으면 scrollIntoView fallback
+            if (typeof scrollToElWithOffset === 'function') {
+              const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              const scrollBehavior = reduce ? 'auto' : 'smooth';
+              scrollToElWithOffset(targetEl, { offset: SCROLL_OFFSET, behavior: scrollBehavior });
+            } else {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }
+        } catch (err) {
+          // 스크롤 실패 시 무시
+          const urlParams = new URLSearchParams(location.search || '');
+          if (urlParams.get('debug') === '1') {
+            console.warn('[action-cards] scroll error:', err);
+          }
         }
       }
       
-      // ✅ [Phase 120-scroll-unify] Action Line 핸들러에서도 사용 가능하도록 전역 노출
-      window.__scrollToElWithOffset = scrollToElWithOffset;
-      window.__SCROLL_OFFSET = SCROLL_OFFSET;
+      // 캡처 단계에서 바인딩 (true)
+      document.addEventListener('click', onActionCardClick, true);
+    })();
+    
+    // ✅ [Phase 20-A1] CTA 스크롤 핸들러 - 모듈 로드 시 한 번만 바인딩 (re-init 생존)
+    (function() {
+      if (window.__shareCtaCaptureBound) return;
       
       // scrollToTarget: 타겟 요소로 스크롤 (고정 종착점 보장, 절대 위치 기반)
       function scrollToTarget(selector) {
@@ -5339,19 +5400,19 @@
           
           const actionCards = `
             <div class="action-grid">
-              <div class="action-card quick" role="button" tabindex="0" onclick="location.href='analyze.html#quick'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='analyze.html#quick';}">
+              <div class="action-card quick" role="button" tabindex="0" data-action-card="quick">
                 <div class="action-card-title">Quick Actions</div>
                 <ul class="action-card-list">
                   ${quickActions.length > 0 ? quickActions.map(a => `<li>${esc(a)}</li>`).join("") : '<li>없음</li>'}
                 </ul>
               </div>
-              <div class="action-card next" role="button" tabindex="0" onclick="location.href='analyze.html#next'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='analyze.html#next';}">
+              <div class="action-card next" role="button" tabindex="0" data-action-card="next">
                 <div class="action-card-title">Next Steps</div>
                 <ul class="action-card-list">
                   ${nextActions.length > 0 ? nextActions.map(a => `<li>${esc(a)}</li>`).join("") : '<li>없음</li>'}
                 </ul>
               </div>
-              <div class="action-card advanced" role="button" tabindex="0" onclick="location.href='analyze.html#advanced'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='analyze.html#advanced';}">
+              <div class="action-card advanced" role="button" tabindex="0" data-action-card="advanced">
                 <div class="action-card-title">Advanced</div>
                 <ul class="action-card-list">
                   ${advancedActions.length > 0 ? advancedActions.map(a => `<li>${esc(a)}</li>`).join("") : '<li>없음</li>'}
@@ -5729,17 +5790,7 @@
                   if (targetEl) {
                     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                     const scrollBehavior = reduce ? 'auto' : 'smooth';
-                    const scrollOffset = window.__SCROLL_OFFSET || 16; // 폴백값
-                    const scrollUtil = window.__scrollToElWithOffset;
-                    
-                    if (scrollUtil && typeof scrollUtil === 'function') {
-                      scrollUtil(targetEl, { offset: scrollOffset, behavior: scrollBehavior });
-                    } else {
-                      // 폴백: 직접 스크롤
-                      const rect = targetEl.getBoundingClientRect();
-                      const y = window.scrollY + rect.top - scrollOffset;
-                      window.scrollTo({ top: Math.max(0, y), behavior: scrollBehavior });
-                    }
+                    scrollToElWithOffset(targetEl, { offset: SCROLL_OFFSET, behavior: scrollBehavior });
                     
                     // debug=1에서만 로그 출력
                     if (isDebug) {
@@ -5748,7 +5799,7 @@
                         index: firstSource ? firstSource.index : null,
                         selectorFound: selectorFound,
                         targetId: targetEl ? targetEl.id || 'no-id' : null,
-                        offset: scrollOffset
+                        offset: SCROLL_OFFSET
                       });
                     }
                   }
@@ -5813,6 +5864,8 @@
             }
           }
         }
+
+        // ✅ [Action Cards] 클릭 핸들러는 document delegation으로 처리 (렌더 이전 바인딩 문제 해결)
 
         // ✅ [Phase 31-2][telemetry] exit (OK render complete)
         if (viewState === 'OK') {
