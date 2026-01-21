@@ -26,11 +26,15 @@ export function renderReliabilityBlock(reportModel, options = {}) {
   const reliability = computeReliabilityV2(reportModel);
   
   // 신뢰도 배지 HTML 생성
+  const summaryLineHtml = reliability.summaryLine 
+    ? `<div class="reliability-summary" style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 6px;">${esc(reliability.summaryLine)}</div>`
+    : '';
   const reliabilityBadge = `
     <div class="reliability-container">
       <div class="reliability-badge" title="측정 필요 항목이 많을수록 신뢰도는 낮게 표시됩니다.">
         신뢰도: ${esc(reliability.level)}
       </div>
+      ${summaryLineHtml}
       <div class="reliability-reason">${reliability.reasonText}</div>
     </div>
   `;
