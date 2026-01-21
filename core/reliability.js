@@ -85,6 +85,33 @@ export function computeReliabilityV2(reportModel, opts = {}) {
     Array.isArray(contentStructureV2Score.evidence) && 
     contentStructureV2Score.evidence.length > 0;
   
+  // ✅ [Phase 114] Evidence-based completeness signals
+  const contentEvidenceCount = hasEvidence ? contentStructureV2Score.evidence.length : 0;
+  let severeEvidenceCount = 0;
+  
+  if (hasEvidence && Array.isArray(contentStructureV2Score.evidence)) {
+    severeEvidenceCount = contentStructureV2Score.evidence.filter(evidenceText => {
+      if (!evidenceText || typeof evidenceText !== 'string') return false;
+      const text = evidenceText.toLowerCase();
+      
+      // Check for "부재" / "없음" / "0개"
+      if (text.includes('부재') || text.includes('없음') || text.match(/0개/)) {
+        return true;
+      }
+      
+      // Check for 충족률 <= 49%
+      const ratioMatch = text.match(/충족률\s*(\d+)%/);
+      if (ratioMatch) {
+        const ratio = parseInt(ratioMatch[1], 10);
+        if (ratio >= 0 && ratio <= 49) {
+          return true;
+        }
+      }
+      
+      return false;
+    }).length;
+  }
+  
   const isDummyState = !hasEvidence && 
     !isMeasured(brandingScore) && 
     !isMeasured(contentStructureV2Score) && 
@@ -128,9 +155,40 @@ export function computeReliabilityV2(reportModel, opts = {}) {
     reliabilityLevel = '높음';
   }
   
+  // ✅ [Phase 114] Apply evidence-based penalty to reliability level
+  let evidencePenalty = 0;
+  if (severeEvidenceCount > 0) {
+    if (severeEvidenceCount >= 6 && contentEvidenceCount >= 10) {
+      evidencePenalty = 2; // 2 levels down
+    } else if (severeEvidenceCount >= 3 && contentEvidenceCount >= 6) {
+      evidencePenalty = 1; // 1 level down
+    }
+  }
+  
+  // Apply penalty (deterministic, safe)
+  if (evidencePenalty > 0) {
+    const levelMap = { '높음': 2, '보통': 1, '낮음': 0 };
+    const currentLevelValue = levelMap[reliabilityLevel] || 0;
+    const newLevelValue = Math.max(0, currentLevelValue - evidencePenalty);
+    const reverseMap = { 2: '높음', 1: '보통', 0: '낮음' };
+    reliabilityLevel = reverseMap[newLevelValue] || reliabilityLevel;
+  }
+  
   // ✅ [Phase 8-2B] Reason line 생성 ("BRAND 미측정 · CONTENT 측정됨 · URL 측정됨" 형태)
   // ✅ [Phase 8-3A-1] reason 문구 명확화: "3개 항목 모두 측정 + 최소 기준 충족 시에만 '높음' 가능"
+  // ✅ [Phase 114] Add quantitative evidence-based reasons
   let reasonText = `BRAND ${brandStatus} · CONTENT ${contentStatus} · URL ${urlStatus}`;
+  
+  // Add evidence count (always if available)
+  if (contentEvidenceCount > 0) {
+    reasonText += ` · 콘텐츠 근거: ${contentEvidenceCount}개`;
+  }
+  
+  // Add severe evidence count (only if > 0)
+  if (severeEvidenceCount > 0) {
+    reasonText += ` · 치명 결함: ${severeEvidenceCount}개`;
+  }
+  
   if (reliabilityLevel === '높음') {
     // '높음'인 경우: 3개 항목 모두 측정 + 최소 기준 충족
     reasonText += ' · 3개 항목 모두 측정 + 최소 기준 충족';
