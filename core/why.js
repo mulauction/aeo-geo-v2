@@ -551,13 +551,13 @@ export function buildWhyActionLine(whyResult, reportModel) {
 }
 
 /**
- * ✅ [Phase 117] Share 화면 상단 Action Line 생성 함수
+ * ✅ [Phase 118] Share 화면 상단 Action Line 생성 함수 (V2: 출처 추적 포함)
  * WHY Top3 + Improvements Top3 + Reliability summaryLine을 종합해 단일 Action 문장 생성
  * @param {Object} reportModel - 리포트 모델 객체
  * @param {string} viewState - Share view state ('OK' | 'EXPIRED' | 'NO_REPORT' | etc.)
- * @returns {string|null} Action line 문구 (최대 80자, 2~3개 조치를 "→"로 연결) 또는 null
+ * @returns {{ text: string, sources: Array<{ text: string, from: 'WHY'|'IMPROVEMENTS', index: number }> } | null}
  */
-export function buildShareActionLine(reportModel, viewState = 'OK') {
+export function buildShareActionLineV2(reportModel, viewState = 'OK') {
   try {
     // OK 상태에서만 생성
     if (viewState !== 'OK') {
@@ -619,57 +619,58 @@ export function buildShareActionLine(reportModel, viewState = 'OK') {
       // Reliability 추출 실패 시 무시
     }
 
-    // 4) Action 후보 수집 및 중복 제거
+    // 4) Action 후보 수집 및 출처 추적
     const actionCandidates = [];
+    const actionSources = []; // { text, from, index } 배열
     
-    // WHY Top3에서 최대 2개 추출
-    whyTop3.slice(0, 2).forEach(detail => {
+    // WHY Top3에서 최대 2개 추출 (출처 추적)
+    whyTop3.slice(0, 2).forEach((detail, idx) => {
       const detailLower = detail.toLowerCase();
+      let actionText = null;
+      
       // 간단한 액션 추출
       if (detailLower.includes('h1') && (detailLower.includes('부재') || detailLower.includes('없음') || detailLower.match(/0개/))) {
-        if (!actionCandidates.includes('H1 제목 추가')) {
-          actionCandidates.push('H1 제목 추가');
-        }
+        actionText = 'H1 제목 추가';
       } else if (detailLower.includes('리스트') && (detailLower.includes('부재') || detailLower.includes('없음'))) {
-        if (!actionCandidates.includes('리스트 구조 추가')) {
-          actionCandidates.push('리스트 구조 추가');
-        }
+        actionText = '리스트 구조 추가';
       } else if (detailLower.includes('문단') && (detailLower.includes('부재') || detailLower.includes('없음'))) {
-        if (!actionCandidates.includes('요약 문단 추가')) {
-          actionCandidates.push('요약 문단 추가');
-        }
+        actionText = '요약 문단 추가';
       } else if (detailLower.includes('brand') && detailLower.includes('미측정')) {
-        if (!actionCandidates.includes('브랜드 정보 추가')) {
-          actionCandidates.push('브랜드 정보 추가');
-        }
+        actionText = '브랜드 정보 추가';
       } else if (detailLower.includes('url') && detailLower.includes('미측정')) {
-        if (!actionCandidates.includes('URL 구조 측정')) {
-          actionCandidates.push('URL 구조 측정');
-        }
+        actionText = 'URL 구조 측정';
+      }
+      
+      if (actionText && !actionCandidates.includes(actionText)) {
+        actionCandidates.push(actionText);
+        actionSources.push({ text: actionText, from: 'WHY', index: idx + 1 });
       }
     });
 
-    // Improvements Top3 추가 (중복 제거)
-    improvementsTop3.forEach(item => {
+    // Improvements Top3 추가 (중복 제거, 출처 추적)
+    improvementsTop3.forEach((item, idx) => {
       if (!actionCandidates.includes(item)) {
         actionCandidates.push(item);
+        actionSources.push({ text: item, from: 'IMPROVEMENTS', index: idx + 1 });
       }
     });
 
-    // Reliability summaryLine에서 액션 힌트 추출 (선택적)
+    // Reliability summaryLine에서 액션 힌트 추출 (선택적, 출처 없음)
     if (reliabilitySummaryLine && actionCandidates.length < 3) {
       if (reliabilitySummaryLine.includes('결함') && !actionCandidates.some(a => a.includes('구조'))) {
         actionCandidates.push('콘텐츠 구조 개선');
+        // Reliability는 출처로 표시하지 않음 (WHY/IMPROVEMENTS만)
       }
     }
 
     // 5) 최종 Action Line 생성 (2~3개, "→"로 연결, 최대 80자)
     if (actionCandidates.length === 0) {
-      return '우선 측정을 완료한 뒤 개선 항목을 확인하세요';
+      return { text: '우선 측정을 완료한 뒤 개선 항목을 확인하세요', sources: [] };
     }
 
     // 2~3개로 제한
-    const finalActions = actionCandidates.slice(0, 3);
+    let finalActions = actionCandidates.slice(0, 3);
+    let finalSources = actionSources.slice(0, 3);
     let actionLine = finalActions.join(' → ');
 
     // 길이 제한 (80자 초과 시 3개→2개로 축소)
@@ -677,19 +678,41 @@ export function buildShareActionLine(reportModel, viewState = 'OK') {
       const shortened = finalActions.slice(0, 2).join(' → ');
       if (shortened.length <= 80) {
         actionLine = shortened;
+        finalActions = finalActions.slice(0, 2);
+        finalSources = finalSources.slice(0, 2);
       } else {
         // 여전히 길면 첫 번째만 사용
         actionLine = finalActions[0];
+        finalActions = finalActions.slice(0, 1);
+        finalSources = finalSources.slice(0, 1);
         if (actionLine.length > 80) {
           actionLine = actionLine.substring(0, 77) + '...';
         }
       }
     }
 
-    return actionLine.length > 0 ? actionLine : null;
+    // finalActions와 finalSources의 순서 일치 확인
+    const matchedSources = finalActions.map(action => 
+      finalSources.find(s => s.text === action) || { text: action, from: null, index: 0 }
+    ).filter(s => s.from !== null);
+
+    return actionLine.length > 0 ? { text: actionLine, sources: matchedSources } : null;
   } catch (e) {
     // 예외 발생 시 null 반환 (기존 UI 영향 없음)
     return null;
   }
+}
+
+/**
+ * ✅ [Phase 117] Share 화면 상단 Action Line 생성 함수 (기존 호환성 유지)
+ * WHY Top3 + Improvements Top3 + Reliability summaryLine을 종합해 단일 Action 문장 생성
+ * @param {Object} reportModel - 리포트 모델 객체
+ * @param {string} viewState - Share view state ('OK' | 'EXPIRED' | 'NO_REPORT' | etc.)
+ * @returns {string|null} Action line 문구 (최대 80자, 2~3개 조치를 "→"로 연결) 또는 null
+ */
+export function buildShareActionLine(reportModel, viewState = 'OK') {
+  // ✅ [Phase 118] V2를 호출하여 text만 반환 (기존 호환성 유지)
+  const v2Result = buildShareActionLineV2(reportModel, viewState);
+  return v2Result ? v2Result.text : null;
 }
 

@@ -2143,7 +2143,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
-    import { buildShareActionLine } from './core/why.js';
+    import { buildShareActionLine, buildShareActionLineV2 } from './core/why.js';
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
@@ -5198,18 +5198,49 @@
           // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
-          // ✅ [Phase 117] Action Line 생성
+          // ✅ [Phase 117/118] Action Line 생성 (V2: 출처 추적 포함)
           let actionLineHtml = '';
           try {
-            const actionLine = buildShareActionLine(reportModel, viewState);
-            if (actionLine) {
-              // HTML 이스케이프 (esc 함수는 아래에 정의됨)
-              const escapedActionLine = String(actionLine)
+            const actionLineResult = buildShareActionLineV2(reportModel, viewState);
+            if (actionLineResult && actionLineResult.text) {
+              // HTML 이스케이프
+              const escapedActionLine = String(actionLineResult.text)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
+              
+              // ✅ [Phase 118] 출처 문자열 생성 (툴팁용)
+              let sourceTooltip = '';
+              if (actionLineResult.sources && actionLineResult.sources.length > 0) {
+                const sourceParts = actionLineResult.sources.map(s => {
+                  const fromLabel = s.from === 'WHY' ? 'WHY' : 'IMPROVEMENTS';
+                  return `${fromLabel}#${s.index}`;
+                });
+                sourceTooltip = `근거: ${sourceParts.join(', ')}`;
+                
+                // 길이 초과 시 축약
+                if (sourceTooltip.length > 60) {
+                  const whyCount = actionLineResult.sources.filter(s => s.from === 'WHY').length;
+                  const impCount = actionLineResult.sources.filter(s => s.from === 'IMPROVEMENTS').length;
+                  if (whyCount > 0 && impCount > 0) {
+                    sourceTooltip = `근거: WHY#${actionLineResult.sources.find(s => s.from === 'WHY')?.index || 1} 외 ${actionLineResult.sources.length - 1}건`;
+                  } else if (whyCount > 0) {
+                    sourceTooltip = `근거: WHY#${actionLineResult.sources[0].index} 외 ${whyCount - 1}건`;
+                  } else {
+                    sourceTooltip = `근거: IMP#${actionLineResult.sources[0].index} 외 ${impCount - 1}건`;
+                  }
+                }
+              }
+              
+              // debug=1에서만 콘솔 출력 (선택)
+              const urlParams = new URLSearchParams(window.location.search || '');
+              const isDebug = urlParams.get('debug') === '1';
+              if (isDebug && actionLineResult.sources && actionLineResult.sources.length > 0) {
+                console.info('[ActionLine] sources:', actionLineResult.sources);
+              }
+              
               actionLineHtml = `
-                <div id="share-action-line" style="margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5;">
+                <div id="share-action-line" ${sourceTooltip ? `title="${sourceTooltip.replace(/"/g, '&quot;')}"` : ''} style="margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5; cursor: ${sourceTooltip ? 'help' : 'default'};">
                   <strong style="color: #0066cc;">다음 조치:</strong> ${escapedActionLine}
                 </div>
               `;
