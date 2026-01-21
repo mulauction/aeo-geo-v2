@@ -5302,7 +5302,9 @@
           `;
           
           // ✅ [Phase 9-1 Fix] 액션 카드 섹션을 KPI 바로 아래로 이동
+          // ✅ [Phase 120-fix] Improvements 섹션 고정 앵커 추가
           actionCardsSection = `
+            <div id="anchor-improvements" style="height:0;"></div>
             <div class="content-section">
               <h3>액션</h3>
               ${actionCards}
@@ -5535,9 +5537,152 @@
             actionLineEl.style.cssText = 'margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5;';
             if (sourceTooltip) {
               actionLineEl.title = sourceTooltip;
-              actionLineEl.style.cursor = 'help';
             }
+            // ✅ [Phase 120] 클릭 가능하도록 스타일 및 접근성 속성 추가
+            actionLineEl.style.cursor = 'pointer';
+            actionLineEl.setAttribute('role', 'button');
+            actionLineEl.tabIndex = 0;
             actionLineEl.innerHTML = `${prefixHtml} ${actionTextHtml}`;
+            
+            // ✅ [Phase 120] 클릭 핸들러 바인딩 (중복 방지)
+            if (!actionLineEl.dataset.bound) {
+              actionLineEl.dataset.bound = '1';
+              
+              // 클릭 핸들러
+              actionLineEl.addEventListener('click', (e) => {
+                try {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // sources[0] (첫 번째 근거)로 점프
+                  const firstSource = actionLineResult.sources && actionLineResult.sources.length > 0 
+                    ? actionLineResult.sources[0] 
+                    : null;
+                  
+                  let targetEl = null;
+                  let selectorFound = null;
+                  
+                  if (firstSource) {
+                    if (firstSource.from === 'WHY') {
+                      // WHY 패널의 특정 아이템 찾기
+                      const whyPanel = document.querySelector('.why-panel[data-why="ok"]');
+                      if (whyPanel) {
+                        const whyList = whyPanel.querySelector('ul');
+                        if (whyList) {
+                          // index는 1-based이므로 nth-child 사용
+                          const whyItem = whyList.querySelector(`li:nth-child(${firstSource.index})`);
+                          if (whyItem) {
+                            targetEl = whyItem;
+                            selectorFound = `WHY li:nth-child(${firstSource.index})`;
+                          } else {
+                            // 특정 아이템을 못 찾으면 WHY 패널 컨테이너로 폴백
+                            targetEl = whyPanel;
+                            selectorFound = 'WHY panel (fallback)';
+                          }
+                        } else {
+                          targetEl = whyPanel;
+                          selectorFound = 'WHY panel (no list)';
+                        }
+                      } else {
+                        // WHY 패널이 없으면 anchor-why로 폴백
+                        targetEl = document.getElementById('anchor-why');
+                        selectorFound = 'anchor-why (fallback)';
+                      }
+                    } else if (firstSource.from === 'IMPROVEMENTS') {
+                      // ✅ [Phase 120-fix] Improvements 섹션 고정 앵커 기반 스크롤
+                      const anchorImprovements = document.getElementById('anchor-improvements');
+                      if (anchorImprovements) {
+                        // index가 있으면 Improvements 리스트에서 nth-child 찾기 시도
+                        if (firstSource.index) {
+                          // Improvements 리스트 컨테이너 찾기 (actionCardsSection 내부)
+                          const improvementsSection = anchorImprovements.nextElementSibling;
+                          if (improvementsSection) {
+                            const improvementsList = improvementsSection.querySelector('ul, ol');
+                            if (improvementsList) {
+                              const improvementsItem = improvementsList.querySelector(`li:nth-child(${firstSource.index})`);
+                              if (improvementsItem) {
+                                targetEl = improvementsItem;
+                                selectorFound = `IMPROVEMENTS li:nth-child(${firstSource.index})`;
+                              } else {
+                                targetEl = anchorImprovements;
+                                selectorFound = 'anchor-improvements (no item)';
+                              }
+                            } else {
+                              targetEl = anchorImprovements;
+                              selectorFound = 'anchor-improvements (no list)';
+                            }
+                          } else {
+                            targetEl = anchorImprovements;
+                            selectorFound = 'anchor-improvements (no section)';
+                          }
+                        } else {
+                          targetEl = anchorImprovements;
+                          selectorFound = 'anchor-improvements';
+                        }
+                      } else {
+                        // anchor-improvements가 없으면 anchor-why로 폴백
+                        const anchorWhy = document.getElementById('anchor-why');
+                        if (anchorWhy) {
+                          targetEl = anchorWhy;
+                          selectorFound = 'anchor-why (IMPROVEMENTS fallback)';
+                        }
+                      }
+                    }
+                  }
+                  
+                  // sources[0]이 없으면 WHY 패널 컨테이너로 폴백, 그것도 없으면 anchor-improvements
+                  if (!targetEl) {
+                    const whyPanel = document.querySelector('.why-panel[data-why="ok"]');
+                    if (whyPanel) {
+                      targetEl = whyPanel;
+                      selectorFound = 'WHY panel (no source)';
+                    } else {
+                      const anchorWhy = document.getElementById('anchor-why');
+                      if (anchorWhy) {
+                        targetEl = anchorWhy;
+                        selectorFound = 'anchor-why (fallback)';
+                      } else {
+                        // ✅ [Phase 120-fix] 최종 폴백: anchor-improvements
+                        const anchorImprovements = document.getElementById('anchor-improvements');
+                        if (anchorImprovements) {
+                          targetEl = anchorImprovements;
+                          selectorFound = 'anchor-improvements (final fallback)';
+                        }
+                      }
+                    }
+                  }
+                  
+                  // 스크롤 이동
+                  if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    
+                    // debug=1에서만 로그 출력
+                    if (isDebug) {
+                      console.info('[ActionLine] scroll to:', {
+                        from: firstSource ? firstSource.from : null,
+                        index: firstSource ? firstSource.index : null,
+                        selectorFound: selectorFound,
+                        targetId: targetEl ? targetEl.id || 'no-id' : null
+                      });
+                    }
+                  }
+                } catch (scrollErr) {
+                  // 스크롤 실패 시 무시
+                  if (isDebug) {
+                    console.warn('[ActionLine] scroll error:', scrollErr);
+                  }
+                }
+              });
+              
+              // Enter/Space 키 지원
+              actionLineEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  actionLineEl.click();
+                }
+              });
+            }
             
             // 안정적인 앵커 찾기 (우선순위 순)
             let anchor = null;
