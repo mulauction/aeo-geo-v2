@@ -144,6 +144,19 @@ if ! rg -n "이 상태에서는 최근 리포트를 열거나 다시 분석할 �
 fi
 echo "OK: phase79 next-action guide guard"
 
+echo "== smoke: share action-card anchor uniqueness guard =="
+anchor_generate_count="$(rg -n 'id="anchor-generate"' share.html | wc -l | tr -d ' ')"
+anchor_why_panel_count="$(rg -n 'id="anchor-why-panel"' share.html | wc -l | tr -d ' ')"
+if [ "${anchor_generate_count}" != "1" ]; then
+  echo "FAIL: anchor-generate id count=${anchor_generate_count} (expected 1)"
+  exit 1
+fi
+if [ "${anchor_why_panel_count}" != "1" ]; then
+  echo "FAIL: anchor-why-panel id count=${anchor_why_panel_count} (expected 1)"
+  exit 1
+fi
+echo "OK: share action-card anchor uniqueness guard"
+
 echo "OK: smoke passed"
 
 
