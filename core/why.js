@@ -3,7 +3,6 @@
  * 읽기 전용 계산만 수행 (저장/부작용 없음)
  */
 
-import { computeReliabilityV2 } from './reliability.js';
 
 /**
  * ✅ [Phase 13-0A] WHY 패널 observable facts 추출 함수 (내부 헬퍼)
@@ -551,13 +550,31 @@ export function buildWhyActionLine(whyResult, reportModel) {
 }
 
 /**
- * ✅ [Phase 118] Share 화면 상단 Action Line 생성 함수 (V2: 출처 추적 포함)
+ * ✅ [Phase 118/119] Share 화면 상단 Action Line 생성 함수 (V2: 출처 추적 포함)
  * WHY Top3 + Improvements Top3 + Reliability summaryLine을 종합해 단일 Action 문장 생성
- * @param {Object} reportModel - 리포트 모델 객체
- * @param {string} viewState - Share view state ('OK' | 'EXPIRED' | 'NO_REPORT' | etc.)
- * @returns {{ text: string, sources: Array<{ text: string, from: 'WHY'|'IMPROVEMENTS', index: number }> } | null}
+ * @param {Object} options - 옵션 객체
+ * @param {Object} options.reportModel - 리포트 모델 객체
+ * @param {string} options.viewState - Share view state ('OK' | 'EXPIRED' | 'NO_REPORT' | etc.)
+ * @param {string} [options.reliabilityLevel] - Reliability level ('높음' | '보통' | '낮음' 또는 'high' | 'medium' | 'low')
+ * @param {string} [options.reliabilityLabel] - Reliability label (reliabilityLevel이 없을 때 사용)
+ * @returns {{ text: string, sources: Array<{ text: string, from: 'WHY'|'IMPROVEMENTS', index: number }>, prefix: string } | null}
  */
-export function buildShareActionLineV2(reportModel, viewState = 'OK') {
+export function buildShareActionLineV2(options) {
+  // Backward compatibility: 첫 번째 인자가 객체가 아니면 기존 시그니처로 처리
+  let reportModel, viewState, reliabilityLevel, reliabilityLabel;
+  if (typeof options === 'object' && options !== null && !options.analysis) {
+    // 새 시그니처: { reportModel, viewState, reliabilityLevel, reliabilityLabel }
+    reportModel = options.reportModel;
+    viewState = options.viewState || 'OK';
+    reliabilityLevel = options.reliabilityLevel;
+    reliabilityLabel = options.reliabilityLabel;
+  } else {
+    // 기존 시그니처: (reportModel, viewState)
+    reportModel = options;
+    viewState = arguments[1] || 'OK';
+    reliabilityLevel = null;
+    reliabilityLabel = null;
+  }
   try {
     // OK 상태에서만 생성
     if (viewState !== 'OK') {
@@ -610,13 +627,17 @@ export function buildShareActionLineV2(reportModel, viewState = 'OK') {
       // Improvements 추출 실패 시 무시
     }
 
-    // 3) Reliability summaryLine 추출
-    let reliabilitySummaryLine = '';
-    try {
-      const reliability = computeReliabilityV2(reportModel);
-      reliabilitySummaryLine = reliability.summaryLine || '';
-    } catch (e) {
-      // Reliability 추출 실패 시 무시
+    // 3) Reliability 정보 추출 (입력으로 받은 값 사용)
+    // reliabilityLevel이 없으면 reliabilityLabel에서 추론
+    if (!reliabilityLevel && reliabilityLabel) {
+      const labelLower = String(reliabilityLabel).toLowerCase();
+      if (labelLower === '높음' || labelLower === 'high') {
+        reliabilityLevel = '높음';
+      } else if (labelLower === '보통' || labelLower === 'medium' || labelLower === 'mid') {
+        reliabilityLevel = '보통';
+      } else if (labelLower === '낮음' || labelLower === 'low') {
+        reliabilityLevel = '낮음';
+      }
     }
 
     // 4) Action 후보 수집 및 출처 추적
@@ -663,9 +684,36 @@ export function buildShareActionLineV2(reportModel, viewState = 'OK') {
       }
     }
 
+    // ✅ [Phase 119] Reliability 레벨에 따른 프리픽스 결정
+    let prefix = '다음 조치:'; // 기본값
+    if (reliabilityLevel) {
+      const levelLower = String(reliabilityLevel).toLowerCase();
+      if (levelLower === '높음' || levelLower === 'high') {
+        prefix = '권장 조치:';
+      } else if (levelLower === '보통' || levelLower === 'medium' || levelLower === 'mid') {
+        prefix = '우선 조치:';
+      } else if (levelLower === '낮음' || levelLower === 'low') {
+        prefix = '즉시 조치:';
+      }
+    }
+
     // 5) 최종 Action Line 생성 (2~3개, "→"로 연결, 최대 80자)
     if (actionCandidates.length === 0) {
-      return { text: '우선 측정을 완료한 뒤 개선 항목을 확인하세요', sources: [] };
+      // Fallback: 조치가 없을 때 레벨별 메시지
+      let fallbackText = '';
+      if (reliabilityLevel) {
+        const levelLower = String(reliabilityLevel).toLowerCase();
+        if (levelLower === '높음' || levelLower === 'high') {
+          fallbackText = '권장 조치: 개선 항목을 확인하세요';
+        } else if (levelLower === '보통' || levelLower === 'medium' || levelLower === 'mid') {
+          fallbackText = '권장 조치: 개선 항목을 확인하세요';
+        } else {
+          fallbackText = '즉시 조치: 측정/근거를 먼저 보강하세요';
+        }
+      } else {
+        fallbackText = '우선 측정을 완료한 뒤 개선 항목을 확인하세요';
+      }
+      return { text: fallbackText, sources: [], prefix: prefix };
     }
 
     // 2~3개로 제한
@@ -673,10 +721,13 @@ export function buildShareActionLineV2(reportModel, viewState = 'OK') {
     let finalSources = actionSources.slice(0, 3);
     let actionLine = finalActions.join(' → ');
 
-    // 길이 제한 (80자 초과 시 3개→2개로 축소)
-    if (actionLine.length > 80 && finalActions.length > 2) {
+    // 길이 제한 (80자 초과 시 3개→2개로 축소, prefix 길이 고려)
+    const prefixLength = prefix.length + 1; // prefix + 공백
+    const maxActionLength = 80 - prefixLength;
+    
+    if (actionLine.length > maxActionLength && finalActions.length > 2) {
       const shortened = finalActions.slice(0, 2).join(' → ');
-      if (shortened.length <= 80) {
+      if (shortened.length <= maxActionLength) {
         actionLine = shortened;
         finalActions = finalActions.slice(0, 2);
         finalSources = finalSources.slice(0, 2);
@@ -685,8 +736,8 @@ export function buildShareActionLineV2(reportModel, viewState = 'OK') {
         actionLine = finalActions[0];
         finalActions = finalActions.slice(0, 1);
         finalSources = finalSources.slice(0, 1);
-        if (actionLine.length > 80) {
-          actionLine = actionLine.substring(0, 77) + '...';
+        if (actionLine.length > maxActionLength) {
+          actionLine = actionLine.substring(0, maxActionLength - 3) + '...';
         }
       }
     }
@@ -696,7 +747,10 @@ export function buildShareActionLineV2(reportModel, viewState = 'OK') {
       finalSources.find(s => s.text === action) || { text: action, from: null, index: 0 }
     ).filter(s => s.from !== null);
 
-    return actionLine.length > 0 ? { text: actionLine, sources: matchedSources } : null;
+    // prefix + actionLine 조합
+    const finalText = actionLine.length > 0 ? `${prefix} ${actionLine}` : null;
+    
+    return finalText ? { text: finalText, sources: matchedSources, prefix: prefix } : null;
   } catch (e) {
     // 예외 발생 시 null 반환 (기존 UI 영향 없음)
     return null;
@@ -712,7 +766,7 @@ export function buildShareActionLineV2(reportModel, viewState = 'OK') {
  */
 export function buildShareActionLine(reportModel, viewState = 'OK') {
   // ✅ [Phase 118] V2를 호출하여 text만 반환 (기존 호환성 유지)
-  const v2Result = buildShareActionLineV2(reportModel, viewState);
+  const v2Result = buildShareActionLineV2({ reportModel, viewState });
   return v2Result ? v2Result.text : null;
 }
 

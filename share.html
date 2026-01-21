@@ -5460,7 +5460,13 @@
             }
             
             // Action Line 생성 (V2: 출처 추적 포함)
-            const actionLineResult = buildShareActionLineV2(reportModel, viewState);
+            // ✅ [Phase 119] 이미 계산된 reliability 결과 사용 (computeReliabilityV2 재호출 금지)
+            const reliabilityLevel = reliabilityResultV2?.level || null;
+            const actionLineResult = buildShareActionLineV2({
+              reportModel: reportModel,
+              viewState: viewState,
+              reliabilityLevel: reliabilityLevel
+            });
             if (!actionLineResult || !actionLineResult.text) {
               // Action Line 생성 실패 또는 데이터 없음 → 조용히 종료
               return;
@@ -5498,8 +5504,29 @@
             // debug=1에서만 콘솔 출력 (선택)
             const urlParams = new URLSearchParams(window.location.search || '');
             const isDebug = urlParams.get('debug') === '1';
-            if (isDebug && actionLineResult.sources && actionLineResult.sources.length > 0) {
-              console.info('[ActionLine] sources:', actionLineResult.sources);
+            if (isDebug) {
+              if (actionLineResult.sources && actionLineResult.sources.length > 0) {
+                console.info('[ActionLine] sources:', actionLineResult.sources);
+              }
+              // ✅ [Phase 119] Reliability 레벨 기반 prefix 로그
+              if (actionLineResult.prefix) {
+                console.info('[ActionLine] prefix:', actionLineResult.prefix);
+              }
+            }
+            
+            // ✅ [Phase 119] Action Line 텍스트는 이미 prefix 포함 (예: "권장 조치: H1 → 리스트")
+            // HTML 이스케이프는 이미 완료됨 (escapedActionLine)
+            // prefix를 강조 표시하기 위해 분리
+            const prefixMatch = escapedActionLine.match(/^(권장 조치:|우선 조치:|즉시 조치:|다음 조치:)\s*(.+)$/);
+            let prefixHtml = '';
+            let actionTextHtml = '';
+            if (prefixMatch) {
+              prefixHtml = `<strong style="color: #0066cc;">${prefixMatch[1]}</strong>`;
+              actionTextHtml = prefixMatch[2];
+            } else {
+              // prefix가 없는 경우 (fallback)
+              prefixHtml = '<strong style="color: #0066cc;">다음 조치:</strong>';
+              actionTextHtml = escapedActionLine;
             }
             
             // Action Line DOM element 직접 생성
@@ -5510,7 +5537,7 @@
               actionLineEl.title = sourceTooltip;
               actionLineEl.style.cursor = 'help';
             }
-            actionLineEl.innerHTML = `<strong style="color: #0066cc;">다음 조치:</strong> ${escapedActionLine}`;
+            actionLineEl.innerHTML = `${prefixHtml} ${actionTextHtml}`;
             
             // 안정적인 앵커 찾기 (우선순위 순)
             let anchor = null;
