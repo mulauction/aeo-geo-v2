@@ -895,6 +895,61 @@
     .action-card.advanced {
       border-top-color: #dc3545;
     }
+    /* ✅ [Phase 124] Action target highlight (temporary visual feedback) */
+    .action-target-highlight {
+      position: relative;
+      background: #fff3cd !important;
+      border-left: 4px solid #ffc107 !important;
+      padding-left: 12px !important;
+      transition: background 0.3s ease, border-left-color 0.3s ease;
+      animation: actionTargetPulse 0.5s ease-out;
+    }
+    .action-target-highlight::after {
+      content: attr(data-action-badge);
+      position: absolute;
+      top: -8px;
+      right: 0;
+      background: #ffc107;
+      color: #333;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    @keyframes actionTargetPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(255, 193, 7, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+      }
+    }
+    /* ✅ [Phase 126] 액션 카드 토스트 UI */
+    .action-card-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 10000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .action-card-toast.show {
+      opacity: 1;
+    }
     .action-card-title {
       font-size: 14px;
       font-weight: 600;
@@ -1099,6 +1154,20 @@
       [data-action],
       #btnRecentToggle,
       #btnRecentClear,
+      /* ✅ [Phase 124] 액션 타겟 하이라이트 인쇄 시 완전 제거 */
+      .action-target-highlight {
+        background: transparent !important;
+        border-left: none !important;
+        padding-left: 0 !important;
+        box-shadow: none !important;
+      }
+      .action-target-highlight::after {
+        display: none !important;
+      }
+      /* ✅ [Phase 126] 액션 카드 토스트 인쇄 시 숨김 */
+      .action-card-toast {
+        display: none !important;
+      }
       [data-recent-id],
       .btn-restore,
       .report-conditions__copy-btn,
@@ -2368,6 +2437,56 @@
       if (document.__actionCardsDelegatedBound) return;
       document.__actionCardsDelegatedBound = true;
       
+      // ✅ [Phase 126] 토스트 메시지 표시 함수
+      function showActionCardToast(message) {
+        // 기존 토스트 제거
+        const existingToast = document.querySelector('.action-card-toast');
+        if (existingToast) {
+          existingToast.remove();
+        }
+        
+        // 새 토스트 생성
+        const toast = document.createElement('div');
+        toast.className = 'action-card-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        // 표시 애니메이션
+        requestAnimationFrame(() => {
+          toast.classList.add('show');
+        });
+        
+        // 0.9초 후 제거
+        setTimeout(() => {
+          toast.classList.remove('show');
+          setTimeout(() => {
+            if (toast.parentNode) {
+              toast.parentNode.removeChild(toast);
+            }
+          }, 200); // transition 완료 대기
+        }, 900);
+      }
+      
+      // ✅ [Phase 124-fix] 타겟 선택 로직 (타이밍 보강 포함)
+      async function resolveScrollTarget(cardType) {
+        const GEN = '#anchor-generate';
+        const WHY = '#anchor-why-panel';
+        
+        if (cardType !== 'next') return GEN;
+        
+        // 첫 번째 시도
+        let el = document.querySelector(WHY);
+        if (el) return WHY;
+        
+        // requestAnimationFrame으로 타이밍 보강
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        el = document.querySelector(WHY);
+        if (el) return WHY;
+        
+        // 폴백: Generate
+        return GEN;
+      }
+      
       function onActionCardClick(e) {
         try {
           // data-action-card 속성을 가진 가장 가까운 요소 찾기
@@ -2378,46 +2497,88 @@
           e.stopPropagation();
           
           const cardType = card.getAttribute('data-action-card'); // 'quick', 'next', 'advanced'
-          let targetId = null;
-          let targetEl = null;
           
-          // 라우팅: QUICK ACTIONS -> #anchor-improvements, NEXT STEPS -> #anchor-why (fallback: #anchor-improvements), ADVANCED -> #anchor-improvements
-          if (cardType === 'quick' || cardType === 'advanced') {
-            targetId = 'anchor-improvements';
-            targetEl = document.getElementById(targetId);
-          } else if (cardType === 'next') {
-            // NEXT STEPS: #anchor-why 우선, 없으면 #anchor-improvements
-            targetEl = document.getElementById('anchor-why');
-            if (targetEl) {
-              targetId = 'anchor-why';
-            } else {
-              targetId = 'anchor-improvements';
-              targetEl = document.getElementById(targetId);
+          // ✅ [Phase 124-fix] resolveScrollTarget으로 타겟 선택 (async 처리)
+          resolveScrollTarget(cardType).then(targetSelector => {
+            const targetEl = document.querySelector(targetSelector);
+            const targetId = targetSelector.replace('#', '');
+            
+            const urlParams = new URLSearchParams(location.search || '');
+            const isDebug = urlParams.get('debug') === '1';
+            
+            if (isDebug) {
+              const closestContainer = targetEl ? targetEl.closest('details,section') : null;
+              const textPreview = targetEl ? targetEl.textContent.slice(0, 80) : '';
+              console.info('[action-cards] intercepted', { 
+                cardType, 
+                targetId, 
+                targetSelector, 
+                found: !!targetEl,
+                closestContainer: closestContainer ? closestContainer.tagName : null,
+                textPreview: textPreview
+              });
             }
-          }
-          
-          const urlParams = new URLSearchParams(location.search || '');
-          const isDebug = urlParams.get('debug') === '1';
-          
-          if (isDebug) {
-            console.info('[action-cards] intercepted', { cardType, targetId, found: !!targetEl });
-          }
-          
-          if (targetEl) {
-            // scrollToElWithOffset이 있으면 사용, 없으면 scrollIntoView fallback
-            if (typeof scrollToElWithOffset === 'function') {
+            
+            if (targetEl) {
+              // ✅ [Phase 125] scrollIntoView로 통일: 헤더를 뷰포트 최상단에 정확히 정렬
               const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
               const scrollBehavior = reduce ? 'auto' : 'smooth';
-              scrollToElWithOffset(targetEl, { offset: SCROLL_OFFSET, behavior: scrollBehavior });
-            } else {
-              targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              
+              targetEl.scrollIntoView({
+                behavior: scrollBehavior,
+                block: 'start'
+              });
+              
+              if (isDebug) {
+                console.info('[scroll]', {
+                  id: targetEl.id || null,
+                  tag: targetEl.tagName,
+                  text: targetEl.textContent.trim().slice(0, 60)
+                });
+              }
+              
+              // ✅ [Phase 126] 토스트 메시지 표시
+              let toastMessage = '';
+              if (cardType === 'quick' || cardType === 'advanced') {
+                toastMessage = 'Generate 섹션으로 이동';
+              } else if (cardType === 'next') {
+                // targetSelector가 anchor-generate면 폴백, 아니면 신뢰도 판단 근거
+                if (targetSelector === '#anchor-generate' || targetSelector.includes('anchor-generate')) {
+                  toastMessage = 'Generate 섹션으로 이동';
+                } else {
+                  toastMessage = '신뢰도 판단 근거로 이동';
+                }
+              }
+              if (toastMessage) {
+                showActionCardToast(toastMessage);
+              }
+              
+              // ✅ [Phase 125] 하이라이트 효과: 스크롤 완료 후 대상 요소에만 적용
+              if (targetEl.classList) {
+                targetEl.classList.remove('action-target-highlight');
+                // 스크롤 완료 후 하이라이트 적용 (약간의 지연으로 스크롤 완료 보장)
+                setTimeout(() => {
+                  requestAnimationFrame(() => {
+                    targetEl.classList.add('action-target-highlight');
+                    setTimeout(() => {
+                      targetEl.classList.remove('action-target-highlight');
+                    }, 800);
+                  });
+                }, 100);
+              }
             }
-          }
+          }).catch(err => {
+            // 스크롤 실패 시 무시
+            const urlParams = new URLSearchParams(location.search || '');
+            if (urlParams.get('debug') === '1') {
+              console.warn('[action-cards] scroll error:', err);
+            }
+          });
         } catch (err) {
-          // 스크롤 실패 시 무시
+          // 핸들러 바인딩 실패 시 무시
           const urlParams = new URLSearchParams(location.search || '');
           if (urlParams.get('debug') === '1') {
-            console.warn('[action-cards] scroll error:', err);
+            console.warn('[action-cards] handler error:', err);
           }
         }
       }
@@ -5305,7 +5466,7 @@
               if (reasonLines.length > 0) {
                 reliabilityReasonsSection = `
                   <div class="content-section" style="margin-top: 20px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
-                    <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: #333;">신뢰도 판단 근거</h3>
+                    <h3 id="anchor-why-panel" style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: #333;">신뢰도 판단 근거</h3>
                     <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #555; line-height: 1.6;">
                       ${reasonLines.map(line => `<li style="margin-bottom: 6px;">${esc(line.trim())}</li>`).join('')}
                     </ul>
@@ -5431,7 +5592,7 @@
             </div>
             <!-- ✅ [Phase 15-3] Generate 연계 카드 -->
             <div class="content-section" style="margin-top: 24px; padding: 20px; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: 8px;">
-              <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #0066cc;">콘텐츠 생성으로 점수 개선하기</h3>
+              <h3 id="anchor-generate" style="margin: 0 0 12px 0; font-size: 18px; color: #0066cc;">콘텐츠 생성으로 점수 개선하기</h3>
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #333;">
                 점수 분석 결과를 바탕으로 AI 검색 최적화 콘텐츠를 생성할 수 있습니다. 4종 출력(AI 설명/FAQ/비교/요약)을 생성하여 상세페이지에 추가하세요.
               </p>
