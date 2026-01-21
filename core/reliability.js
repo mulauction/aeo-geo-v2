@@ -202,9 +202,28 @@ export function computeReliabilityV2(reportModel, opts = {}) {
     }
   }
   
+  // ✅ [Phase 114] Generate concise summary line for external sharing
+  let summaryLine = '';
+  if (severeEvidenceCount === 0 && contentEvidenceCount > 0) {
+    summaryLine = '콘텐츠 구조 기준 충족';
+  } else if (evidencePenalty === 2) {
+    summaryLine = `치명적 구조 결함 다수(${severeEvidenceCount}건)`;
+  } else if (evidencePenalty === 1) {
+    summaryLine = `콘텐츠 구조 결함 ${severeEvidenceCount}건으로 신뢰도 1단계 하락`;
+  } else if (severeEvidenceCount > 0) {
+    summaryLine = `콘텐츠 구조 결함 ${severeEvidenceCount}건`;
+  } else if (reliabilityLevel === '높음') {
+    summaryLine = '3개 항목 모두 측정 완료';
+  } else if (reliabilityLevel === '보통') {
+    summaryLine = '일부 항목 측정 완료';
+  } else {
+    summaryLine = '측정 항목 부족';
+  }
+  
   return {
     level: reliabilityLevel,
     reasonText: reasonText,
+    summaryLine: summaryLine,
     brandStatus: brandStatus,
     contentStatus: contentStatus,
     urlStatus: urlStatus,
