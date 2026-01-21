@@ -5198,56 +5198,6 @@
           // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
-          // ✅ [Phase 117/118] Action Line 생성 (V2: 출처 추적 포함)
-          let actionLineHtml = '';
-          try {
-            const actionLineResult = buildShareActionLineV2(reportModel, viewState);
-            if (actionLineResult && actionLineResult.text) {
-              // HTML 이스케이프
-              const escapedActionLine = String(actionLineResult.text)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-              
-              // ✅ [Phase 118] 출처 문자열 생성 (툴팁용)
-              let sourceTooltip = '';
-              if (actionLineResult.sources && actionLineResult.sources.length > 0) {
-                const sourceParts = actionLineResult.sources.map(s => {
-                  const fromLabel = s.from === 'WHY' ? 'WHY' : 'IMPROVEMENTS';
-                  return `${fromLabel}#${s.index}`;
-                });
-                sourceTooltip = `근거: ${sourceParts.join(', ')}`;
-                
-                // 길이 초과 시 축약
-                if (sourceTooltip.length > 60) {
-                  const whyCount = actionLineResult.sources.filter(s => s.from === 'WHY').length;
-                  const impCount = actionLineResult.sources.filter(s => s.from === 'IMPROVEMENTS').length;
-                  if (whyCount > 0 && impCount > 0) {
-                    sourceTooltip = `근거: WHY#${actionLineResult.sources.find(s => s.from === 'WHY')?.index || 1} 외 ${actionLineResult.sources.length - 1}건`;
-                  } else if (whyCount > 0) {
-                    sourceTooltip = `근거: WHY#${actionLineResult.sources[0].index} 외 ${whyCount - 1}건`;
-                  } else {
-                    sourceTooltip = `근거: IMP#${actionLineResult.sources[0].index} 외 ${impCount - 1}건`;
-                  }
-                }
-              }
-              
-              // debug=1에서만 콘솔 출력 (선택)
-              const urlParams = new URLSearchParams(window.location.search || '');
-              const isDebug = urlParams.get('debug') === '1';
-              if (isDebug && actionLineResult.sources && actionLineResult.sources.length > 0) {
-                console.info('[ActionLine] sources:', actionLineResult.sources);
-              }
-              
-              actionLineHtml = `
-                <div id="share-action-line" ${sourceTooltip ? `title="${sourceTooltip.replace(/"/g, '&quot;')}"` : ''} style="margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5; cursor: ${sourceTooltip ? 'help' : 'default'};">
-                  <strong style="color: #0066cc;">다음 조치:</strong> ${escapedActionLine}
-                </div>
-              `;
-            }
-          } catch (e) {
-            // Action Line 생성 실패 시 무시 (기존 UI 영향 없음)
-          }
           
           kpiBars = `
             <div class="kpi-bars" id="anchor-reliability">
@@ -5259,7 +5209,6 @@
 <div class="muted small" style="margin-top:4px">
   신뢰도는 측정 완료 항목 수 기준입니다.
 </div>
-            ${actionLineHtml}
             <div id="reliability-badge-slot"></div>
             <div id="anchor-why"></div>
             <div id="why-panel" class="why-panel" data-why="fallback"></div>
@@ -5500,6 +5449,112 @@
         // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
         shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         updateShareCtaSlot(viewState);
+        
+        // ✅ [Phase 119] Action Line을 고정 앵커 기준으로 삽입 (재렌더 안정화, DOM 기반)
+        if (viewState === 'OK') {
+          try {
+            // 기존 Action Line 제거 (중복 방지)
+            const existingActionLine = document.getElementById('share-action-line');
+            if (existingActionLine && existingActionLine.parentNode) {
+              existingActionLine.parentNode.removeChild(existingActionLine);
+            }
+            
+            // Action Line 생성 (V2: 출처 추적 포함)
+            const actionLineResult = buildShareActionLineV2(reportModel, viewState);
+            if (!actionLineResult || !actionLineResult.text) {
+              // Action Line 생성 실패 또는 데이터 없음 → 조용히 종료
+              return;
+            }
+            
+            // HTML 이스케이프
+            const escapedActionLine = String(actionLineResult.text)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+            
+            // ✅ [Phase 118] 출처 문자열 생성 (툴팁용)
+            let sourceTooltip = '';
+            if (actionLineResult.sources && actionLineResult.sources.length > 0) {
+              const sourceParts = actionLineResult.sources.map(s => {
+                const fromLabel = s.from === 'WHY' ? 'WHY' : 'IMPROVEMENTS';
+                return `${fromLabel}#${s.index}`;
+              });
+              sourceTooltip = `근거: ${sourceParts.join(', ')}`;
+              
+              // 길이 초과 시 축약
+              if (sourceTooltip.length > 60) {
+                const whyCount = actionLineResult.sources.filter(s => s.from === 'WHY').length;
+                const impCount = actionLineResult.sources.filter(s => s.from === 'IMPROVEMENTS').length;
+                if (whyCount > 0 && impCount > 0) {
+                  sourceTooltip = `근거: WHY#${actionLineResult.sources.find(s => s.from === 'WHY')?.index || 1} 외 ${actionLineResult.sources.length - 1}건`;
+                } else if (whyCount > 0) {
+                  sourceTooltip = `근거: WHY#${actionLineResult.sources[0].index} 외 ${whyCount - 1}건`;
+                } else {
+                  sourceTooltip = `근거: IMP#${actionLineResult.sources[0].index} 외 ${impCount - 1}건`;
+                }
+              }
+            }
+            
+            // debug=1에서만 콘솔 출력 (선택)
+            const urlParams = new URLSearchParams(window.location.search || '');
+            const isDebug = urlParams.get('debug') === '1';
+            if (isDebug && actionLineResult.sources && actionLineResult.sources.length > 0) {
+              console.info('[ActionLine] sources:', actionLineResult.sources);
+            }
+            
+            // Action Line DOM element 직접 생성
+            const actionLineEl = document.createElement('div');
+            actionLineEl.id = 'share-action-line';
+            actionLineEl.style.cssText = 'margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5;';
+            if (sourceTooltip) {
+              actionLineEl.title = sourceTooltip;
+              actionLineEl.style.cursor = 'help';
+            }
+            actionLineEl.innerHTML = `<strong style="color: #0066cc;">다음 조치:</strong> ${escapedActionLine}`;
+            
+            // 안정적인 앵커 찾기 (우선순위 순)
+            let anchor = null;
+            
+            // 우선순위 1: Executive Summary 섹션 바로 위
+            const executiveSummary = document.querySelector('.report-executive-summary');
+            if (executiveSummary) {
+              anchor = executiveSummary;
+            } else {
+              // 우선순위 2: Reliability 섹션 바로 아래
+              const reliabilitySection = document.getElementById('anchor-reliability');
+              if (reliabilitySection && reliabilitySection.parentNode) {
+                anchor = reliabilitySection.nextSibling;
+              } else {
+                // 우선순위 3: shareContent 상단 (최후 fallback)
+                anchor = shareContentEl.firstChild;
+              }
+            }
+            
+            // Action Line 삽입
+            if (anchor && anchor.parentNode) {
+              // anchor가 있으면 그 앞에 삽입
+              anchor.parentNode.insertBefore(actionLineEl, anchor);
+            } else if (shareContentEl) {
+              // fallback: shareContent 상단에 prepend
+              shareContentEl.insertBefore(actionLineEl, shareContentEl.firstChild);
+            }
+            
+            // debug=1에서만 삽입 확인 로그
+            if (isDebug) {
+              const insertedEl = document.getElementById('share-action-line');
+              if (insertedEl) {
+                console.info('[ActionLine] inserted at anchor:', anchor ? (anchor.className || anchor.id || 'unknown') : 'fallback');
+              } else {
+                console.warn('[ActionLine] insertion failed');
+              }
+            }
+          } catch (e) {
+            // Action Line 삽입 실패 시 무시 (기존 UI 영향 없음)
+            if (typeof window !== 'undefined' && window.location.search.includes('debug=1')) {
+              console.warn('[ActionLine] insertion error:', e);
+            }
+          }
+        }
 
         // ✅ [Phase 31-2][telemetry] exit (OK render complete)
         if (viewState === 'OK') {
