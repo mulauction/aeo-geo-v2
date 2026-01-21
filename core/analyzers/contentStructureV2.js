@@ -49,26 +49,31 @@ function checkHeadingStructure(text) {
   let score = 0;
   const evidence = [];
   
-  if (h1Matches.length > 0) {
+  const h1Count = h1Matches.length;
+  if (h1Count > 0) {
     score += 20;
-    evidence.push('H1 제목 존재');
+    evidence.push(`H1 ${h1Count}개 (권장: 1개)`);
   } else {
-    evidence.push('H1 제목 부재');
+    evidence.push('H1 0개 (권장: 1개)');
   }
   
-  if (h2Matches.length >= 2) {
+  const h2Count = h2Matches.length;
+  if (h2Count >= 2) {
     score += 15;
-    evidence.push('H2 제목 2개 이상');
-  } else if (h2Matches.length === 1) {
+    evidence.push(`H2 ${h2Count}개 (권장: 2~6개)`);
+  } else if (h2Count === 1) {
     score += 10;
-    evidence.push('H2 제목 1개');
+    evidence.push(`H2 ${h2Count}개 (권장: 2~6개, 충족률 50%)`);
   } else {
-    evidence.push('H2 제목 부재');
+    evidence.push(`H2 ${h2Count}개 (권장: 2~6개)`);
   }
   
-  if (h3Matches.length > 0) {
+  const h3Count = h3Matches.length;
+  if (h3Count > 0) {
     score += 5;
-    evidence.push('H3 제목 존재');
+    evidence.push(`H3 ${h3Count}개 (권장: 1개 이상)`);
+  } else {
+    evidence.push(`H3 ${h3Count}개 (권장: 1개 이상)`);
   }
   
   return { score: Math.min(score, 40), evidence };
@@ -80,7 +85,7 @@ function checkHeadingStructure(text) {
 function checkSummaryParagraph(text) {
   const paragraphs = text.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [];
   if (paragraphs.length === 0) {
-    return { score: 0, evidence: ['문단 구조 부재'] };
+    return { score: 0, evidence: ['문단 구조 부재 (권장: 1개 이상)'] };
   }
   
   const firstParagraph = extractText(paragraphs[0]);
@@ -91,18 +96,30 @@ function checkSummaryParagraph(text) {
   
   if (firstParagraphLength >= 50 && firstParagraphLength <= 200) {
     score += 15;
-    evidence.push('적절한 길이의 첫 문단');
+    const fulfillmentRatio = Math.round((firstParagraphLength / 200) * 100);
+    evidence.push(`첫 문단 ${firstParagraphLength}자 (권장: 50~200자, 충족률 ${fulfillmentRatio}%)`);
   } else if (firstParagraphLength > 0) {
     score += 5;
-    evidence.push('첫 문단 존재 (길이 부적절)');
+    const recommendedMin = 50;
+    const recommendedMax = 200;
+    if (firstParagraphLength < recommendedMin) {
+      const fulfillmentRatio = Math.round((firstParagraphLength / recommendedMin) * 100);
+      evidence.push(`첫 문단 ${firstParagraphLength}자 (권장: 50~200자, 충족률 ${fulfillmentRatio}%)`);
+    } else {
+      evidence.push(`첫 문단 ${firstParagraphLength}자 (권장: 50~200자, 초과)`);
+    }
+  } else {
+    evidence.push('첫 문단 0자 (권장: 50~200자)');
   }
   
   // 요약성 키워드 체크
   const summaryKeywords = ['요약', '개요', '소개', '개념', '특징', '주요'];
-  const hasSummaryKeyword = summaryKeywords.some(kw => firstParagraph.includes(kw));
-  if (hasSummaryKeyword) {
+  const foundKeywords = summaryKeywords.filter(kw => firstParagraph.includes(kw));
+  if (foundKeywords.length > 0) {
     score += 5;
-    evidence.push('요약성 키워드 포함');
+    evidence.push(`요약성 키워드 ${foundKeywords.length}개 포함 (${foundKeywords.join(', ')})`);
+  } else {
+    evidence.push('요약성 키워드 0개 (권장: 1개 이상)');
   }
   
   return { score: Math.min(score, 20), evidence };
@@ -120,19 +137,28 @@ function checkListUsage(text) {
   const evidence = [];
   
   const totalLists = ulMatches.length + olMatches.length;
-  if (totalLists >= 2) {
+  const recommendedMinLists = 2;
+  if (totalLists >= recommendedMinLists) {
     score += 15;
-    evidence.push('리스트 2개 이상');
+    evidence.push(`리스트 ${totalLists}개 (권장: ${recommendedMinLists}개 이상)`);
   } else if (totalLists === 1) {
     score += 10;
-    evidence.push('리스트 1개');
+    const fulfillmentRatio = Math.round((totalLists / recommendedMinLists) * 100);
+    evidence.push(`리스트 ${totalLists}개 (권장: ${recommendedMinLists}개 이상, 충족률 ${fulfillmentRatio}%)`);
   } else {
-    evidence.push('리스트 부재');
+    evidence.push(`리스트 ${totalLists}개 (권장: ${recommendedMinLists}개 이상)`);
   }
   
-  if (liMatches.length >= 5) {
+  const liCount = liMatches.length;
+  const recommendedMinItems = 5;
+  if (liCount >= recommendedMinItems) {
     score += 5;
-    evidence.push('리스트 항목 5개 이상');
+    evidence.push(`리스트 항목 ${liCount}개 (권장: ${recommendedMinItems}개 이상)`);
+  } else if (liCount > 0) {
+    const fulfillmentRatio = Math.round((liCount / recommendedMinItems) * 100);
+    evidence.push(`리스트 항목 ${liCount}개 (권장: ${recommendedMinItems}개 이상, 충족률 ${fulfillmentRatio}%)`);
+  } else {
+    evidence.push(`리스트 항목 ${liCount}개 (권장: ${recommendedMinItems}개 이상)`);
   }
   
   return { score: Math.min(score, 20), evidence };
@@ -150,17 +176,25 @@ function checkSectionSeparation(text) {
   const evidence = [];
   
   const semanticSections = sectionMatches.length + articleMatches.length;
-  if (semanticSections >= 2) {
+  const recommendedMinSemantic = 2;
+  if (semanticSections >= recommendedMinSemantic) {
     score += 10;
-    evidence.push('시맨틱 섹션 2개 이상');
+    evidence.push(`시맨틱 섹션 ${semanticSections}개 (권장: ${recommendedMinSemantic}개 이상)`);
   } else if (semanticSections === 1) {
     score += 5;
-    evidence.push('시맨틱 섹션 1개');
+    const fulfillmentRatio = Math.round((semanticSections / recommendedMinSemantic) * 100);
+    evidence.push(`시맨틱 섹션 ${semanticSections}개 (권장: ${recommendedMinSemantic}개 이상, 충족률 ${fulfillmentRatio}%)`);
+  } else {
+    evidence.push(`시맨틱 섹션 ${semanticSections}개 (권장: ${recommendedMinSemantic}개 이상)`);
   }
   
-  if (divMatches.length >= 3) {
+  const divCount = divMatches.length;
+  const recommendedMinDivs = 3;
+  if (divCount >= recommendedMinDivs) {
     score += 5;
-    evidence.push('구조적 분리 (div 3개 이상)');
+    evidence.push(`구조적 분리 (div ${divCount}개, 권장: ${recommendedMinDivs}개 이상)`);
+  } else {
+    evidence.push(`구조적 분리 (div ${divCount}개, 권장: ${recommendedMinDivs}개 이상)`);
   }
   
   return { score: Math.min(score, 15), evidence };
@@ -179,14 +213,16 @@ function checkKeywordEmphasis(text) {
   const evidence = [];
   
   const totalEmphasis = strongMatches.length + emMatches.length + markMatches.length + bMatches.length;
-  if (totalEmphasis >= 5) {
+  const recommendedMin = 5;
+  if (totalEmphasis >= recommendedMin) {
     score += 10;
-    evidence.push('키워드 강조 5개 이상');
+    evidence.push(`키워드 강조 ${totalEmphasis}개 (권장: ${recommendedMin}개 이상)`);
   } else if (totalEmphasis >= 2) {
     score += 5;
-    evidence.push('키워드 강조 2개 이상');
+    const fulfillmentRatio = Math.round((totalEmphasis / recommendedMin) * 100);
+    evidence.push(`키워드 강조 ${totalEmphasis}개 (권장: ${recommendedMin}개 이상, 충족률 ${fulfillmentRatio}%)`);
   } else {
-    evidence.push('키워드 강조 부족');
+    evidence.push(`키워드 강조 ${totalEmphasis}개 (권장: ${recommendedMin}개 이상)`);
   }
   
   return { score: Math.min(score, 10), evidence };
@@ -201,24 +237,35 @@ function checkCtaContext(text) {
   const ctaKeywords = ['구매', '신청', '문의', '연락', '더보기', '자세히', '지금', '바로'];
   
   const plainText = extractText(text);
-  const hasCtaKeyword = ctaKeywords.some(kw => plainText.includes(kw));
+  const foundCtaKeywords = ctaKeywords.filter(kw => plainText.includes(kw));
   
   let score = 0;
   const evidence = [];
   
-  if (buttonMatches.length > 0) {
+  const buttonCount = buttonMatches.length;
+  if (buttonCount > 0) {
     score += 5;
-    evidence.push('버튼 요소 존재');
+    evidence.push(`버튼 ${buttonCount}개 (권장: 1개 이상)`);
+  } else {
+    evidence.push(`버튼 ${buttonCount}개 (권장: 1개 이상)`);
   }
   
-  if (linkMatches.length >= 2) {
+  const linkCount = linkMatches.length;
+  const recommendedMinLinks = 2;
+  if (linkCount >= recommendedMinLinks) {
     score += 3;
-    evidence.push('링크 2개 이상');
+    evidence.push(`링크 ${linkCount}개 (권장: ${recommendedMinLinks}개 이상)`);
+  } else {
+    const fulfillmentRatio = linkCount > 0 ? Math.round((linkCount / recommendedMinLinks) * 100) : 0;
+    evidence.push(`링크 ${linkCount}개 (권장: ${recommendedMinLinks}개 이상${fulfillmentRatio > 0 ? `, 충족률 ${fulfillmentRatio}%` : ''})`);
   }
   
-  if (hasCtaKeyword) {
+  const ctaKeywordCount = foundCtaKeywords.length;
+  if (ctaKeywordCount > 0) {
     score += 2;
-    evidence.push('CTA 키워드 포함');
+    evidence.push(`CTA 키워드 ${ctaKeywordCount}개 포함 (${foundCtaKeywords.slice(0, 3).join(', ')}${foundCtaKeywords.length > 3 ? '...' : ''})`);
+  } else {
+    evidence.push(`CTA 키워드 ${ctaKeywordCount}개 (권장: 1개 이상)`);
   }
   
   return { score: Math.min(score, 10), evidence };
@@ -230,11 +277,17 @@ function checkCtaContext(text) {
 function checkDuplicateEmptyParagraphs(text) {
   const paragraphs = text.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [];
   if (paragraphs.length === 0) {
-    return { score: 0, evidence: ['문단 없음'] };
+    return { score: 0, evidence: ['문단 0개 (권장: 1개 이상)'] };
   }
   
   let score = 10;
   const evidence = [];
+  
+  const totalParagraphs = paragraphs.length;
+  const paragraphLengths = paragraphs.map(p => extractText(p).trim().length);
+  const avgParagraphLength = paragraphLengths.length > 0 
+    ? Math.round(paragraphLengths.reduce((a, b) => a + b, 0) / paragraphLengths.length)
+    : 0;
   
   // 빈 문단 체크
   const emptyParagraphs = paragraphs.filter(p => {
@@ -242,19 +295,31 @@ function checkDuplicateEmptyParagraphs(text) {
     return content.trim().length === 0;
   });
   
-  if (emptyParagraphs.length > 0) {
-    score -= emptyParagraphs.length * 2;
-    evidence.push(`빈 문단 ${emptyParagraphs.length}개`);
+  const emptyCount = emptyParagraphs.length;
+  if (emptyCount > 0) {
+    score -= emptyCount * 2;
+    const emptyRatio = Math.round((emptyCount / totalParagraphs) * 100);
+    evidence.push(`빈 문단 ${emptyCount}개 (전체 ${totalParagraphs}개 중 ${emptyRatio}%)`);
+  } else {
+    evidence.push(`빈 문단 ${emptyCount}개 (권장: 0개)`);
   }
   
   // 중복 문단 체크 (간단한 휴리스틱)
   const paragraphTexts = paragraphs.map(p => extractText(p).toLowerCase().substring(0, 50));
   const uniqueParagraphs = new Set(paragraphTexts);
   const duplicateRatio = 1 - (uniqueParagraphs.size / paragraphTexts.length);
+  const duplicateRatioPercent = Math.round(duplicateRatio * 100);
   
   if (duplicateRatio > 0.3) {
     score -= 5;
-    evidence.push('중복 문단 다수');
+    evidence.push(`중복 문단 비율 ${duplicateRatioPercent}% (권장: 30% 이하)`);
+  } else {
+    evidence.push(`중복 문단 비율 ${duplicateRatioPercent}% (권장: 30% 이하)`);
+  }
+  
+  // 평균 문단 길이 정보 추가
+  if (avgParagraphLength > 0) {
+    evidence.push(`평균 문단 길이 ${avgParagraphLength}자 (권장: 30~80자)`);
   }
   
   return { score: Math.max(score, 0), evidence };

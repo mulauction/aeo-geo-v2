@@ -138,6 +138,16 @@ export function bindActions(root) {
       const urlParams = new URLSearchParams(window.location.search);
       const brandFromUrl = urlParams.get("brand");
       const productFromUrl = urlParams.get("product");
+      
+      // ✅ [Phase 111] Debug log for evidence verification (debug=1 only)
+      const isDebug = urlParams.get('debug') === '1';
+      if (isDebug && contentStructureV2Result) {
+        console.info('[csV2] computed', {
+          score: contentStructureV2Result.score,
+          grade: contentStructureV2Result.grade,
+          evidenceCount: contentStructureV2Result.evidence?.length || 0
+        });
+      }
       let brandingResult = null;
       if (brandFromUrl && brandFromUrl.trim().length > 0) {
         brandingResult = computeBrandingScore(brandFromUrl, input);
