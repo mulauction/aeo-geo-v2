@@ -2143,6 +2143,7 @@
     import { renderReliabilityBlock, renderReliabilityBadge, buildReliabilityOneLineGuidance } from './core/shareReliabilityUI.js';
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
+    import { buildShareActionLine } from './core/why.js';
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
@@ -5197,6 +5198,26 @@
           // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
+          // ✅ [Phase 117] Action Line 생성
+          let actionLineHtml = '';
+          try {
+            const actionLine = buildShareActionLine(reportModel, viewState);
+            if (actionLine) {
+              // HTML 이스케이프 (esc 함수는 아래에 정의됨)
+              const escapedActionLine = String(actionLine)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+              actionLineHtml = `
+                <div id="share-action-line" style="margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5;">
+                  <strong style="color: #0066cc;">다음 조치:</strong> ${escapedActionLine}
+                </div>
+              `;
+            }
+          } catch (e) {
+            // Action Line 생성 실패 시 무시 (기존 UI 영향 없음)
+          }
+          
           kpiBars = `
             <div class="kpi-bars" id="anchor-reliability">
               ${reliabilityHtml}
@@ -5207,6 +5228,7 @@
 <div class="muted small" style="margin-top:4px">
   신뢰도는 측정 완료 항목 수 기준입니다.
 </div>
+            ${actionLineHtml}
             <div id="reliability-badge-slot"></div>
             <div id="anchor-why"></div>
             <div id="why-panel" class="why-panel" data-why="fallback"></div>
