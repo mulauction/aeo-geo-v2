@@ -2336,13 +2336,45 @@
     (function() {
       if (window.__shareCtaCaptureBound) return;
       
+      // ✅ [Phase 120-scroll-unify] 단일 스크롤 유틸 함수 (오프셋 포함, 정확한 위치 보장)
+      const SCROLL_OFFSET = 16; // sticky header 보정 오프셋 (통일된 상수)
+      
+      function scrollToElWithOffset(el, { offset = SCROLL_OFFSET, behavior = 'smooth' } = {}) {
+        if (!el) return false;
+        
+        try {
+          const rect = el.getBoundingClientRect();
+          const y = window.scrollY + rect.top - offset;
+          const finalY = Math.max(0, y);
+          
+          window.scrollTo({ top: finalY, behavior });
+          
+          // debug=1에서만 로그 출력
+          const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+          if (isDebug) {
+            console.info('[scroll]', { id: el.id || null, y: finalY, offset });
+          }
+          
+          return true;
+        } catch (e) {
+          const isDebug = new URLSearchParams(location.search).get('debug') === '1';
+          if (isDebug) {
+            console.warn('[scroll] error:', e);
+          }
+          return false;
+        }
+      }
+      
+      // ✅ [Phase 120-scroll-unify] Action Line 핸들러에서도 사용 가능하도록 전역 노출
+      window.__scrollToElWithOffset = scrollToElWithOffset;
+      window.__SCROLL_OFFSET = SCROLL_OFFSET;
+      
       // scrollToTarget: 타겟 요소로 스크롤 (고정 종착점 보장, 절대 위치 기반)
       function scrollToTarget(selector) {
         if (!selector || !selector.startsWith('#')) return false;
         
         const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const scrollBehavior = reduce ? 'auto' : 'smooth';
-        const headerOffset = 16; // sticky header 보정 오프셋 (최소값)
         
         function attemptScroll(retryCount = 0) {
           try {
@@ -2370,12 +2402,8 @@
               return false;
             }
             
-            // 절대 위치 기반 스크롤 (누적 이동 방지)
-            const rect = el.getBoundingClientRect();
-            const y = window.scrollY + rect.top - headerOffset;
-            window.scrollTo({ top: y, behavior: scrollBehavior });
-            
-            return true;
+            // ✅ [Phase 120-scroll-unify] 단일 유틸 함수 사용
+            return scrollToElWithOffset(el, { offset: SCROLL_OFFSET, behavior: scrollBehavior });
           } catch (e) {
             if (retryCount < 2) {
               requestAnimationFrame(() => attemptScroll(retryCount + 1));
@@ -5697,9 +5725,21 @@
                     }
                   }
                   
-                  // 스크롤 이동
+                  // ✅ [Phase 120-scroll-unify] 스크롤 이동 (단일 유틸 함수 사용)
                   if (targetEl) {
-                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    const scrollBehavior = reduce ? 'auto' : 'smooth';
+                    const scrollOffset = window.__SCROLL_OFFSET || 16; // 폴백값
+                    const scrollUtil = window.__scrollToElWithOffset;
+                    
+                    if (scrollUtil && typeof scrollUtil === 'function') {
+                      scrollUtil(targetEl, { offset: scrollOffset, behavior: scrollBehavior });
+                    } else {
+                      // 폴백: 직접 스크롤
+                      const rect = targetEl.getBoundingClientRect();
+                      const y = window.scrollY + rect.top - scrollOffset;
+                      window.scrollTo({ top: Math.max(0, y), behavior: scrollBehavior });
+                    }
                     
                     // debug=1에서만 로그 출력
                     if (isDebug) {
@@ -5707,7 +5747,8 @@
                         from: firstSource ? firstSource.from : null,
                         index: firstSource ? firstSource.index : null,
                         selectorFound: selectorFound,
-                        targetId: targetEl ? targetEl.id || 'no-id' : null
+                        targetId: targetEl ? targetEl.id || 'no-id' : null,
+                        offset: scrollOffset
                       });
                     }
                   }
