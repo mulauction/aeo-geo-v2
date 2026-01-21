@@ -2346,7 +2346,16 @@
         
         function attemptScroll(retryCount = 0) {
           try {
-            const el = document.querySelector(selector);
+            let el = document.querySelector(selector);
+            
+            // ✅ [Phase 120-reliability-fix] #reliability-reasons-anchor 폴백 로직
+            if (!el && selector === '#reliability-reasons-anchor') {
+              // 우선순위: #reliability-reasons-anchor → #anchor-reliability-reasons → #anchor-reliability
+              el = document.getElementById('reliability-reasons-anchor') ||
+                   document.getElementById('anchor-reliability-reasons') ||
+                   document.getElementById('anchor-reliability');
+            }
+            
             if (!el) {
               // 요소가 없으면 재시도 (최대 2회)
               if (retryCount < 2) {
@@ -5193,11 +5202,31 @@
         let scoreCriteriaToggle = '';
         let trustStatements = '';
         let marketContext = '';
+        let reliabilityReasonsSection = '';
         
         if (viewState === 'OK') {
           // ✅ [Phase 8-3] 신뢰도 블록 렌더링 (모듈화)
           const { html: reliabilityHtml } = renderReliabilityBlock(reportModel || { analysis: { scores: {} } });
           
+          // ✅ [Phase 120-reliability] Reliability Reasons 섹션 생성
+          try {
+            if (reliabilityResultV2 && reliabilityResultV2.reasonText) {
+              // reasonText는 newline으로 구분된 문자열 (Phase 116)
+              const reasonLines = reliabilityResultV2.reasonText.split('\n').filter(line => line.trim().length > 0);
+              if (reasonLines.length > 0) {
+                reliabilityReasonsSection = `
+                  <div class="content-section" style="margin-top: 20px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+                    <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: #333;">신뢰도 판단 근거</h3>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #555; line-height: 1.6;">
+                      ${reasonLines.map(line => `<li style="margin-bottom: 6px;">${esc(line.trim())}</li>`).join('')}
+                    </ul>
+                  </div>
+                `;
+              }
+            }
+          } catch (e) {
+            // Reliability Reasons 생성 실패 시 무시
+          }
           
           kpiBars = `
             <div class="kpi-bars" id="anchor-reliability">
@@ -5210,6 +5239,8 @@
   신뢰도는 측정 완료 항목 수 기준입니다.
 </div>
             <div id="reliability-badge-slot"></div>
+            <div id="anchor-reliability-reasons" style="height:0;"></div>
+            <div id="reliability-reasons-anchor" style="height:0;"></div>
             <div id="anchor-why"></div>
             <div id="why-panel" class="why-panel" data-why="fallback"></div>
             <div class="why-panel" data-why="ok" style="display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
@@ -5302,7 +5333,9 @@
           `;
           
           // ✅ [Phase 9-1 Fix] 액션 카드 섹션을 KPI 바로 아래로 이동
+          // ✅ [Phase 120-fix] Improvements 섹션 고정 앵커 추가
           actionCardsSection = `
+            <div id="anchor-improvements" style="height:0;"></div>
             <div class="content-section">
               <h3>액션</h3>
               ${actionCards}
@@ -5447,7 +5480,7 @@
         renderRecentReportsSection();
         const shareContentEl = document.getElementById('shareContent');
         // ✅ [Phase 27-1] CTA는 `#shareCtaSlot`에서만 렌더링한다 (ONE place)
-        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
+        shareContentEl.innerHTML = measurementCta + scoreExplainerBlock + kpiBars + reliabilityReasonsSection + actionCardsSection + shareCtaSlotHtml + nextActionsSection + scoreCriteriaToggle + trustStatements + marketContext + contentStructureEvidenceSection + resultSection + evidenceSection + observationLiteSection;
         updateShareCtaSlot(viewState);
         
         // ✅ [Phase 119] Action Line을 고정 앵커 기준으로 삽입 (재렌더 안정화, DOM 기반)
@@ -5535,9 +5568,166 @@
             actionLineEl.style.cssText = 'margin-top: 12px; margin-bottom: 8px; padding: 10px 12px; background: #f0f7ff; border-left: 3px solid #0066cc; border-radius: 4px; font-size: 13px; color: #333; line-height: 1.5;';
             if (sourceTooltip) {
               actionLineEl.title = sourceTooltip;
-              actionLineEl.style.cursor = 'help';
             }
+            // ✅ [Phase 120] 클릭 가능하도록 스타일 및 접근성 속성 추가
+            actionLineEl.style.cursor = 'pointer';
+            actionLineEl.setAttribute('role', 'button');
+            actionLineEl.tabIndex = 0;
             actionLineEl.innerHTML = `${prefixHtml} ${actionTextHtml}`;
+            
+            // ✅ [Phase 120] 클릭 핸들러 바인딩 (중복 방지)
+            if (!actionLineEl.dataset.bound) {
+              actionLineEl.dataset.bound = '1';
+              
+              // 클릭 핸들러
+              actionLineEl.addEventListener('click', (e) => {
+                try {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // sources[0] (첫 번째 근거)로 점프
+                  const firstSource = actionLineResult.sources && actionLineResult.sources.length > 0 
+                    ? actionLineResult.sources[0] 
+                    : null;
+                  
+                  let targetEl = null;
+                  let selectorFound = null;
+                  
+                  if (firstSource) {
+                    if (firstSource.from === 'WHY') {
+                      // WHY 패널의 특정 아이템 찾기
+                      const whyPanel = document.querySelector('.why-panel[data-why="ok"]');
+                      if (whyPanel) {
+                        const whyList = whyPanel.querySelector('ul');
+                        if (whyList) {
+                          // index는 1-based이므로 nth-child 사용
+                          const whyItem = whyList.querySelector(`li:nth-child(${firstSource.index})`);
+                          if (whyItem) {
+                            targetEl = whyItem;
+                            selectorFound = `WHY li:nth-child(${firstSource.index})`;
+                          } else {
+                            // 특정 아이템을 못 찾으면 WHY 패널 컨테이너로 폴백
+                            targetEl = whyPanel;
+                            selectorFound = 'WHY panel (fallback)';
+                          }
+                        } else {
+                          targetEl = whyPanel;
+                          selectorFound = 'WHY panel (no list)';
+                        }
+                      } else {
+                        // WHY 패널이 없으면 anchor-why로 폴백
+                        targetEl = document.getElementById('anchor-why');
+                        selectorFound = 'anchor-why (fallback)';
+                      }
+                    } else if (firstSource.from === 'IMPROVEMENTS') {
+                      // ✅ [Phase 120-fix] Improvements 섹션 고정 앵커 기반 스크롤
+                      const anchorImprovements = document.getElementById('anchor-improvements');
+                      if (anchorImprovements) {
+                        // index가 있으면 Improvements 리스트에서 nth-child 찾기 시도
+                        if (firstSource.index) {
+                          // Improvements 리스트 컨테이너 찾기 (actionCardsSection 내부)
+                          const improvementsSection = anchorImprovements.nextElementSibling;
+                          if (improvementsSection) {
+                            const improvementsList = improvementsSection.querySelector('ul, ol');
+                            if (improvementsList) {
+                              const improvementsItem = improvementsList.querySelector(`li:nth-child(${firstSource.index})`);
+                              if (improvementsItem) {
+                                targetEl = improvementsItem;
+                                selectorFound = `IMPROVEMENTS li:nth-child(${firstSource.index})`;
+                              } else {
+                                targetEl = anchorImprovements;
+                                selectorFound = 'anchor-improvements (no item)';
+                              }
+                            } else {
+                              targetEl = anchorImprovements;
+                              selectorFound = 'anchor-improvements (no list)';
+                            }
+                          } else {
+                            targetEl = anchorImprovements;
+                            selectorFound = 'anchor-improvements (no section)';
+                          }
+                        } else {
+                          targetEl = anchorImprovements;
+                          selectorFound = 'anchor-improvements';
+                        }
+                      } else {
+                        // anchor-improvements가 없으면 anchor-why로 폴백
+                        const anchorWhy = document.getElementById('anchor-why');
+                        if (anchorWhy) {
+                          targetEl = anchorWhy;
+                          selectorFound = 'anchor-why (IMPROVEMENTS fallback)';
+                        }
+                      }
+                    } else if (firstSource.from === 'reliability') {
+                      // ✅ [Phase 120-reliability] Reliability Reasons 섹션으로 스크롤
+                      const anchorReliabilityReasons = document.getElementById('anchor-reliability-reasons');
+                      if (anchorReliabilityReasons) {
+                        targetEl = anchorReliabilityReasons;
+                        selectorFound = 'anchor-reliability-reasons';
+                      } else {
+                        // anchor-reliability-reasons가 없으면 anchor-reliability로 폴백
+                        const anchorReliability = document.getElementById('anchor-reliability');
+                        if (anchorReliability) {
+                          targetEl = anchorReliability;
+                          selectorFound = 'anchor-reliability (fallback)';
+                        }
+                      }
+                    }
+                  }
+                  
+                  // sources[0]이 없으면 WHY 패널 컨테이너로 폴백, 그것도 없으면 anchor-improvements
+                  if (!targetEl) {
+                    const whyPanel = document.querySelector('.why-panel[data-why="ok"]');
+                    if (whyPanel) {
+                      targetEl = whyPanel;
+                      selectorFound = 'WHY panel (no source)';
+                    } else {
+                      const anchorWhy = document.getElementById('anchor-why');
+                      if (anchorWhy) {
+                        targetEl = anchorWhy;
+                        selectorFound = 'anchor-why (fallback)';
+                      } else {
+                        // ✅ [Phase 120-fix] 최종 폴백: anchor-improvements
+                        const anchorImprovements = document.getElementById('anchor-improvements');
+                        if (anchorImprovements) {
+                          targetEl = anchorImprovements;
+                          selectorFound = 'anchor-improvements (final fallback)';
+                        }
+                      }
+                    }
+                  }
+                  
+                  // 스크롤 이동
+                  if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    
+                    // debug=1에서만 로그 출력
+                    if (isDebug) {
+                      console.info('[ActionLine] scroll to:', {
+                        from: firstSource ? firstSource.from : null,
+                        index: firstSource ? firstSource.index : null,
+                        selectorFound: selectorFound,
+                        targetId: targetEl ? targetEl.id || 'no-id' : null
+                      });
+                    }
+                  }
+                } catch (scrollErr) {
+                  // 스크롤 실패 시 무시
+                  if (isDebug) {
+                    console.warn('[ActionLine] scroll error:', scrollErr);
+                  }
+                }
+              });
+              
+              // Enter/Space 키 지원
+              actionLineEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  actionLineEl.click();
+                }
+              });
+            }
             
             // 안정적인 앵커 찾기 (우선순위 순)
             let anchor = null;
