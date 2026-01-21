@@ -18,6 +18,62 @@ function esc(v) {
 }
 
 /**
+ * ✅ [Phase 113] Evidence impact scoring helper (reused from core/why.js)
+ * Assigns impact score (0-100) to checklist items based on severity keywords
+ * @param {string} checklistItem - Checklist item text
+ * @returns {number} Impact score (0-100, higher = more severe)
+ */
+function scoreChecklistImpact(checklistItem) {
+  if (!checklistItem || typeof checklistItem !== 'string') return 30; // 기본값 30
+  
+  const text = checklistItem.toLowerCase();
+  let impact = 30; // 기본값 30
+  
+  // Very high impact: "부재" / "없음" / "문단 없음" / "리스트 부재" / "0개" => 90~100
+  if (text.includes('부재') || text.includes('없음') || text.includes('문단 없음') || text.includes('리스트 부재') || text.match(/0개/)) {
+    impact = 95; // 기본 90~100 범위의 중간값
+    
+    // "문단 없음" / "리스트 부재" -> high (90~100)
+    if (text.includes('문단 없음') || text.includes('리스트 부재')) {
+      impact = 95;
+    }
+  }
+  
+  // "충족률 XX%" 처리 (checklist items may reference this indirectly)
+  if (text.includes('충족률')) {
+    const ratioMatch = text.match(/충족률\s*(\d+)%/);
+    if (ratioMatch) {
+      const ratio = parseInt(ratioMatch[1], 10);
+      if (ratio >= 0 && ratio <= 49) {
+        impact = 90; // 80~95 범위의 중간값
+      } else if (ratio >= 50 && ratio <= 79) {
+        impact = 65; // 50~79 범위의 중간값
+      } else {
+        impact = 25; // >=80 => 10~40 범위의 중간값
+      }
+    }
+  }
+  
+  // "H1" 관련 결함 => +20 가산 (최대 100)
+  if (text.includes('h1')) {
+    impact = Math.min(100, impact + 20);
+  }
+  
+  // High impact patterns in checklist items
+  if (text.includes('h1 제목 추가') || text.includes('h1 추가')) {
+    impact = Math.max(impact, 100); // H1 missing is highest priority
+  }
+  if (text.includes('리스트 구조 추가') || text.includes('리스트 추가')) {
+    impact = Math.max(impact, 95); // List missing is high priority
+  }
+  if (text.includes('문단') && (text.includes('추가') || text.includes('최적화'))) {
+    impact = Math.max(impact, 90); // Paragraph issues are high priority
+  }
+  
+  return Math.max(0, Math.min(100, impact));
+}
+
+/**
  * evidence에서 부족한 항목을 파싱하여 체크리스트 생성
  * @param {string[]} evidenceList - evidence 배열
  * @returns {string[]} 체크리스트 항목 배열
@@ -108,8 +164,21 @@ function parseEvidenceToChecklist(evidenceList) {
     );
   }
 
-  // 중복 제거 및 최대 10개로 제한
-  return [...new Set(checklist)].slice(0, 10);
+  // 중복 제거
+  const uniqueChecklist = [...new Set(checklist)];
+  
+  // ✅ [Phase 113] Sort by impact (descending) to align with WHY Top3
+  const withImpact = uniqueChecklist.map(item => ({
+    text: item,
+    impact: scoreChecklistImpact(item)
+  }));
+  
+  const sortedByImpact = withImpact
+    .sort((a, b) => b.impact - a.impact)
+    .map(item => item.text);
+  
+  // 최대 10개로 제한 (top 3 highest impact appear first)
+  return sortedByImpact.slice(0, 10);
 }
 
 /**
