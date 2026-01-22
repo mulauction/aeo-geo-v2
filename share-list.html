@@ -11,7 +11,10 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
       margin: 0;
       padding: 24px;
-      background: #f5f5f5;
+      background: #fff;
+      font-size: 14px;
+      line-height: 1.45;
+      color: #111827;
     }
     .app {
       max-width: 960px;
@@ -24,7 +27,7 @@
     .home-link {
       margin-bottom: 24px;
       display: inline-block;
-      color: #0066cc;
+      color: #111827;
       text-decoration: none;
     }
     .home-link:hover {
@@ -32,74 +35,166 @@
     }
     h1 {
       margin: 0 0 24px 0;
-      font-size: 28px;
+      font-size: 24px;
       font-weight: 700;
-      color: #1a1a1a;
+      color: #111827;
     }
     .empty-state {
       padding: 48px 24px;
       text-align: center;
-      color: #666;
+      color: #6B7280;
       font-size: 14px;
       line-height: 1.6;
     }
     .recent-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
     }
     .recent-item {
+      position: relative;
       display: flex;
-      gap: 12px;
-      align-items: center;
+      gap: 14px;
+      align-items: flex-start;
       justify-content: space-between;
-      padding: 12px 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
       background: #fff;
+      transition: border-color 120ms;
     }
+    .recent-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 12px 0 0 12px;
+      background: #E5E7EB;
+    }
+    .recent-item.status-good::before { background: #10B981; }
+    .recent-item.status-mid::before { background: #F59E0B; }
+    .recent-item.status-low::before { background: #E5E7EB; }
+    .recent-item:last-child { margin-bottom: 0; }
+    .recent-item:hover { border-color: #D1D5DB; }
     .recent-item-info {
       min-width: 0;
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
-    .recent-item-target {
-      font-size: 14px;
+    .card-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .active-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #065F46;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+    }
+    .active-indicator::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #10B981;
+      display: inline-block;
+    }
+    .recent-title {
+      font-size: 15px;
       font-weight: 600;
-      color: #333;
+      color: #111827;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      margin-bottom: 4px;
+      line-height: 1.35;
     }
-    .recent-item-meta {
+    .recent-meta {
       font-size: 12px;
-      color: #666;
+      color: #6B7280;
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
     .recent-item-id {
       font-family: monospace;
       font-size: 11px;
-      color: #888;
+      color: #9CA3AF;
     }
-    .btn-open {
-      padding: 8px 16px;
+    .status-line {
+      font-size: 12px;
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+    .status-line-incomplete {
+      color: #9CA3AF;
+    }
+    .status-line-partial {
+      color: #2563EB;
+    }
+    .status-line-complete {
+      color: #111827;
+    }
+    .recent-time-hint {
+      font-size: 11px;
+      color: #9CA3AF;
+    }
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      border: 1px solid;
+    }
+    .score-badge-good {
+      background: #ECFDF5;
+      color: #065F46;
+      border-color: #D1FAE5;
+    }
+    .score-badge-mid {
+      background: #FFFBEB;
+      color: #92400E;
+      border-color: #FDE68A;
+    }
+    .score-badge-low {
+      background: #F3F4F6;
+      color: #374151;
+      border-color: #E5E7EB;
+    }
+    .open-btn {
+      height: 34px;
+      padding: 0 12px;
       font-size: 13px;
       font-weight: 500;
       color: #fff;
-      background: #0066cc;
+      background: #111827;
       border: none;
-      border-radius: 4px;
+      border-radius: 10px;
       cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       white-space: nowrap;
     }
-    .btn-open:hover {
-      background: #0052a3;
+    .open-btn:hover { background: #0B1220; }
+    .open-btn:focus {
+      outline: 2px solid #111827;
+      outline-offset: 2px;
     }
-    .btn-open:disabled {
+    .open-btn:disabled {
       background: #ccc;
       cursor: not-allowed;
     }
@@ -158,6 +253,27 @@
         return div.innerHTML;
       }
       
+      function getRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        try {
+          const date = new Date(dateStr);
+          const now = new Date();
+          const diffMs = now.getTime() - date.getTime();
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffHours = Math.floor(diffMs / 3600000);
+          const diffDays = Math.floor(diffMs / 86400000);
+          
+          if (diffMins < 1) return '방금';
+          if (diffMins < 60) return '방금';
+          if (diffDays === 0) return '오늘';
+          if (diffDays === 1) return '1일 전';
+          if (diffDays <= 3) return `${diffDays}일 전`;
+          return '';
+        } catch {
+          return '';
+        }
+      }
+      
       function renderList() {
         const container = document.getElementById('recentListContainer');
         if (!container) return;
@@ -213,6 +329,15 @@
           return new Date(bKey).getTime() - new Date(aKey).getTime();
         });
         
+        // 현재 열람중 reportId 확인
+        const currentReportId = (() => {
+          try {
+            return String(localStorage.getItem('__currentReportId') || '');
+          } catch {
+            return '';
+          }
+        })();
+        
         const html = sortedItems.map((it) => {
           if (!it || typeof it !== 'object') return '';
           
@@ -222,19 +347,83 @@
           const hasNumericId = /^\d+$/.test(reportIdStr);
           const whenKey = it.createdAt ?? it.generatedAt ?? null;
           const when = formatDate(whenKey);
-          const score = (typeof it.score === 'number') ? `${it.score}점` : '';
+          const score = typeof it.score === 'number' && Number.isFinite(it.score) ? it.score : null;
+          
+          // Score grade 결정
+          let scoreGrade = null;
+          let scoreBadgeClass = '';
+          let statusClass = '';
+          if (score !== null) {
+            if (score >= 80) {
+              scoreGrade = '좋음';
+              scoreBadgeClass = 'score-badge-good';
+              statusClass = 'status-good';
+            } else if (score >= 50) {
+              scoreGrade = '보통';
+              scoreBadgeClass = 'score-badge-mid';
+              statusClass = 'status-mid';
+            } else {
+              scoreGrade = '낮음';
+              scoreBadgeClass = 'score-badge-low';
+              statusClass = 'status-low';
+            }
+          }
+          
+          // KPI 값 추출 (v2 데이터에서)
+          const v2 = it.v2 || it.entry?.v2 || null;
+          const brandingScore = v2?.analysis?.scores?.branding ?? null;
+          const contentStructure = v2?.analysis?.contentStructureV2 ?? null;
+          const urlStructure = v2?.analysis?.urlStructureV1 ?? null;
+          
+          // 측정 상태 판단 및 항목 수집
+          const hasBranding = brandingScore !== null && brandingScore !== undefined;
+          const hasStructure = contentStructure !== null && contentStructure !== undefined;
+          const hasUrl = urlStructure !== null && urlStructure !== undefined;
+          const measuredCount = [hasBranding, hasStructure, hasUrl].filter(Boolean).length;
+          
+          let statusText = null;
+          let statusLineClass = '';
+          
+          if (measuredCount === 0) {
+            // 측정 미완료
+            statusText = '측정 미완료 · 브랜딩/구조/URL';
+            statusLineClass = 'status-line-incomplete';
+          } else if (measuredCount < 3) {
+            // 부분 완료
+            const measuredItems = [];
+            if (hasBranding) measuredItems.push('브랜딩');
+            if (hasStructure) measuredItems.push('구조');
+            if (hasUrl) measuredItems.push('URL');
+            statusText = `부분 완료 · ${measuredItems.join('/')}`;
+            statusLineClass = 'status-line-partial';
+          } else {
+            // 완료
+            statusText = '완료 · 브랜딩/구조/URL';
+            statusLineClass = 'status-line-complete';
+          }
+          
+          // 상대 시간 힌트
+          const relativeTime = getRelativeTime(whenKey);
+          
+          const isActive = Boolean(currentReportId) && String(reportIdStr) === String(currentReportId);
           
           return `
-            <div class="recent-item">
+            <div class="recent-item ${statusClass}">
               <div class="recent-item-info">
-                <div class="recent-item-target">${esc(target)}</div>
-                <div class="recent-item-meta">
-                  ${when ? `<span>${esc(when)}</span>` : ''}
-                  ${score ? `<span>· ${esc(score)}</span>` : ''}
+                <div class="card-header">
+                  ${isActive ? '<span class="active-indicator">현재 열람중</span>' : ''}
+                </div>
+                <div class="recent-title">${esc(target)}</div>
+                <div class="recent-meta">
+                  ${when ? `<span>${esc(when)}${relativeTime ? ` <span class="recent-time-hint">· ${esc(relativeTime)}</span>` : ''}</span>` : ''}
                   ${reportIdStr ? `<span class="recent-item-id">ID: ${esc(reportIdStr)}</span>` : ''}
                 </div>
+                ${statusText ? `<div class="status-line ${statusLineClass}">${esc(statusText)}</div>` : ''}
               </div>
-              <button type="button" class="btn-open" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                ${scoreGrade ? `<span class="score-badge ${scoreBadgeClass}">${esc(scoreGrade)}</span>` : ''}
+                <button type="button" class="open-btn" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
+              </div>
             </div>
           `;
         }).join('');
@@ -242,7 +431,7 @@
         container.innerHTML = `<div class="recent-list">${html}</div>`;
         
         // ✅ [Hotfix] [열기] 버튼 클릭 핸들러: v2를 __lastV2에 주입 후 share.html로 이동
-        container.querySelectorAll('.btn-open[data-report-id]').forEach((btn) => {
+        container.querySelectorAll('.open-btn[data-report-id]').forEach((btn) => {
           btn.addEventListener('click', (e) => {
             e.preventDefault();
             const reportIdStr = btn.getAttribute('data-report-id');
