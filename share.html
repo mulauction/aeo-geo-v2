@@ -1919,6 +1919,73 @@
         display: none !important;
       }
 
+      /* ✅ [Hotfix][print] 납품용 PDF 정리: 내부 진단/UI/메타 정보 숨김 */
+      /* Dev 컨트롤 숨김 */
+      #dev-force-state,
+      #dev-force-apply {
+        display: none !important;
+      }
+      /* Observation 입력폼 숨김 */
+      html.is-printing #obs-lite,
+      html.is-printing .observation-lite-section,
+      html.is-printing #obsLiteQuestion,
+      html.is-printing #obsLitePrompt,
+      html.is-printing #obsLiteResponse,
+      html.is-printing #obsLiteSaveBtn,
+      html.is-printing #obsLiteList {
+        display: none !important;
+      }
+      /* is-printing 클래스 없을 때 fallback */
+      #obs-lite,
+      .observation-lite-section,
+      #obsLiteQuestion,
+      #obsLitePrompt,
+      #obsLiteResponse,
+      #obsLiteSaveBtn,
+      #obsLiteList {
+        display: none !important;
+      }
+
+      /* 내부 진단/재현성 정보 숨김 */
+      html.is-printing .report-conditions__fingerprint,
+      html.is-printing .report-conditions__reference-ids,
+      html.is-printing .report-conditions__reference-item,
+      html.is-printing .report-conditions__note,
+      html.is-printing #reportReproducibilityPolicy,
+      html.is-printing .report-reproducibility-policy {
+        display: none !important;
+      }
+      /* is-printing 클래스 없을 때 fallback */
+      .report-conditions__fingerprint,
+      .report-conditions__reference-ids,
+      .report-conditions__reference-item,
+      .report-conditions__note,
+      #reportReproducibilityPolicy,
+      .report-reproducibility-policy {
+        display: none !important;
+      }
+
+      /* 내부 메타/안내 정보 숨김 */
+      html.is-printing #localRestoreNotice,
+      html.is-printing .report-local-restore-notice,
+      html.is-printing .report-meta-row,
+      html.is-printing .report-purpose__line:last-child,
+      html.is-printing #reportFooter,
+      html.is-printing .report-footer,
+      html.is-printing .report-disclaimer {
+        display: none !important;
+      }
+      /* is-printing 클래스 없을 때 fallback */
+      #localRestoreNotice,
+      .report-local-restore-notice,
+      .report-meta-row,
+      .report-purpose__line:last-child,
+      #reportFooter,
+      .report-footer,
+      .report-disclaimer {
+        display: none !important;
+      }
+
       /* details/summary 토글: 인쇄에서는 내용이 보이게 강제 */
       details > summary { display: none !important; }
       details:not([open]) > *:not(summary) { display: block !important; }
@@ -2016,6 +2083,47 @@
       html.is-printing body[data-share-state="FETCH_FAIL"] .report-header-fixed,
       html.is-printing body[data-share-state="INVALID_ID"] .report-header-fixed {
         display: block !important;
+      }
+
+      /* ✅ [Hotfix][print] OK 상태 본문 강제 표시 (is-printing 누락/Non-OK 숨김 부작용 방지) */
+      /* 1) is-printing 클래스가 있어도 OK에서는 본문이 살아야 함 */
+      html.is-printing body[data-share-state="OK"] .content-section,
+      html.is-printing body[data-share-state="OK"] .report-footer,
+      html.is-printing body[data-share-state="OK"] #anchor-evidence,
+      html.is-printing body[data-share-state="OK"] #anchor-content,
+      html.is-printing body[data-share-state="OK"] #anchor-url,
+      html.is-printing body[data-share-state="OK"] #anchor-branding {
+        display: block !important;
+        visibility: visible !important;
+      }
+
+      html.is-printing body[data-share-state="OK"] .kpi-bar,
+      html.is-printing body[data-share-state="OK"] .kpi-bar-item,
+      html.is-printing body[data-share-state="OK"] .why-panel,
+      html.is-printing body[data-share-state="OK"] .reliability-details,
+      html.is-printing body[data-share-state="OK"] .notice-card {
+        display: block !important;
+        visibility: visible !important;
+      }
+
+      /* 2) is-printing 클래스가 "없어도" OK에서는 본문이 살아야 함 (fallback) */
+      body[data-share-state="OK"] .content-section,
+      body[data-share-state="OK"] .report-footer,
+      body[data-share-state="OK"] #anchor-evidence,
+      body[data-share-state="OK"] #anchor-content,
+      body[data-share-state="OK"] #anchor-url,
+      body[data-share-state="OK"] #anchor-branding {
+        display: block !important;
+        visibility: visible !important;
+      }
+
+      body[data-share-state="OK"] .kpi-bar,
+      body[data-share-state="OK"] .kpi-bar-item,
+      body[data-share-state="OK"] .why-panel,
+      body[data-share-state="OK"] .reliability-details,
+      body[data-share-state="OK"] .notice-card {
+        display: block !important;
+        visibility: visible !important;
       }
     }
   </style>
@@ -3220,10 +3328,14 @@
       const openIdRaw = urlParams.get('open');
       const openId = (openIdRaw && /^\d+$/.test(String(openIdRaw))) ? String(openIdRaw) : null;
       const isRestoreOpen = Boolean(openId) && isRestore;
+      
+      // ✅ [Hotfix] openId 분기에서 리포트를 찾았는지 추적 (fallback 로직에서 사용)
+      let openFound = false;
 
       // ✅ [openRecent] open=<digits>에서는 선택된 __lastV2만 사용 (restore=1 유무와 무관)
       if (openId) {
         try {
+          // (1) __lastV2에서 vid==openId 확인
           const v = window.__lastV2 || (() => {
             try {
               const s = localStorage.getItem('__lastV2');
@@ -3235,9 +3347,61 @@
               ? (v.reportId || v.meta?.reportId || v.meta?.id || v.id || null)
               : null;
           if (v && typeof v === 'object' && String(vid || '') === String(openId)) {
+            openFound = true;
+            try {
+              const debug = urlParams.get('debug') === '1';
+              if (debug) {
+                console.info('[open]', { openId, openFound: true, usedFallback: false, shareState: document.body?.dataset?.shareState || null });
+              }
+            } catch (_) {}
             return v;
           }
-        } catch (_) {}
+          
+          // (2) __recentReportsV1에서 rid==openId인 entry 찾기
+          try {
+            const RECENT_KEY = '__recentReportsV1';
+            const recentRaw = localStorage.getItem(RECENT_KEY);
+            if (recentRaw) {
+              const recentItems = JSON.parse(recentRaw);
+              if (Array.isArray(recentItems)) {
+                const hit = recentItems.find((x) => x && typeof x === 'object' && String(x.reportId || x.id || x.r || '') === String(openId));
+                if (hit && typeof hit === 'object' && (hit.v2 || hit.__lastV2)) {
+                  const v2 = hit.v2 || hit.__lastV2;
+                  if (v2 && typeof v2 === 'object') {
+                    openFound = true;
+                    try {
+                      const debug = urlParams.get('debug') === '1';
+                      if (debug) {
+                        console.info('[open]', { openId, openFound: true, usedFallback: false, shareState: document.body?.dataset?.shareState || null });
+                      }
+                    } catch (_) {}
+                    return v2;
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+          
+          // (3) 못 찾았으면 fallback 실행 (빈 화면 방지)
+          usedFallback = true;
+          try {
+            const debug = urlParams.get('debug') === '1';
+            if (debug) {
+              console.info('[open]', { openId, openFound: false, usedFallback: true, shareState: document.body?.dataset?.shareState || null });
+            }
+          } catch (_) {}
+          // fallback: isRestoreOpen 조건을 무시하고 restore=1 fallback 로직으로 진행
+          // (openId 분기에서 null을 반환하지 않고 fallback으로 진행)
+        } catch (_) {
+          usedFallback = true;
+          try {
+            const debug = urlParams.get('debug') === '1';
+            if (debug) {
+              console.info('[open]', { openId, openFound: false, usedFallback: true, shareState: document.body?.dataset?.shareState || null });
+            }
+          } catch (_) {}
+        }
+        // openId가 있지만 리포트를 못 찾은 경우 fallback으로 진행 (null 반환하지 않음)
       }
       
       // ✅ [Phase22] viewState가 OK가 아니면 snapshot fetch 금지
@@ -3303,12 +3467,15 @@
       
       // ✅ [Phase 26-2C-2] r-only가 아닐 때만 fallback 로직 사용
       // (2) window.__lastV2 또는 localStorage '__lastV2'
-      if (!isRestoreOpen && window.__lastV2) {
+      // ✅ [Hotfix] openId가 있지만 리포트를 못 찾은 경우에도 fallback 실행 (빈 화면 방지)
+      // openId 분기에서 리포트를 못 찾으면 여기로 도달하므로, isRestoreOpen 조건을 무시하고 fallback 실행
+      if ((!isRestoreOpen || (openId && !openFound)) && window.__lastV2) {
         return window.__lastV2;
       }
       
       try {
-        if (!isRestoreOpen) {
+        // ✅ [Hotfix] openId가 있지만 리포트를 못 찾은 경우에도 fallback 실행
+        if (!isRestoreOpen || (openId && !openFound)) {
         const lastV2Str = localStorage.getItem('__lastV2');
         if (lastV2Str) {
           const parsed = JSON.parse(lastV2Str);
@@ -3694,15 +3861,17 @@
                   shareDebugLog('[share][url] skip normalize: open present', { open: openKeep });
                 }
               } catch (_) {}
-              return;
+              // ✅ [Hotfix] open=<rid>가 있어도 렌더링 계속 진행 (return 제거)
+              // URL 정규화만 건너뛰고, loadReportModel() 및 렌더링은 정상 진행
+            } else {
+              try {
+                if (debugOn && !window.__shareUrlNormalizeLoggedV1) {
+                  window.__shareUrlNormalizeLoggedV1 = true;
+                  shareDebugLog('[share][url] normalize restore url', { next });
+                }
+              } catch (_) {}
+              history.replaceState(null, '', next);
             }
-            try {
-              if (debugOn && !window.__shareUrlNormalizeLoggedV1) {
-                window.__shareUrlNormalizeLoggedV1 = true;
-                shareDebugLog('[share][url] normalize restore url', { next });
-              }
-            } catch (_) {}
-            history.replaceState(null, '', next);
           } catch (_) {}
         }
         const idParam = urlParams.get('id');
@@ -3829,6 +3998,35 @@
           }
         } catch (_) {}
         
+        // ✅ [Hotfix] openId 진입 시 디버그 로그 및 스크롤 리셋
+        if (openId && urlParams.get('debug') === '1') {
+          try {
+            const hasReportModel = reportModel && typeof reportModel === 'object';
+            const hasScores = hasReportModel && reportModel.analysis?.scores && Object.keys(reportModel.analysis.scores).length > 0;
+            const scoreKeys = hasScores ? Object.keys(reportModel.analysis.scores) : [];
+            const whyLength = hasReportModel && reportModel.analysis?.why ? (Array.isArray(reportModel.analysis.why) ? reportModel.analysis.why.length : 0) : 0;
+            const reliabilityLength = hasReportModel && reportModel.analysis?.reliability ? (Array.isArray(reportModel.analysis.reliability) ? reportModel.analysis.reliability.length : 0) : 0;
+            const evidenceLength = hasReportModel && reportModel.evidence ? (Array.isArray(reportModel.evidence) ? reportModel.evidence.length : 0) : 0;
+            console.info('[open][diagnosis]', {
+              openId,
+              hasReportModel,
+              hasScores,
+              scoreKeys,
+              whyLength,
+              reliabilityLength,
+              evidenceLength,
+              shareState: document.body?.dataset?.shareState || null
+            });
+          } catch (_) {}
+        }
+        
+        // ✅ [Hotfix] openId 진입 시 스크롤 상단 리셋 (restore=1 리스트 화면은 제외, open=<rid>가 있을 때만)
+        if (openId && isRestoreOpen) {
+          try {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          } catch (_) {}
+        }
+        
         // ✅ [Phase 14-1] Legacy banner logic disabled - statusPanel is now the only status UI
         const shouldShowLoadFailedBanner = false;
         
@@ -3898,6 +4096,30 @@
         document.body.dataset.shareState = viewState;
         shareDebugInfo('[ShareViewState]', viewState);
         __ctaPolicyFinalState = viewState;
+        
+        // ✅ [Hotfix] openId 진입 시 렌더링 후 DOM 생성 여부 확인 (debug=1만)
+        if (openId && urlParams.get('debug') === '1') {
+          // 렌더링이 완료된 후 확인하기 위해 setTimeout 사용
+          setTimeout(() => {
+            try {
+              const kpiBar = document.querySelector('.kpi-bar-item') || document.querySelector('.kpi-bars');
+              const whySection = document.querySelector('.why-section') || document.querySelector('[id*="why"]');
+              const evidenceSection = document.querySelector('.evidence-section') || document.querySelector('[id*="evidence"]');
+              const kpiExists = kpiBar !== null;
+              const whyExists = whySection !== null;
+              const evidenceExists = evidenceSection !== null;
+              console.info('[open][render-check]', {
+                openId,
+                viewState,
+                kpiExists,
+                whyExists,
+                evidenceExists,
+                reportModelExists: !!reportModel,
+                reportModelHasScores: !!(reportModel?.analysis?.scores)
+              });
+            } catch (_) {}
+          }, 100);
+        }
 
         // ✅ [Phase 31-1][telemetry] final state
         try {
@@ -5349,7 +5571,7 @@
               const id = (btn && btn.getAttribute) ? (btn.getAttribute('data-recent-id') || '') : '';
               const idStr = String(id || '');
               if (!/^\d+$/.test(idStr)) return;
-              // ✅ [openRecent] entry.v2를 __lastV2로 주입 후 restore=1로 이동 (open= 제거)
+              // ✅ [openRecent] entry.v2를 __lastV2로 주입 후 restore=1&open=<rid>로 이동 (open= 포함)
               try {
                 const debug = new URLSearchParams(location.search).get('debug') === '1';
                 const items = loadRecentReports();
@@ -5369,7 +5591,7 @@
                 try { window.__lastV2 = v2; } catch (_) {}
                 
                 const debugParam = debug ? '&debug=1' : '';
-                const targetUrl = `./share.html?restore=1${debugParam}`;
+                const targetUrl = `./share.html?restore=1&open=${encodeURIComponent(rid)}${debugParam}`;
                 
                 if (debug) {
                   console.info('[share][openRecent] injected and navigate', { reportId: rid, target: targetUrl });
