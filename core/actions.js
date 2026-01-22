@@ -465,15 +465,15 @@ export function bindActions(root) {
         console.warn('[actions] Failed to save __currentReportId to localStorage:', e);
       }
       
-      // ✅ [Phase C-1-3] 로컬 복원 기반 네비게이션 (restore=1 단일 경로)
+      // ✅ [Phase C-1-3] 로컬 복원 기반 네비게이션 (share-list.html로 이동)
       Promise.resolve().then(async () => {
         // debug=1 유지
         const urlParams = new URLSearchParams(window.location.search);
         const isDebug = urlParams.get('debug') === '1';
-        const debugParam = isDebug ? '&debug=1' : '';
+        const debugParam = isDebug ? '?debug=1' : '';
         
-        // restore=1 단일 경로로 통일 (최근 리포트 목록)
-        const targetUrl = `./share.html?restore=1${debugParam}`;
+        // share-list.html로 이동 (최근 리포트 목록)
+        const targetUrl = `./share-list.html${debugParam}`;
         
         if (isDebug) {
           console.info('[analyze] share nav', { target: targetUrl });

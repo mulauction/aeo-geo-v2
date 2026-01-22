@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AEO/GEO v2 - 최근 리포트</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f5f5f5;
+    }
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 32px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .home-link {
+      margin-bottom: 24px;
+      display: inline-block;
+      color: #0066cc;
+      text-decoration: none;
+    }
+    .home-link:hover {
+      text-decoration: underline;
+    }
+    h1 {
+      margin: 0 0 24px 0;
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .recent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .recent-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .recent-item-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .recent-item-target {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 4px;
+    }
+    .recent-item-meta {
+      font-size: 12px;
+      color: #666;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .recent-item-id {
+      font-family: monospace;
+      font-size: 11px;
+      color: #888;
+    }
+    .btn-open {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      background: #0066cc;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    .btn-open:hover {
+      background: #0052a3;
+    }
+    .btn-open:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <a href="./home.html" class="home-link">Home</a>
+    <h1>최근 리포트</h1>
+    <div id="recentListContainer"></div>
+  </div>
+
+  <script type="module">
+    (function() {
+      const RECENT_KEY = '__recentReportsV1';
+      
+      function parseJsonSafe(str, fallback) {
+        try {
+          return JSON.parse(str);
+        } catch {
+          return fallback;
+        }
+      }
+      
+      function loadRecentReports() {
+        try {
+          const raw = localStorage.getItem(RECENT_KEY);
+          const arr = parseJsonSafe(raw || '[]', []);
+          return Array.isArray(arr) ? arr : [];
+        } catch {
+          return [];
+        }
+      }
+      
+      function formatDate(dateStr) {
+        if (!dateStr) return '';
+        try {
+          const date = new Date(dateStr);
+          return date.toLocaleString('ko-KR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        } catch {
+          return dateStr;
+        }
+      }
+      
+      function esc(str) {
+        if (str === null || str === undefined) return '';
+        const s = String(str);
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+      
+      function renderList() {
+        const container = document.getElementById('recentListContainer');
+        if (!container) return;
+        
+        const items = loadRecentReports();
+        const urlParams = new URLSearchParams(window.location.search);
+        const debug = urlParams.get('debug') === '1';
+        
+        // (선택) fallback: __lastV2가 있으면 최근 1건만이라도 보여줄 수 있음
+        let fallbackItem = null;
+        if (items.length === 0) {
+          try {
+            const lastV2Str = localStorage.getItem('__lastV2');
+            if (lastV2Str) {
+              const lastV2 = parseJsonSafe(lastV2Str, null);
+              if (lastV2 && typeof lastV2 === 'object') {
+                const reportId = lastV2.reportId || lastV2.meta?.reportId || lastV2.meta?.id || lastV2.id || null;
+                const target = lastV2.input ? (() => {
+                  const tempDiv = document.createElement('div');
+                  tempDiv.innerHTML = lastV2.input;
+                  const text = tempDiv.textContent || tempDiv.innerText || '';
+                  return text.trim().substring(0, 80) || '분석 대상 없음';
+                })() : '분석 대상 없음';
+                const generatedAt = lastV2.generatedAt || null;
+                
+                if (reportId && /^\d+$/.test(String(reportId))) {
+                  fallbackItem = {
+                    reportId: String(reportId),
+                    target: target,
+                    createdAt: generatedAt,
+                    generatedAt: generatedAt
+                  };
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        
+        const allItems = fallbackItem ? [fallbackItem] : items;
+        
+        if (allItems.length === 0) {
+          container.innerHTML = '<div class="empty-state">최근 리포트가 없습니다. Analyze에서 실행 후 다시 열어주세요.</div>';
+          return;
+        }
+        
+        // 정렬: createdAt 또는 generatedAt 기준 내림차순
+        const sortedItems = [...allItems].sort((a, b) => {
+          const aKey = (a && typeof a === 'object') ? (a.createdAt ?? a.generatedAt ?? null) : null;
+          const bKey = (b && typeof b === 'object') ? (b.createdAt ?? b.generatedAt ?? null) : null;
+          if (aKey == null && bKey == null) return 0;
+          if (aKey == null) return 1;
+          if (bKey == null) return -1;
+          return new Date(bKey).getTime() - new Date(aKey).getTime();
+        });
+        
+        const html = sortedItems.map((it) => {
+          if (!it || typeof it !== 'object') return '';
+          
+          const target = it.target || '분석 대상 없음';
+          const reportId = it.reportId || it.id || it.r || null;
+          const reportIdStr = reportId != null ? String(reportId) : '';
+          const hasNumericId = /^\d+$/.test(reportIdStr);
+          const whenKey = it.createdAt ?? it.generatedAt ?? null;
+          const when = formatDate(whenKey);
+          const score = (typeof it.score === 'number') ? `${it.score}점` : '';
+          
+          const openUrl = hasNumericId 
+            ? `./share.html?restore=1&open=${encodeURIComponent(reportIdStr)}${debug ? '&debug=1' : ''}`
+            : '#';
+          
+          return `
+            <div class="recent-item">
+              <div class="recent-item-info">
+                <div class="recent-item-target">${esc(target)}</div>
+                <div class="recent-item-meta">
+                  ${when ? `<span>${esc(when)}</span>` : ''}
+                  ${score ? `<span>· ${esc(score)}</span>` : ''}
+                  ${reportIdStr ? `<span class="recent-item-id">ID: ${esc(reportIdStr)}</span>` : ''}
+                </div>
+              </div>
+              <a href="${esc(openUrl)}" class="btn-open" ${!hasNumericId ? 'disabled style="pointer-events: none;"' : ''}>열기</a>
+            </div>
+          `;
+        }).join('');
+        
+        container.innerHTML = `<div class="recent-list">${html}</div>`;
+      }
+      
+      // 페이지 로드 시 렌더링
+      renderList();
+    })();
+  </script>
+</body>
+</html>
