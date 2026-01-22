@@ -27,7 +27,7 @@
     .home-link {
       margin-bottom: 24px;
       display: inline-block;
-      color: #0066cc;
+      color: #111827;
       text-decoration: none;
     }
     .home-link:hover {
@@ -35,15 +35,14 @@
     }
     h1 {
       margin: 0 0 24px 0;
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 700;
-      letter-spacing: -0.2px;
-      color: #1a1a1a;
+      color: #111827;
     }
     .empty-state {
       padding: 48px 24px;
       text-align: center;
-      color: #666;
+      color: #6B7280;
       font-size: 14px;
       line-height: 1.6;
     }
@@ -57,12 +56,12 @@
       gap: 14px;
       align-items: flex-start;
       justify-content: space-between;
-      padding: 16px;
-      margin-bottom: 13px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
       border: 1px solid #E5E7EB;
       border-radius: 12px;
       background: #fff;
-      transition: border-color 120ms, box-shadow 120ms;
+      transition: border-color 120ms;
     }
     .recent-item::before {
       content: '';
@@ -74,33 +73,22 @@
       border-radius: 12px 0 0 12px;
       background: #E5E7EB;
     }
-    .recent-item.status-good::before {
-      background: #10B981;
-    }
-    .recent-item.status-mid::before {
-      background: #F59E0B;
-    }
-    .recent-item.status-low::before {
-      background: #E5E7EB;
-    }
-    .recent-item:last-child {
-      margin-bottom: 0;
-    }
-    .recent-item:hover {
-      border-color: #D1D5DB;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    }
+    .recent-item.status-good::before { background: #10B981; }
+    .recent-item.status-mid::before { background: #F59E0B; }
+    .recent-item.status-low::before { background: #E5E7EB; }
+    .recent-item:last-child { margin-bottom: 0; }
+    .recent-item:hover { border-color: #D1D5DB; }
     .recent-item-info {
       min-width: 0;
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .card-header {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
     .active-indicator {
       display: inline-flex;
@@ -122,7 +110,7 @@
       background: #10B981;
       display: inline-block;
     }
-    .recent-item-target {
+    .recent-title {
       font-size: 15px;
       font-weight: 600;
       color: #111827;
@@ -131,7 +119,7 @@
       white-space: nowrap;
       line-height: 1.35;
     }
-    .recent-item-meta {
+    .recent-meta {
       font-size: 12px;
       color: #6B7280;
       display: flex;
@@ -144,76 +132,39 @@
       font-size: 11px;
       color: #9CA3AF;
     }
-    .score-stack {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0;
-      flex-shrink: 0;
+    .status-line {
+      font-size: 12px;
+      color: #6B7280;
+      margin-top: 2px;
+      line-height: 1.4;
     }
-    .score-number {
-      display: none;
-    }
-    .score-grade {
+    .score-badge {
       display: inline-flex;
       align-items: center;
-      padding: 2px 6px;
-      border-radius: 6px;
-      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
       font-weight: 500;
       border: 1px solid;
     }
-    .score-grade-good {
+    .score-badge-good {
       background: #ECFDF5;
       color: #065F46;
       border-color: #D1FAE5;
     }
-    .score-grade-mid {
+    .score-badge-mid {
       background: #FFFBEB;
       color: #92400E;
       border-color: #FDE68A;
     }
-    .score-grade-low {
+    .score-badge-low {
       background: #F3F4F6;
       color: #374151;
       border-color: #E5E7EB;
     }
-    .status-text {
-      font-size: 12px;
-      color: #6B7280;
-      margin-top: 6px;
-      line-height: 1.4;
-    }
-    .kpi-chips {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-top: 4px;
-    }
-    .kpi-chip {
-      display: inline-flex;
-      align-items: center;
-      height: 20px;
-      padding: 0 8px;
-      border-radius: 999px;
-      background: #F9FAFB;
-      border: 1px solid #E5E7EB;
-      font-size: 10.5px;
-      color: #6B7280;
-    }
-    .kpi-chip-hidden {
-      display: none;
-    }
-    .kpi-chip-label {
-      margin-right: 4px;
-    }
-    .kpi-chip-value {
-      font-weight: 500;
-      color: #111827;
-    }
-    .btn-open {
+    .open-btn {
       height: 34px;
-      padding: 0 14px;
+      padding: 0 12px;
       font-size: 13px;
       font-weight: 500;
       color: #fff;
@@ -221,20 +172,17 @@
       border: none;
       border-radius: 10px;
       cursor: pointer;
-      text-decoration: none;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       white-space: nowrap;
     }
-    .btn-open:hover {
-      background: #0B1220;
-    }
-    .btn-open:focus {
+    .open-btn:hover { background: #0B1220; }
+    .open-btn:focus {
       outline: 2px solid #111827;
       outline-offset: 2px;
     }
-    .btn-open:disabled {
+    .open-btn:disabled {
       background: #ccc;
       cursor: not-allowed;
     }
@@ -367,24 +315,23 @@
           const whenKey = it.createdAt ?? it.generatedAt ?? null;
           const when = formatDate(whenKey);
           const score = typeof it.score === 'number' && Number.isFinite(it.score) ? it.score : null;
-          const scoreDisplay = score !== null ? `${score}점` : '—';
           
           // Score grade 결정
           let scoreGrade = null;
-          let scoreGradeClass = '';
+          let scoreBadgeClass = '';
           let statusClass = '';
           if (score !== null) {
             if (score >= 80) {
               scoreGrade = '좋음';
-              scoreGradeClass = 'score-grade-good';
+              scoreBadgeClass = 'score-badge-good';
               statusClass = 'status-good';
             } else if (score >= 50) {
               scoreGrade = '보통';
-              scoreGradeClass = 'score-grade-mid';
+              scoreBadgeClass = 'score-badge-mid';
               statusClass = 'status-mid';
             } else {
               scoreGrade = '낮음';
-              scoreGradeClass = 'score-grade-low';
+              scoreBadgeClass = 'score-badge-low';
               statusClass = 'status-low';
             }
           }
@@ -417,19 +364,16 @@
                 <div class="card-header">
                   ${isActive ? '<span class="active-indicator">현재 열람중</span>' : ''}
                 </div>
-                <div class="recent-item-target">${esc(target)}</div>
-                <div class="recent-item-meta">
+                <div class="recent-title">${esc(target)}</div>
+                <div class="recent-meta">
                   ${when ? `<span>${esc(when)}</span>` : ''}
                   ${reportIdStr ? `<span class="recent-item-id">ID: ${esc(reportIdStr)}</span>` : ''}
                 </div>
-                ${statusText ? `<div class="status-text">${esc(statusText)}</div>` : ''}
+                ${statusText ? `<div class="status-line">${esc(statusText)}</div>` : ''}
               </div>
-              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
-                <div class="score-stack">
-                  <div class="score-number">${esc(scoreDisplay)}</div>
-                  ${scoreGrade ? `<span class="score-grade ${scoreGradeClass}">${esc(scoreGrade)}</span>` : ''}
-                </div>
-                <button type="button" class="btn-open" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                ${scoreGrade ? `<span class="score-badge ${scoreBadgeClass}">${esc(scoreGrade)}</span>` : ''}
+                <button type="button" class="open-btn" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
               </div>
             </div>
           `;
@@ -438,7 +382,7 @@
         container.innerHTML = `<div class="recent-list">${html}</div>`;
         
         // ✅ [Hotfix] [열기] 버튼 클릭 핸들러: v2를 __lastV2에 주입 후 share.html로 이동
-        container.querySelectorAll('.btn-open[data-report-id]').forEach((btn) => {
+        container.querySelectorAll('.open-btn[data-report-id]').forEach((btn) => {
           btn.addEventListener('click', (e) => {
             e.preventDefault();
             const reportIdStr = btn.getAttribute('data-report-id');
