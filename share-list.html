@@ -11,7 +11,10 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
       margin: 0;
       padding: 24px;
-      background: #f5f5f5;
+      background: #fff;
+      font-size: 14px;
+      line-height: 1.45;
+      color: #111827;
     }
     .app {
       max-width: 960px;
@@ -32,8 +35,9 @@
     }
     h1 {
       margin: 0 0 24px 0;
-      font-size: 28px;
+      font-size: 22px;
       font-weight: 700;
+      letter-spacing: -0.2px;
       color: #1a1a1a;
     }
     .empty-state {
@@ -46,58 +50,189 @@
     .recent-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
     }
     .recent-item {
+      position: relative;
       display: flex;
-      gap: 12px;
-      align-items: center;
+      gap: 14px;
+      align-items: flex-start;
       justify-content: space-between;
-      padding: 12px 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 13px;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
       background: #fff;
+      transition: border-color 120ms, box-shadow 120ms;
+    }
+    .recent-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 12px 0 0 12px;
+      background: #E5E7EB;
+    }
+    .recent-item.status-good::before {
+      background: #10B981;
+    }
+    .recent-item.status-mid::before {
+      background: #F59E0B;
+    }
+    .recent-item.status-low::before {
+      background: #E5E7EB;
+    }
+    .recent-item:last-child {
+      margin-bottom: 0;
+    }
+    .recent-item:hover {
+      border-color: #D1D5DB;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
     .recent-item-info {
       min-width: 0;
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card-header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .active-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #065F46;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+    }
+    .active-indicator::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #10B981;
+      display: inline-block;
     }
     .recent-item-target {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
-      color: #333;
+      color: #111827;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      margin-bottom: 4px;
+      line-height: 1.35;
     }
     .recent-item-meta {
       font-size: 12px;
-      color: #666;
+      color: #6B7280;
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
     .recent-item-id {
       font-family: monospace;
       font-size: 11px;
-      color: #888;
+      color: #9CA3AF;
+    }
+    .score-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0;
+      flex-shrink: 0;
+    }
+    .score-number {
+      display: none;
+    }
+    .score-grade {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid;
+    }
+    .score-grade-good {
+      background: #ECFDF5;
+      color: #065F46;
+      border-color: #D1FAE5;
+    }
+    .score-grade-mid {
+      background: #FFFBEB;
+      color: #92400E;
+      border-color: #FDE68A;
+    }
+    .score-grade-low {
+      background: #F3F4F6;
+      color: #374151;
+      border-color: #E5E7EB;
+    }
+    .status-text {
+      font-size: 12px;
+      color: #6B7280;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+    .kpi-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .kpi-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 20px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      font-size: 10.5px;
+      color: #6B7280;
+    }
+    .kpi-chip-hidden {
+      display: none;
+    }
+    .kpi-chip-label {
+      margin-right: 4px;
+    }
+    .kpi-chip-value {
+      font-weight: 500;
+      color: #111827;
     }
     .btn-open {
-      padding: 8px 16px;
+      height: 34px;
+      padding: 0 14px;
       font-size: 13px;
       font-weight: 500;
       color: #fff;
-      background: #0066cc;
+      background: #111827;
       border: none;
-      border-radius: 4px;
+      border-radius: 10px;
       cursor: pointer;
       text-decoration: none;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       white-space: nowrap;
     }
     .btn-open:hover {
-      background: #0052a3;
+      background: #0B1220;
+    }
+    .btn-open:focus {
+      outline: 2px solid #111827;
+      outline-offset: 2px;
     }
     .btn-open:disabled {
       background: #ccc;
@@ -213,6 +348,15 @@
           return new Date(bKey).getTime() - new Date(aKey).getTime();
         });
         
+        // 현재 열람중 reportId 확인
+        const currentReportId = (() => {
+          try {
+            return String(localStorage.getItem('__currentReportId') || '');
+          } catch {
+            return '';
+          }
+        })();
+        
         const html = sortedItems.map((it) => {
           if (!it || typeof it !== 'object') return '';
           
@@ -222,19 +366,71 @@
           const hasNumericId = /^\d+$/.test(reportIdStr);
           const whenKey = it.createdAt ?? it.generatedAt ?? null;
           const when = formatDate(whenKey);
-          const score = (typeof it.score === 'number') ? `${it.score}점` : '';
+          const score = typeof it.score === 'number' && Number.isFinite(it.score) ? it.score : null;
+          const scoreDisplay = score !== null ? `${score}점` : '—';
+          
+          // Score grade 결정
+          let scoreGrade = null;
+          let scoreGradeClass = '';
+          let statusClass = '';
+          if (score !== null) {
+            if (score >= 80) {
+              scoreGrade = '좋음';
+              scoreGradeClass = 'score-grade-good';
+              statusClass = 'status-good';
+            } else if (score >= 50) {
+              scoreGrade = '보통';
+              scoreGradeClass = 'score-grade-mid';
+              statusClass = 'status-mid';
+            } else {
+              scoreGrade = '낮음';
+              scoreGradeClass = 'score-grade-low';
+              statusClass = 'status-low';
+            }
+          }
+          
+          // KPI 값 추출 (v2 데이터에서)
+          const v2 = it.v2 || it.entry?.v2 || null;
+          const brandingScore = v2?.analysis?.scores?.branding ?? null;
+          const contentStructure = v2?.analysis?.contentStructureV2 ?? null;
+          const urlStructure = v2?.analysis?.urlStructureV1 ?? null;
+          
+          // 측정 미완료 항목 수집
+          const missingItems = [];
+          if (brandingScore === null || brandingScore === undefined) {
+            missingItems.push('브랜딩');
+          }
+          if (contentStructure === null || contentStructure === undefined) {
+            missingItems.push('구조');
+          }
+          if (urlStructure === null || urlStructure === undefined) {
+            missingItems.push('URL');
+          }
+          
+          const statusText = missingItems.length > 0 ? `측정 미완료 · ${missingItems.join('/')}` : null;
+          
+          const isActive = Boolean(currentReportId) && String(reportIdStr) === String(currentReportId);
           
           return `
-            <div class="recent-item">
+            <div class="recent-item ${statusClass}">
               <div class="recent-item-info">
+                <div class="card-header">
+                  ${isActive ? '<span class="active-indicator">현재 열람중</span>' : ''}
+                </div>
                 <div class="recent-item-target">${esc(target)}</div>
                 <div class="recent-item-meta">
                   ${when ? `<span>${esc(when)}</span>` : ''}
-                  ${score ? `<span>· ${esc(score)}</span>` : ''}
                   ${reportIdStr ? `<span class="recent-item-id">ID: ${esc(reportIdStr)}</span>` : ''}
                 </div>
+                ${statusText ? `<div class="status-text">${esc(statusText)}</div>` : ''}
               </div>
-              <button type="button" class="btn-open" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+                <div class="score-stack">
+                  <div class="score-number">${esc(scoreDisplay)}</div>
+                  ${scoreGrade ? `<span class="score-grade ${scoreGradeClass}">${esc(scoreGrade)}</span>` : ''}
+                </div>
+                <button type="button" class="btn-open" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
+              </div>
             </div>
           `;
         }).join('');
