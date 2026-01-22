@@ -40,11 +40,50 @@
       color: #111827;
     }
     .empty-state {
-      padding: 48px 24px;
+      padding: 18px;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      background: #fff;
       text-align: center;
+    }
+    .empty-state-title {
+      font-size: 13px;
+      color: #111827;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+    }
+    .empty-state-desc {
+      font-size: 12px;
       color: #6B7280;
-      font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.4;
+      margin: 0 0 16px 0;
+    }
+    .cta-btn {
+      height: 34px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      background: #111827;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      transition: background-color 140ms, border-color 140ms, box-shadow 140ms;
+    }
+    .cta-btn:hover {
+      background: #0B1220;
+      border-color: #D1D5DB;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .cta-btn:focus,
+    .cta-btn:focus-visible {
+      outline: 1px solid rgba(17, 24, 39, 0.35);
+      outline-offset: 2px;
+      box-shadow: none !important;
     }
     .recent-list {
       display: flex;
@@ -326,12 +365,23 @@
           } catch (_) {}
         }
         
-        const allItems = fallbackItem ? [fallbackItem] : items;
+        const hasRecent = Array.isArray(items) && items.length > 0;
         
-        if (allItems.length === 0) {
-          container.innerHTML = '<div class="empty-state">최근 리포트가 없습니다. Analyze에서 실행 후 다시 열어주세요.</div>';
+        if (!hasRecent) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-title">최근분석이 없습니다</div>
+              <div class="empty-state-desc">상품 URL을 분석하면 리포트가 여기에 저장됩니다.</div>
+              <button class="cta-btn" id="goAnalyzeBtn" type="button">분석하러 가기</button>
+            </div>
+          `;
+          document.getElementById('goAnalyzeBtn')?.addEventListener('click', () => {
+            location.href = './analyze.html';
+          });
           return;
         }
+        
+        const allItems = fallbackItem ? [fallbackItem, ...items] : items;
         
         // 정렬: createdAt 또는 generatedAt 기준 내림차순
         const sortedItems = [...allItems].sort((a, b) => {
@@ -352,7 +402,7 @@
           }
         })();
         
-        const html = sortedItems.map((it) => {
+        const html = sortedItems.map((it, idx) => {
           if (!it || typeof it !== 'object') return '';
           
           const target = it.target || '분석 대상 없음';
@@ -420,12 +470,13 @@
           const relativeTime = getRelativeTime(whenKey);
           
           const isActive = Boolean(currentReportId) && String(reportIdStr) === String(currentReportId);
+          const showRecentBadge = (idx === 0);
           
           return `
             <div class="recent-item ${statusClass}">
               <div class="recent-item-info">
                 <div class="card-header">
-                  ${isActive ? '<span class="active-indicator">최근분석</span>' : ''}
+                  ${showRecentBadge ? '<span class="active-indicator">최근분석</span>' : ''}
                 </div>
                 <div class="recent-title">${esc(target)}</div>
                 <div class="recent-meta">
