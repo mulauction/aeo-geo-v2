@@ -224,10 +224,6 @@
           const when = formatDate(whenKey);
           const score = (typeof it.score === 'number') ? `${it.score}점` : '';
           
-          const openUrl = hasNumericId 
-            ? `./share.html?restore=1&open=${encodeURIComponent(reportIdStr)}${debug ? '&debug=1' : ''}`
-            : '#';
-          
           return `
             <div class="recent-item">
               <div class="recent-item-info">
@@ -238,12 +234,84 @@
                   ${reportIdStr ? `<span class="recent-item-id">ID: ${esc(reportIdStr)}</span>` : ''}
                 </div>
               </div>
-              <a href="${esc(openUrl)}" class="btn-open" ${!hasNumericId ? 'disabled style="pointer-events: none;"' : ''}>열기</a>
+              <button type="button" class="btn-open" data-report-id="${esc(reportIdStr)}" ${!hasNumericId ? 'disabled' : ''}>열기</button>
             </div>
           `;
         }).join('');
         
         container.innerHTML = `<div class="recent-list">${html}</div>`;
+        
+        // ✅ [Hotfix] [열기] 버튼 클릭 핸들러: v2를 __lastV2에 주입 후 share.html로 이동
+        container.querySelectorAll('.btn-open[data-report-id]').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const reportIdStr = btn.getAttribute('data-report-id');
+            if (!reportIdStr || !/^\d+$/.test(reportIdStr)) {
+              alert('이 리포트 데이터가 이 기기에 없습니다. Analyze에서 다시 실행 후 열어주세요.');
+              return;
+            }
+            
+            try {
+              // localStorage.__recentReportsV1에서 해당 reportId의 entry 찾기
+              const items = loadRecentReports();
+              const hit = items.find((x) => {
+                if (!x || typeof x !== 'object') return false;
+                const entryId = String(x.reportId || x.id || x.r || '');
+                return entryId === reportIdStr;
+              });
+              
+              // fallback: __lastV2에서 찾기 (fallbackItem인 경우)
+              let v2 = null;
+              if (hit && typeof hit === 'object') {
+                v2 = hit.v2 || hit.entry?.v2 || null;
+              }
+              
+              if (!v2 || typeof v2 !== 'object') {
+                // fallback: __lastV2에서 직접 찾기
+                try {
+                  const lastV2Str = localStorage.getItem('__lastV2');
+                  if (lastV2Str) {
+                    const lastV2 = parseJsonSafe(lastV2Str, null);
+                    if (lastV2 && typeof lastV2 === 'object') {
+                      const lastV2Id = String(lastV2.reportId || lastV2.meta?.reportId || lastV2.meta?.id || lastV2.id || '');
+                      if (lastV2Id === reportIdStr) {
+                        v2 = lastV2;
+                      }
+                    }
+                  }
+                } catch (_) {}
+              }
+              
+              if (!v2 || typeof v2 !== 'object') {
+                alert('이 리포트 데이터가 이 기기에 없습니다. Analyze에서 다시 실행 후 열어주세요.');
+                return;
+              }
+              
+              // v2를 __lastV2에 주입
+              try {
+                localStorage.setItem('__lastV2', JSON.stringify(v2));
+                localStorage.setItem('__currentReportId', String(reportIdStr));
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const isDebug = urlParams.get('debug') === '1';
+                const debugParam = isDebug ? '&debug=1' : '';
+                const targetUrl = `./share.html?restore=1&r=${encodeURIComponent(reportIdStr)}${debugParam}`;
+                
+                if (isDebug) {
+                  console.info('[share-list][open]', { reportId: reportIdStr, injected: true });
+                }
+                
+                location.href = targetUrl;
+              } catch (e) {
+                console.warn('[share-list] Failed to inject __lastV2:', e);
+                alert('리포트 데이터 저장에 실패했습니다. 다시 시도해주세요.');
+              }
+            } catch (e) {
+              console.warn('[share-list] Failed to open report:', e);
+              alert('리포트를 열 수 없습니다. 다시 시도해주세요.');
+            }
+          });
+        });
       }
       
       // 페이지 로드 시 렌더링
