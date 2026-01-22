@@ -2218,6 +2218,7 @@
 
     import { renderWhyPanel } from './core/shareWhyUI.js';
     import { buildShareActionLine, buildShareActionLineV2 } from './core/why.js';
+    import { buildExecutionMVP, saveExecutionHistory, loadExecutionHistory } from './core/executionMVP.js';
     import { PRICING_POLICY_KR, buildQuotaBadgeCopyKR, buildProModalCopyKR, buildProCtaCopyKR, selectProUpgradeNoticeCopyKR, getWaitlistUrlKR } from './core/ui/pricingPolicyKR.js';
     import { deriveShareViewState } from './core/shareViewState.js';
     import { getShareEmptyStateCopyKR, getShareStatusCopyKR, getShareWarningBoxCopyKR, getShareHelperCopyKR } from './core/shareEmptyStateCopy.js';
@@ -5505,6 +5506,25 @@
 </div>
               <div style="font-size: 12px; color: #555; line-height: 1.6;">이 리포트는 구조 기준으로 분석한 결과입니다. '신뢰도' 사유를 클릭하면 측정이 필요한 항목 위치로 이동합니다.</div>
             </div>
+            <div id="execution-section" style="margin-top: 24px; padding: 16px; background: #fff; border: 1px solid #e0e0e0; border-radius: 4px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 15px; font-weight: 600; color: #333;">Execution(구조 생성)</h3>
+              <p style="margin: 0 0 12px 0; font-size: 12px; color: #666; line-height: 1.5;">분석 결과를 기반으로 AI-friendly HTML 구조를 생성합니다.</p>
+              <div id="execution-free-lock" style="display: none; padding: 12px; background: #f5f5f5; border-radius: 4px; margin-bottom: 12px;">
+                <p style="margin: 0; font-size: 12px; color: #666;">구조 생성 기능은 BASIC 이상 요금제에서 사용할 수 있습니다.</p>
+              </div>
+              <div id="execution-result" style="display: none; margin-bottom: 12px;">
+                <textarea id="execution-html-output" readonly style="width: 100%; min-height: 200px; padding: 12px; font-family: monospace; font-size: 12px; border: 1px solid #e0e0e0; border-radius: 4px; background: #f9f9f9; resize: vertical;"></textarea>
+              </div>
+              <div id="execution-recent" style="display: none; margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 8px;">최근 생성</div>
+                <div id="execution-recent-content" style="font-size: 11px; color: #666;"></div>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button id="execution-generate-btn" type="button" style="padding: 8px 16px; font-size: 13px; font-weight: 500; color: #fff; background: #111827; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;">구조 생성</button>
+                <button id="execution-copy-btn" type="button" style="display: none; padding: 8px 16px; font-size: 13px; font-weight: 500; color: #111827; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; white-space: nowrap;">복사</button>
+              </div>
+              <div id="execution-toast" style="display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: #333; color: #fff; border-radius: 4px; font-size: 12px; z-index: 1000;">복사되었습니다</div>
+            </div>
           `;
         
         // ✅ [Phase 8-1] 측정 기준 설명 레이어
@@ -6464,6 +6484,125 @@
             }
           }
           
+        }
+        
+        // ✅ [Phase 171] Execution 섹션 초기화 (viewState === 'OK'일 때만)
+        if (viewState === 'OK') {
+          try {
+            const executionSection = document.getElementById('execution-section');
+            if (!executionSection) return;
+            
+            // Plan 판정 (기존 로직이 있으면 재사용, 없으면 기본값 FREE)
+            let plan = 'FREE';
+            try {
+              // 기존 plan 판정 로직이 있는지 확인 (없으면 기본값 사용)
+              // TODO: 기존 plan 판정 로직이 있으면 여기서 재사용
+            } catch (e) {
+              // 기본값 FREE 유지
+            }
+            
+            const isFree = plan === 'FREE';
+            const isBasic = plan === 'BASIC';
+            const isPlus = plan === 'PLUS' || plan === 'TEAM';
+            
+            // FREE: 잠금 상태 표시
+            const freeLockEl = document.getElementById('execution-free-lock');
+            const generateBtn = document.getElementById('execution-generate-btn');
+            const copyBtn = document.getElementById('execution-copy-btn');
+            const resultEl = document.getElementById('execution-result');
+            const htmlOutput = document.getElementById('execution-html-output');
+            const recentEl = document.getElementById('execution-recent');
+            const recentContentEl = document.getElementById('execution-recent-content');
+            
+            if (isFree) {
+              if (freeLockEl) freeLockEl.style.display = 'block';
+              if (generateBtn) generateBtn.disabled = true;
+              if (generateBtn) generateBtn.style.opacity = '0.5';
+              if (generateBtn) generateBtn.style.cursor = 'not-allowed';
+            } else {
+              if (freeLockEl) freeLockEl.style.display = 'none';
+              if (generateBtn) generateBtn.disabled = false;
+              if (generateBtn) generateBtn.style.opacity = '1';
+              if (generateBtn) generateBtn.style.cursor = 'pointer';
+            }
+            
+            // PLUS/TEAM: 최근 생성 표시
+            if (isPlus && recentEl && recentContentEl) {
+              const history = loadExecutionHistory();
+              if (history.length > 0) {
+                const latest = history[0];
+                const dateStr = latest.createdAt ? new Date(latest.createdAt).toLocaleDateString('ko-KR') : '';
+                recentContentEl.textContent = dateStr ? `${dateStr} 생성` : '최근 생성됨';
+                recentEl.style.display = 'block';
+              } else {
+                recentEl.style.display = 'none';
+              }
+            } else {
+              if (recentEl) recentEl.style.display = 'none';
+            }
+            
+            // 생성 버튼 핸들러
+            if (generateBtn && !isFree) {
+              generateBtn.addEventListener('click', () => {
+                try {
+                  const result = buildExecutionMVP(reportModel || {});
+                  
+                  if (result.html) {
+                    if (htmlOutput) htmlOutput.value = result.html;
+                    if (resultEl) resultEl.style.display = 'block';
+                    if (copyBtn) copyBtn.style.display = 'inline-block';
+                    
+                    // PLUS/TEAM: 히스토리 저장
+                    if (isPlus && result.meta) {
+                      saveExecutionHistory({
+                        reportId: result.meta.reportId,
+                        targetUrl: result.meta.targetUrl,
+                        createdAt: result.meta.createdAt,
+                        html: result.html
+                      });
+                      
+                      // 최근 생성 UI 업데이트
+                      if (recentContentEl) {
+                        const dateStr = new Date(result.meta.createdAt).toLocaleDateString('ko-KR');
+                        recentContentEl.textContent = `${dateStr} 생성`;
+                        if (recentEl) recentEl.style.display = 'block';
+                      }
+                    }
+                    
+                    if (isDebug) {
+                      console.info('[ExecutionMVP] Generated:', result.meta);
+                    }
+                  }
+                } catch (e) {
+                  console.warn('[ExecutionMVP] Generation failed:', e);
+                }
+              });
+            }
+            
+            // 복사 버튼 핸들러
+            if (copyBtn) {
+              copyBtn.addEventListener('click', async () => {
+                if (!htmlOutput || !htmlOutput.value) return;
+                
+                try {
+                  await navigator.clipboard.writeText(htmlOutput.value);
+                  
+                  // 토스트 표시
+                  const toastEl = document.getElementById('execution-toast');
+                  if (toastEl) {
+                    toastEl.style.display = 'block';
+                    setTimeout(() => {
+                      if (toastEl) toastEl.style.display = 'none';
+                    }, 1000);
+                  }
+                } catch (e) {
+                  console.warn('[ExecutionMVP] Copy failed:', e);
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('[ExecutionMVP] Initialization failed:', e);
+          }
         }
         
         // ✅ [Phase 17-0C-2] OK 상태에서 WHY 블록 표시/숨김 처리
