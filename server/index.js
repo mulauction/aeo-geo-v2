@@ -15,6 +15,7 @@ const path = require('path');
 const fs = require('fs/promises');
 const { pathToFileURL } = require('url');
 const { telemetryIngest } = require('./api/telemetryIngest');
+const { fetchEvidence } = require('./api/fetchEvidence');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
 const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
@@ -324,6 +325,8 @@ app.post('/api/usage-events', async (req, res) => {
 });
 
 app.post('/api/telemetry/ingest', telemetryIngest);
+
+app.post('/api/fetch/evidence', fetchEvidence);
 
 // ✅ [Phase 30-7B] Monthly usage summary (read-only, derived from append-only JSONL)
 // - 금지: 차감/차단/경고 로직, 추가 dedupe

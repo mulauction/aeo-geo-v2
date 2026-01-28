@@ -36,6 +36,12 @@ if ! rg -n "\"data\"\\s*,\\s*\"telemetry\"\\s*,\\s*\"raw\"|data/telemetry/raw|te
   exit 1
 fi
 
+echo "== smoke: fetch evidence route presence guard =="
+if ! rg -n "app\\.post\\('/api/fetch/evidence'|/api/fetch/evidence|fetchEvidence" server -S >/dev/null; then
+  echo "ERROR: fetch evidence route reference not found under server/"
+  exit 1
+fi
+
 echo "== smoke: share debug CTA helper presence guard =="
 if ! rg -n "window\\.__debugCtaPolicyCheckV1\\s*=\\s*function" share.html -S >/dev/null; then
   echo "ERR: debug CTA helper function definition missing"

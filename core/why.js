@@ -367,6 +367,7 @@ export function buildWhyReasons(reportModel) {
   // ✅ [Phase 13-0E] (콘텐츠) 콘텐츠 구조 점수 미측정 또는 근거 부족
   // ✅ [Phase 112] Prioritize top 3 highest-impact evidence items
   if (facts.missingSignals.includes('content')) {
+    const safeModel = reportModel || {};
     const scores = safeModel?.analysis?.scores || safeModel?.scores || {};
     const contentEvidence = scores?.contentStructureV2?.evidence;
     
@@ -431,6 +432,50 @@ export function buildWhyReasons(reportModel) {
       key: 'url',
       title: 'URL 구조',
       detail: detail
+    });
+  }
+
+  // ✅ [Phase 172] HTML fetch evidence proof lines
+  const f = reportModel?.analysis?.evidence?.fetch ?? reportModel?.analysis?.evidenceFetch ?? null;
+  if (f && typeof f === 'object') {
+    // Add numeric proof lines
+    const h1Count = f.headings?.h1 ?? 0;
+    const h2Count = f.headings?.h2 ?? 0;
+    const h3Count = f.headings?.h3 ?? 0;
+    const ulCount = f.lists?.ul ?? 0;
+    const olCount = f.lists?.ol ?? 0;
+    const linksCount = f.links ?? 0;
+    const textLength = f.textLength ?? 0;
+    const hasMetaDesc = Boolean(f.metaDescription && f.metaDescription.trim().length > 0);
+    const hasCanonical = Boolean(f.canonical);
+    const hasJsonLd = Boolean(f.jsonLd);
+
+    // Proof line 1: Headings and lists
+    allReasons.push({
+      key: 'fetch_evidence_1',
+      title: 'HTML 증거',
+      detail: `H1 ${h1Count} / H2 ${h2Count} / H3 ${h3Count}, UL ${ulCount} / OL ${olCount}`
+    });
+
+    // Proof line 2: Meta and canonical
+    allReasons.push({
+      key: 'fetch_evidence_2',
+      title: '메타',
+      detail: `설명 ${hasMetaDesc ? '있음' : '없음'}, canonical ${hasCanonical ? '있음' : '없음'}`
+    });
+
+    // Proof line 3: Structured data and links
+    allReasons.push({
+      key: 'fetch_evidence_3',
+      title: '구조화',
+      detail: `JSON-LD ${hasJsonLd ? '있음' : '없음'}, 링크 ${linksCount}, 텍스트 ${textLength}자`
+    });
+  } else if (f === null) {
+    // Fetch evidence missing
+    allReasons.push({
+      key: 'fetch_evidence_missing',
+      title: 'HTML fetch 증거',
+      detail: 'HTML fetch 증거 없음(수집 실패/차단/타임아웃)'
     });
   }
 
