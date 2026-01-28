@@ -16,15 +16,23 @@ const fs = require('fs/promises');
 const { pathToFileURL } = require('url');
 const { telemetryIngest } = require('./api/telemetryIngest');
 const { fetchEvidence } = require('./api/fetchEvidence');
+const { fetchEvidenceGet } = require('./api/fetchEvidenceGet');
 const shareSnapshotStore = require('./storage/shareSnapshotStore');
 const { saveSnapshot, getSnapshot } = require('./snapshotStore');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8787;
 
 // 미들웨어
 app.use(cors());
 app.use(express.json({ limit: '1mb' })); // payload 크기 제한
+
+// ✅ 정적 파일 서빙 (GET /)
+const staticDir = path.join(__dirname, '..');
+app.use(express.static(staticDir, {
+  index: ['index.html', 'home.html'],
+  extensions: ['html']
+}));
 
 // 헬스 체크
 app.get('/health', (req, res) => {
@@ -327,6 +335,7 @@ app.post('/api/usage-events', async (req, res) => {
 app.post('/api/telemetry/ingest', telemetryIngest);
 
 app.post('/api/fetch/evidence', fetchEvidence);
+app.get('/api/fetch/evidence', fetchEvidenceGet);
 
 // ✅ [Phase 30-7B] Monthly usage summary (read-only, derived from append-only JSONL)
 // - 금지: 차감/차단/경고 로직, 추가 dedupe
@@ -421,6 +430,7 @@ app.delete('/api/share-snapshots/:id', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`[Phase 11-1] Share Snapshot API 서버가 포트 ${PORT}에서 실행 중입니다.`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Static files: http://localhost:${PORT}/`);
 });
 
 module.exports = app;

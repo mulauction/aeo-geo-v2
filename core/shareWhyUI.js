@@ -17,6 +17,64 @@ function esc(v) {
 }
 
 /**
+ * ✅ [Phase 173] Generate fetch evidence badge HTML
+ * @param {Object} reportModel - 리포트 모델 객체
+ * @returns {string} Badge HTML or empty string
+ */
+function generateFetchEvidenceBadge(reportModel) {
+  const f = reportModel?.analysis?.evidence?.fetch ?? reportModel?.analysis?.evidenceFetch ?? null;
+  
+  if (!f || typeof f !== 'object') {
+    return '';
+  }
+
+  // ✅ 새로운 스펙에 맞게 필드 읽기
+  const attempted = f.attempted ?? false;
+  const success = f.success ?? false;
+  const reason = f.reason ?? null;
+  const status = f.status ?? null;
+  const fetchedAt = f.fetchedAt ?? 'n/a';
+  const finalUrl = f.finalUrl ?? 'n/a';
+  
+  // ✅ 상태에 따라 배지 라벨 결정
+  let badgeLabel = 'Evidence: Fetched';
+  let badgeBgColor = '#e8f5e9';
+  let badgeTextColor = '#2e7d32';
+  
+  if (!attempted) {
+    badgeLabel = 'Evidence: Skipped';
+    badgeBgColor = '#f5f5f5';
+    badgeTextColor = '#666';
+  } else if (!success) {
+    badgeLabel = 'Evidence: Blocked';
+    badgeBgColor = '#fff3cd';
+    badgeTextColor = '#856404';
+  }
+  
+  // Trim finalUrl for tooltip (max 60 chars)
+  const trimmedUrl = finalUrl && finalUrl.length > 60 ? finalUrl.substring(0, 57) + '...' : (finalUrl || 'n/a');
+  
+  // Tooltip text (escape quotes for HTML attribute)
+  let tooltipText = `attempted: ${attempted}\nsuccess: ${success}\nfetchedAt: ${fetchedAt}`;
+  if (reason) {
+    tooltipText += `\nreason: ${reason}`;
+  }
+  if (status !== null) {
+    tooltipText += `\nstatus: ${status}`;
+  }
+  if (finalUrl && finalUrl !== 'n/a') {
+    tooltipText += `\nfinalUrl: ${trimmedUrl}`;
+  }
+  const escapedTooltip = esc(tooltipText).replaceAll('"', '&quot;');
+  
+  // Badge HTML with tooltip
+  return `<span 
+    style="display: inline-block; margin-left: 8px; padding: 2px 8px; font-size: 11px; background: ${badgeBgColor}; color: ${badgeTextColor}; border-radius: 12px; font-weight: 500; opacity: 0.8; cursor: help;" 
+    title="${escapedTooltip}"
+  >${badgeLabel}</span>`;
+}
+
+/**
  * ✅ [Phase 12-2] WHY 패널 렌더링 함수
  * @param {HTMLElement} targetEl - 렌더링할 대상 DOM 요소 (fallback용)
  * @param {Object} reportModel - 리포트 모델 객체
@@ -171,16 +229,30 @@ export function renderWhyPanel(targetEl, reportModel) {
       `;
     }
     
+    // ✅ [Phase 174-0 UX] Check if inputs.url exists but fetchEvidence is missing (null only, not SKIPPED)
+    const safeModel = reportModel || {};
+    const hasInputUrl = safeModel.inputs?.url && typeof safeModel.inputs.url === 'string' && safeModel.inputs.url.trim().length > 0;
+    const fetchEvidence = safeModel?.analysis?.evidence?.fetch ?? safeModel?.analysis?.evidenceFetch ?? null;
+    const hasFetchEvidence = fetchEvidence && typeof fetchEvidence === 'object';
+    
+    // fetchEvidence가 null인 경우에만 안내 메시지 표시 (SKIPPED/Blocked는 배지로 표시됨)
+    if (hasInputUrl && !hasFetchEvidence) {
+      whyContentHtml += `<div style="font-size: 12px; color: #666; line-height: 1.6; margin-bottom: 12px;">서버 미연결로 fetch 증거가 아직 포함되지 않았습니다.</div>`;
+    }
+    
     // Action line 표시
     if (actionLine) {
       whyContentHtml += `<p style="margin: 0; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #0066cc; font-weight: 500;">${esc(actionLine)}</p>`;
     }
     
+    // ✅ [Phase 173] Fetch evidence badge
+    const fetchEvidenceBadge = generateFetchEvidenceBadge(reportModel || {});
+    
     // 기존 내용 제거 후 새 내용 삽입 (WHY 헤더는 유지)
     const existingHeader = okWhyPanel.querySelector('div[style*="font-size: 13px"]');
     if (existingHeader) {
-      // 헤더 업데이트 (confidence badge 포함)
-      existingHeader.innerHTML = `${esc(whyHeaderText)}${confidenceBadge}`;
+      // 헤더 업데이트 (confidence badge + fetch evidence badge 포함)
+      existingHeader.innerHTML = `${esc(whyHeaderText)}${confidenceBadge}${fetchEvidenceBadge}`;
       // 헤더 다음부터 내용 교체
       let nextSibling = existingHeader.nextSibling;
       while (nextSibling) {
@@ -195,9 +267,12 @@ export function renderWhyPanel(targetEl, reportModel) {
         okWhyPanel.appendChild(tempDiv.firstChild);
       }
     } else {
+      // ✅ [Phase 173] Fetch evidence badge
+      const fetchEvidenceBadge = generateFetchEvidenceBadge(reportModel || {});
+      
       // 헤더가 없으면 전체 교체
       okWhyPanel.innerHTML = `
-        <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">${esc(whyHeaderText)}${confidenceBadge}</div>
+        <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">${esc(whyHeaderText)}${confidenceBadge}${fetchEvidenceBadge}</div>
         ${whyContentHtml}
       `;
     }
@@ -219,15 +294,29 @@ export function renderWhyPanel(targetEl, reportModel) {
       `;
     }
     
+    // ✅ [Phase 174-0 UX] Check if inputs.url exists but fetchEvidence is missing (null only, not SKIPPED)
+    const safeModel = reportModel || {};
+    const hasInputUrl = safeModel.inputs?.url && typeof safeModel.inputs.url === 'string' && safeModel.inputs.url.trim().length > 0;
+    const fetchEvidence = safeModel?.analysis?.evidence?.fetch ?? safeModel?.analysis?.evidenceFetch ?? null;
+    const hasFetchEvidence = fetchEvidence && typeof fetchEvidence === 'object';
+    
+    // fetchEvidence가 null인 경우에만 안내 메시지 표시 (SKIPPED/Blocked는 배지로 표시됨)
+    if (hasInputUrl && !hasFetchEvidence) {
+      whyPanelHtml += `<div style="font-size: 12px; color: #666; line-height: 1.6; margin-bottom: 12px;">서버 미연결로 fetch 증거가 아직 포함되지 않았습니다.</div>`;
+    }
+    
     // Action line 표시
     if (actionLine) {
       whyPanelHtml += `<p style="margin: 0; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #0066cc; font-weight: 500;">${esc(actionLine)}</p>`;
     }
     
+    // ✅ [Phase 173] Fetch evidence badge
+    const fetchEvidenceBadge = generateFetchEvidenceBadge(reportModel || {});
+    
     // 전체 패널 HTML 생성
     const fullPanelHtml = `
       <div class="why-panel" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
-        <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">${esc(whyHeaderText)}${confidenceBadge}</div>
+        <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">${esc(whyHeaderText)}${confidenceBadge}${fetchEvidenceBadge}</div>
         ${whyPanelHtml}
       </div>
     `;

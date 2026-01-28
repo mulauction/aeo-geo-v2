@@ -111,21 +111,34 @@ async function fetchEvidenceClient(url) {
   const isDebug = urlParams.get('debug') === '1';
   const isLocalhost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
   
-  // Backend not present 판단
-  const shouldSend = (!isLocalhost) || String(location.port || '') === '3001';
+  // Backend not present 판단 (포트 8787 또는 3001)
+  const currentPort = String(location.port || '');
+  const shouldSend = (!isLocalhost) || currentPort === '8787' || currentPort === '3001';
+  
   if (!shouldSend) {
     if (isDebug) console.info('[fetchEvidence] skipped (backend not present): /api/fetch/evidence');
-    return null;
+    // backend not present면 skipped 상태로 저장
+    return {
+      attempted: false,
+      success: false,
+      reason: 'SKIPPED',
+      status: null,
+      finalUrl: null,
+      title: null,
+      h1: null,
+      headings: [],
+      fetchedAt: new Date().toISOString()
+    };
   }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const res = await fetch('/api/fetch/evidence', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+    // GET /api/fetch/evidence?url=... 호출
+    const encodedUrl = encodeURIComponent(url);
+    const res = await fetch(`/api/fetch/evidence?url=${encodedUrl}`, {
+      method: 'GET',
       signal: controller.signal
     });
 
@@ -133,15 +146,49 @@ async function fetchEvidenceClient(url) {
 
     if (res && res.ok) {
       const json = await res.json();
-      if (json && json.fetch) {
-        return json.fetch;
+      // 새로운 스펙에 맞게 변환
+      if (json && typeof json === 'object') {
+        return {
+          attempted: json.attempted ?? false,
+          success: json.success ?? false,
+          reason: json.reason ?? null,
+          status: json.status ?? null,
+          finalUrl: json.finalUrl ?? null,
+          title: json.title ?? null,
+          h1: json.h1 ?? null,
+          headings: Array.isArray(json.headings) ? json.headings : [],
+          fetchedAt: json.fetchedAt ?? new Date().toISOString()
+        };
       }
     }
-    return null;
+    
+    // 실패 시에도 객체로 반환
+    return {
+      attempted: false,
+      success: false,
+      reason: 'FETCH_ERROR',
+      status: null,
+      finalUrl: null,
+      title: null,
+      h1: null,
+      headings: [],
+      fetchedAt: new Date().toISOString()
+    };
   } catch (e) {
     clearTimeout(timeoutId);
     if (isDebug) console.info('[fetchEvidence] failed:', e?.message || e);
-    return null;
+    // 실패 시에도 객체로 반환
+    return {
+      attempted: false,
+      success: false,
+      reason: 'FETCH_ERROR',
+      status: null,
+      finalUrl: null,
+      title: null,
+      h1: null,
+      headings: [],
+      fetchedAt: new Date().toISOString()
+    };
   }
 }
 
@@ -300,11 +347,15 @@ export function bindActions(root) {
         ? (prevLastV2.inputs.url || null) 
         : null;
       
-      // inputs 구성: URL 파라미터 우선, 없으면 빈 문자열 (위에서 이미 읽은 값 재사용)
+      // ✅ [Phase 174-0] Read URL from inputUrl field (optional, overrides prevUrl if provided)
+      const inputUrlValue = root.inputUrl ? root.inputUrl.value.trim() : '';
+      const urlToUse = inputUrlValue && inputUrlValue.length > 0 ? inputUrlValue : (shouldResetUrlData ? null : prevUrl);
+      
+      // inputs 구성: URL 파라미터 우선, 없으면 빈 문자열
       const inputs = {
         brand: brandFromUrl || '',
         product: productFromUrl || '',
-        url: shouldResetUrlData ? null : prevUrl
+        url: urlToUse
       };
       
       // ✅ analysis.scores 명시적으로 재구성 (merge하지 않음, brand/product 변경 시 URL 초기화)
@@ -332,14 +383,20 @@ export function bindActions(root) {
         scores: v2SummaryAnalysisScores
       };
       
-      // Store fetch evidence: if evidence is an object, set evidence.fetch; otherwise set evidenceFetch
+      // ✅ [A-1] Store fetch evidence: 통일된 위치 analysis.evidence.fetch 사용
       if (currentAnalysisEvidence && typeof currentAnalysisEvidence === 'object' && !Array.isArray(currentAnalysisEvidence)) {
         analysisWithEvidence.evidence = {
           ...currentAnalysisEvidence,
           fetch: fetchEvidenceData
         };
-      } else {
-        analysisWithEvidence.evidenceFetch = fetchEvidenceData;
+      } else if (fetchEvidenceData !== null) {
+        // fetchEvidenceData가 있으면 evidence 객체 생성
+        analysisWithEvidence.evidence = {
+          fetch: fetchEvidenceData
+        };
+      } else if (currentAnalysisEvidence) {
+        // currentAnalysisEvidence가 있으면 그대로 사용
+        analysisWithEvidence.evidence = currentAnalysisEvidence;
       }
       
       // v2Summary 리포트 모델 생성 (inputs 포함)

@@ -4,8 +4,8 @@
   "description": "Phase 11-1: Share Snapshot API 서버 (MVP)",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js"
+    "start": "PORT=3001 node index.js",
+    "dev": "PORT=3001 node index.js"
   },
   "keywords": [
     "share",
@@ -15,9 +15,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
-    "cheerio": "^1.0.0-rc.12"
+    "express": "^4.18.2"
   }
 }
-
