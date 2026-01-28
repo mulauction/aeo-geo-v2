@@ -8,10 +8,22 @@ import { setModals, gateOrWarn } from "./gate.js";
 export function boot() {
   const root = {
     inputText: document.getElementById("inputText"),
+    inputUrl: document.getElementById("inputUrl"),
     btnAnalyze: document.getElementById("btnAnalyze"),
     status: document.getElementById("status"),
     result: document.getElementById("result"),
   };
+  
+  // ✅ [Phase 175-0] URL 쿼리 파라미터에서 inputUrl 주입 (UI 필드 없을 때)
+  const params = new URLSearchParams(window.location.search);
+  const urlParam = params.get("url");
+  if (!root.inputUrl && urlParam && typeof urlParam === 'string') {
+    const decodedUrl = decodeURIComponent(urlParam);
+    // 유효한 http/https일 때만 사용
+    if (decodedUrl.startsWith('http://') || decodedUrl.startsWith('https://')) {
+      root.inputUrl = { value: decodedUrl };
+    }
+  }
 
   // ✅ [1] 가장 먼저: URL 구조 CTA 선점 리스너 (캡처 + 즉시 전파 차단)
   if (!window.__urlStructureCtaBound) {
@@ -62,7 +74,7 @@ export function boot() {
   setModals(loginModal, creditModal);
   window.loginModalInstance = loginModal;
 
-  const params = new URLSearchParams(window.location.search);
+  // params는 이미 위에서 읽음
   const product = params.get("product");
   const brand = params.get("brand");
   
