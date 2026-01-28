@@ -4077,21 +4077,6 @@
         // ✅ [Phase 29-2] KR pricing/quota copy single-source freeze (UI-only)
         // - 절대 금지: 결제/로그인/차감/잔여 계산/스토리지 로직 추가
         // - 목표: 가격/플랜/잔여(Quota badge) 문구를 단일 소스(모듈+빌더)로만 관리
-        // [debug-only] tier override (URL: ?debug=1&tier=FREE|BASIC|PLUS|TEAM)
-        function __getDebugTierOverride() {
-          try {
-            const p = new URLSearchParams(location.search);
-            if (p.get('debug') !== '1') return null;
-            const raw = String(p.get('tier') || '').trim().toUpperCase();
-            const allow = ['FREE', 'BASIC', 'PLUS', 'TEAM'];
-            if (!allow.includes(raw)) return null;
-            console.info('[debug] tier override applied', { tier: raw });
-            return raw;
-          } catch (_) {
-            return null;
-          }
-        }
-
         function applyQuotaBadgeCopyKR() {
           const planEl = document.getElementById('quotaBadgePlan');
           const remainingEl = document.getElementById('quotaBadgeRemaining');
@@ -4171,15 +4156,6 @@
                     month,
                     remaining,
                     plan: data.plan || null,
-                  // debug-only tier override (in-memory only; no storage writes)
-                  try {
-                    const __dbgTier = __getDebugTierOverride();
-                    if (__dbgTier) {
-                      if (!data.plan || typeof data.plan !== 'object') data.plan = {};
-                      data.plan.tier = __dbgTier;
-                    }
-                  } catch (_) {}
-
                     ts: Date.now()
                   };
                   window.__usageSummaryCacheRemaining = remaining; // legacy mirror
