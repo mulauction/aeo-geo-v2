@@ -22,3 +22,7 @@ server/data/telemetry/summary/*.json
 *.log
 *.jsonl
 *.ndjson
+
+# deps
+node_modules/
+server/node_modules/
