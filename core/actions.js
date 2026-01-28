@@ -97,6 +97,54 @@ async function trySnapshot(payload) {
   }
 }
 
+/**
+ * ✅ [Phase 172] Fetch evidence from URL
+ * @param {string} url - URL to fetch
+ * @returns {Promise<Object|null>} Fetch evidence object or null
+ */
+async function fetchEvidenceClient(url) {
+  if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    return null;
+  }
+
+  const urlParams = new URLSearchParams(window.location.search || '');
+  const isDebug = urlParams.get('debug') === '1';
+  const isLocalhost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
+  
+  // Backend not present 판단
+  const shouldSend = (!isLocalhost) || String(location.port || '') === '3001';
+  if (!shouldSend) {
+    if (isDebug) console.info('[fetchEvidence] skipped (backend not present): /api/fetch/evidence');
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const res = await fetch('/api/fetch/evidence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (res && res.ok) {
+      const json = await res.json();
+      if (json && json.fetch) {
+        return json.fetch;
+      }
+    }
+    return null;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (isDebug) console.info('[fetchEvidence] failed:', e?.message || e);
+    return null;
+  }
+}
+
 
 export function bindActions(root) {
   root.btnAnalyze.addEventListener("click", async (event) => {
@@ -267,14 +315,39 @@ export function bindActions(root) {
         urlStructureV1: shouldResetUrlData ? null : (reportPayload.analysis?.scores?.urlStructureV1 || null)
       };
       
+      // ✅ [Phase 172] Fetch evidence from URL if available
+      let fetchEvidenceData = null;
+      if (inputs.url) {
+        try {
+          fetchEvidenceData = await fetchEvidenceClient(inputs.url);
+        } catch (e) {
+          // On error, keep null (analysis must still complete)
+          console.warn('[actions] fetchEvidence failed:', e?.message || e);
+        }
+      }
+
+      // Prepare analysis object with evidence
+      const currentAnalysisEvidence = reportPayload.analysis?.evidence;
+      let analysisWithEvidence = {
+        scores: v2SummaryAnalysisScores
+      };
+      
+      // Store fetch evidence: if evidence is an object, set evidence.fetch; otherwise set evidenceFetch
+      if (currentAnalysisEvidence && typeof currentAnalysisEvidence === 'object' && !Array.isArray(currentAnalysisEvidence)) {
+        analysisWithEvidence.evidence = {
+          ...currentAnalysisEvidence,
+          fetch: fetchEvidenceData
+        };
+      } else {
+        analysisWithEvidence.evidenceFetch = fetchEvidenceData;
+      }
+      
       // v2Summary 리포트 모델 생성 (inputs 포함)
       const v2Summary = {
         inputs: inputs,
         input: finalState.input || null,
         result: reportPayload.result || null,
-        analysis: {
-          scores: v2SummaryAnalysisScores
-        },
+        analysis: analysisWithEvidence,
         generatedAt: reportPayload.generatedAt || Date.now(),
         createdAt: new Date().toISOString()
       };
